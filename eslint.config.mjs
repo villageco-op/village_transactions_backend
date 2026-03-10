@@ -10,12 +10,12 @@ export default [
     ignores: ['node_modules/**', 'dist/**', 'docs/adr/**'],
   },
   {
-    files: ["src/**/*.ts", "src/**/*.tsx"],
+    files: ['src/**/*.ts', 'src/**/*.tsx'],
     plugins: {
       '@typescript-eslint': tsPlugin,
-      'jsdoc': jsdoc,
+      jsdoc: jsdoc,
       'unused-imports': unusedImports,
-      'import': importPlugin,
+      import: importPlugin,
     },
     languageOptions: {
       parser: tsParser,
@@ -26,32 +26,38 @@ export default [
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
-      
+
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
       'require-await': 'off',
       '@typescript-eslint/require-await': 'error',
 
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
-      'import/order': ['error', {
-        'groups': ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
-        'newlines-between': 'always',
-        'alphabetize': { 'order': 'asc', 'caseInsensitive': true }
-      }],
+      'import/order': [
+        'error',
+        {
+          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+          'newlines-between': 'always',
+          alphabetize: { order: 'asc', caseInsensitive: true },
+        },
+      ],
 
-      'no-restricted-imports': ['error', {
-        'paths': [],
-        'patterns': [
-          {
-            'group': ['**/repositories/**'],
-            'message': 'Routes must use Services. Do not import repositories directly.'
-          },
-          {
-            'group': ['**/routes/**', '**/handlers/**'],
-            'message': 'Services should be decoupled from Route handlers.'
-          }
-        ]
-      }],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [],
+          patterns: [
+            {
+              group: ['**/repositories/**'],
+              message: 'Routes must use Services. Do not import repositories directly.',
+            },
+            {
+              group: ['**/routes/**', '**/handlers/**'],
+              message: 'Services should be decoupled from Route handlers.',
+            },
+          ],
+        },
+      ],
 
       'jsdoc/require-jsdoc': ['error', { publicOnly: true }],
       'jsdoc/require-description': 'error',
@@ -65,7 +71,7 @@ export default [
     files: ['**/*.test.ts', 'tests/**'],
     languageOptions: {
       parserOptions: {
-        project: "./tsconfig.test.json",
+        project: './tsconfig.test.json',
         tsconfigRootDir: import.meta.dirname,
       },
     },

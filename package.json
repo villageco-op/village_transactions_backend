@@ -6,6 +6,9 @@
   "scripts": {
     "test": "vitest",
     "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "typecheck": "tsc --noEmit",
     "prepare": "husky"
   },
   "keywords": [],
