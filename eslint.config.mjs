@@ -68,16 +68,27 @@ export default [
     },
   },
   {
-    files: ['**/*.test.ts', 'tests/**'],
+    files: ['tests/**/*.ts', 'src/**/*.test.ts'],
+    plugins: { '@typescript-eslint': tsPlugin },
     languageOptions: {
+      parser: tsParser,
       parserOptions: {
         project: './tsconfig.test.json',
         tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
-      'jsdoc/require-jsdoc': 'off',
       '@typescript-eslint/no-floating-promises': 'off',
     },
   },
+  {
+    files: ['vitest.config.ts', 'eslint.config.mjs'],
+    languageOptions: {
+      parser: tsParser,
+    },
+  },
+  {
+    files: ['src/index.ts'],
+    rules: { 'no-restricted-imports': 'off' }
+  }
 ];

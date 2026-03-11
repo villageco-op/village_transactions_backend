@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "vitest",
     "lint": "eslint .",
@@ -42,6 +43,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
+    "@hono/swagger-ui": "^0.6.1",
+    "@hono/zod-openapi": "^1.2.2",
     "hono": "^4.12.5"
   }
 }
