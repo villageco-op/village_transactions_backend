@@ -8,3 +8,4 @@ docs
 .github
 pnpm-lock.yaml
 pnpm-workspace.yaml
+drizzle
