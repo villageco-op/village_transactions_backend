@@ -25,4 +25,14 @@ export const userRepository = {
 
     return user ?? null;
   },
+
+  /**
+   * Retrieves a user from the database by their ID.
+   * @param id - The unique user ID to search for
+   * @returns The user object if found, otherwise null
+   */
+  async findById(id: string): Promise<User | null> {
+    const [user] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    return user ?? null;
+  },
 };

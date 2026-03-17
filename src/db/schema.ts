@@ -1,4 +1,12 @@
-import { pgTable, serial, text, customType, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  serial,
+  text,
+  customType,
+  timestamp,
+  numeric,
+  boolean,
+} from 'drizzle-orm/pg-core';
 
 const geography = customType<{ data: string }>({
   dataType() {
@@ -19,4 +27,11 @@ export const users = pgTable('users', {
   emailVerified: timestamp('email_verified'),
   image: text('image'),
   passwordHash: text('password_hash'),
+
+  address: text('address'),
+  location: geography('location'),
+  deliveryRangeMiles: numeric('delivery_range_miles').default('0'),
+
+  stripeAccountId: text('stripe_account_id').unique(),
+  stripeOnboardingComplete: boolean('stripe_onboarding_complete').default(false),
 });

@@ -7,10 +7,8 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
 
   beforeAll(async () => {
-    // Spin up container and run migrations once per file
     testDb = await createTestDb();
 
-    // Inject the test DB into the repository
     userRepository.setDb(testDb);
   }, 60_000);
 
@@ -19,12 +17,10 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   beforeEach(async () => {
-    // Clean the database before every single test
     await truncateTables(testDb);
   });
 
   it('should save and find a user by email', async () => {
-    // Arrange: Insert real data into the real DB
     await testDb.insert(users).values({
       id: 'test_id',
       name: 'Integration Tester',
@@ -32,10 +28,8 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       passwordHash: 'hashed_pw_123',
     });
 
-    // Act: Call the repository function
     const user = await userRepository.findByEmail('integration@example.com');
 
-    // Assert: Verify Drizzle actually fetched the correct schema
     expect(user).toBeDefined();
     expect(user?.name).toBe('Integration Tester');
     expect(user?.email).toBe('integration@example.com');
@@ -43,6 +37,33 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
   it('should return null for non-existent email', async () => {
     const user = await userRepository.findByEmail('nobody@example.com');
+    expect(user).toBeNull();
+  });
+
+  it('should save and find a user by ID including extended schema fields', async () => {
+    await testDb.insert(users).values({
+      id: 'seller_123',
+      name: 'Marketplace Seller',
+      email: 'seller@example.com',
+      passwordHash: 'hashed_pw_456',
+      address: '789 Commerce Way',
+      deliveryRangeMiles: '50.5',
+      stripeAccountId: 'acct_123abc',
+      stripeOnboardingComplete: true,
+    });
+
+    const user = await userRepository.findById('seller_123');
+
+    expect(user).toBeDefined();
+    expect(user?.id).toBe('seller_123');
+    expect(user?.address).toBe('789 Commerce Way');
+    expect(user?.deliveryRangeMiles).toBe('50.5'); // Numeric types return as string
+    expect(user?.stripeAccountId).toBe('acct_123abc');
+    expect(user?.stripeOnboardingComplete).toBe(true);
+  });
+
+  it('should return null for non-existent ID', async () => {
+    const user = await userRepository.findById('missing_id_999');
     expect(user).toBeNull();
   });
 });

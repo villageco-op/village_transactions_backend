@@ -12,13 +12,20 @@ describe('UserRepository - Automated Migrations', () => {
   });
 
   it('should save and retrieve a user using the real schema', async () => {
-    const newUser: User = {
+    const newUser = {
       id: 'user_abc_123',
       name: 'Jane Doe',
       email: 'jane@example.com',
       emailVerified: new Date(),
       image: null,
       passwordHash: 'secure_hash',
+      address: '123 Market St',
+      location: null,
+      deliveryRangeMiles: '25.5',
+      stripeAccountId: 'acct_123456',
+      stripeOnboardingComplete: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     await userRepository.db.insert(schema.users).values(newUser);
@@ -28,6 +35,27 @@ describe('UserRepository - Automated Migrations', () => {
     expect(result).toMatchObject({
       id: 'user_abc_123',
       email: 'jane@example.com',
+      stripeAccountId: 'acct_123456',
+      deliveryRangeMiles: '25.5',
+    });
+  });
+
+  it('should save and retrieve a user by ID', async () => {
+    const newUser = {
+      id: 'user_xyz_789',
+      name: 'John Smith',
+      email: 'john@example.com',
+      passwordHash: 'secure_hash',
+    };
+
+    await userRepository.db.insert(schema.users).values(newUser);
+
+    const result = await userRepository.findById('user_xyz_789');
+
+    expect(result).toMatchObject({
+      id: 'user_xyz_789',
+      name: 'John Smith',
+      email: 'john@example.com',
     });
   });
 });

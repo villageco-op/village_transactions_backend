@@ -1,6 +1,7 @@
 import { authHandler, initAuthConfig, verifyAuth } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { HTTPException } from 'hono/http-exception';
 
 import { getAuthConfig } from './lib/auth-config.js';
 import { openApiConfig } from './lib/openapi-config.js';
@@ -17,6 +18,14 @@ import { subscriptionsRoute } from './routes/subscriptions.js';
 import { usersRoute } from './routes/users.js';
 
 export const app = new OpenAPIHono();
+
+app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return c.json({ error: err.message }, err.status);
+  }
+
+  return c.json({ error: 'Internal Server Error' }, 500);
+});
 
 app.use('*', initAuthConfig(getAuthConfig));
 
