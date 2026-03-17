@@ -68,6 +68,22 @@ export default [
     },
   },
   {
+    files: ['src/services/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/routes/**', '**/handlers/**'],
+              message: 'Services should be decoupled from Route handlers.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['tests/**/*.ts', 'src/**/*.test.ts'],
     plugins: { '@typescript-eslint': tsPlugin },
     languageOptions: {

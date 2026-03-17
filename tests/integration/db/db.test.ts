@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sql } from 'drizzle-orm';
 
-import { db } from '../../src/db';
+import { db } from '../../../src/db';
 
 describe('Database Connection', () => {
   it('should successfully connect to Neon and return a result', async () => {

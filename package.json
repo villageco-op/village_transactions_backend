@@ -9,6 +9,8 @@
     "start": "node src/index.js",
     "generate:openapi": "tsx scripts/generate-openapi.ts",
     "test": "vitest",
+    "test:unit": "vitest run tests/unit/",
+    "test:integration": "vitest run tests/integration/",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format:fix": "prettier --write .",
@@ -21,23 +23,24 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@commitlint/cli": "^20.4.3",
-    "@commitlint/config-conventional": "^20.4.3",
-    "@types/node": "^25.3.5",
-    "@typescript-eslint/eslint-plugin": "^8.56.1",
-    "@typescript-eslint/parser": "^8.56.1",
-    "drizzle-kit": "^0.31.9",
-    "eslint": "^9.39.3",
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.18.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-jsdoc": "^62.7.1",
+    "eslint-plugin-jsdoc": "^62.8.0",
     "eslint-plugin-unused-imports": "^4.4.1",
     "husky": "^9.1.7",
-    "lint-staged": "^16.3.2",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
     "tsx": "^4.21.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.0"
   },
   "lint-staged": {
     "*.ts": [
@@ -49,12 +52,18 @@
     ]
   },
   "dependencies": {
+    "@auth/core": "^0.35.3",
+    "@hono/auth-js": "^1.1.1",
     "@hono/node-server": "^1.19.11",
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^1.2.2",
+    "@libsql/client": "^0.17.0",
     "@neondatabase/serverless": "^1.0.2",
+    "@testcontainers/postgresql": "^11.13.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
-    "hono": "^4.12.5"
+    "hono": "^4.12.8",
+    "pg": "^8.20.0"
   }
 }

@@ -1,6 +1,8 @@
+import { authHandler, initAuthConfig, verifyAuth } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
 
+import { getAuthConfig } from './lib/auth-config.js';
 import { openApiConfig } from './lib/openapi-config.js';
 import { availabilityRoute } from './routes/availability.js';
 import { cartRoute } from './routes/cart.js';
@@ -16,7 +18,13 @@ import { usersRoute } from './routes/users.js';
 
 export const app = new OpenAPIHono();
 
+app.use('*', initAuthConfig(getAuthConfig));
+
+app.use('/api/auth/*', authHandler());
+
 app.get('/health', (c) => c.json({ status: 'ok' }));
+
+app.use('/api/users/*', verifyAuth());
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);

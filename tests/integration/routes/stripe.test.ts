@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { request } from '../test-utils';
+import { request } from '../../test-utils/request.js';
 
 describe('Stripe API', () => {
   it('POST /api/stripe/webhook should return 200', async () => {
