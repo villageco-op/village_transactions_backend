@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import * as schema from '../../../src/db/schema';
 import { userRepository } from '../../../src/repositories/user.repository';
-import { DbClient, User } from '../../../src/db/types';
+import { DbClient } from '../../../src/db/types';
 import { createTestDb } from '../../test-utils/libsql-db';
 
 describe('UserRepository - Automated Migrations', () => {
@@ -86,5 +86,26 @@ describe('UserRepository - Automated Migrations', () => {
 
     const verifiedUser = await userRepository.findById('user_update_123');
     expect(verifiedUser?.name).toBe('New Name');
+  });
+
+  it('should update user fcmToken and fcmPlatform using updateFcmToken', async () => {
+    const newUser = {
+      id: 'user_fcm_123',
+      name: 'Push User',
+      email: 'push@example.com',
+      passwordHash: 'secure_hash',
+    };
+
+    await userRepository.db.insert(schema.users).values(newUser);
+
+    await userRepository.updateFcmToken('user_fcm_123', 'mock_firebase_token_xyz', 'ios');
+
+    const verifiedUser = await userRepository.findById('user_fcm_123');
+
+    expect(verifiedUser).toMatchObject({
+      id: 'user_fcm_123',
+      fcmToken: 'mock_firebase_token_xyz',
+      fcmPlatform: 'ios',
+    });
   });
 });

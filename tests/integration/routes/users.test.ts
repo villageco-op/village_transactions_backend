@@ -110,18 +110,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(body).toHaveProperty('error', 'User not found');
   });
 
-  it('POST /api/users/fcm-token should return 200', async () => {
-    const res = await authedRequest('/api/users/fcm-token', {
-      method: 'POST',
-      body: JSON.stringify({
-        token: 'test_token_abc',
-        platform: 'ios',
-      }),
-    });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ success: true });
-  });
-
   it('PUT /api/users/me/schedule-rules should return 200', async () => {
     const res = await authedRequest('/api/users/me/schedule-rules', {
       method: 'PUT',
@@ -131,5 +119,65 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
+  });
+
+  it('POST /api/users/fcm-token should store token in DB and return 200', async () => {
+    await testDb.insert(users).values({
+      id: TEST_USER_ID,
+      email: 'fcm@example.com',
+      name: 'FCM User',
+    });
+
+    const payload = {
+      token: 'v1-firebase-token-12345',
+      platform: 'android',
+    };
+
+    const res = await authedRequest(
+      '/api/users/fcm-token',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      { id: TEST_USER_ID },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ success: true });
+
+    const updatedUser = await userRepository.findById(TEST_USER_ID);
+    expect(updatedUser?.fcmToken).toBe(payload.token);
+    expect(updatedUser?.fcmPlatform).toBe(payload.platform);
+  });
+
+  it('POST /api/users/fcm-token should return 404 if user is not in database', async () => {
+    const res = await authedRequest(
+      '/api/users/fcm-token',
+      {
+        method: 'POST',
+        body: JSON.stringify({ token: 't', platform: 'p' }),
+      },
+      { id: 'non_existent_id' },
+    );
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toHaveProperty('error', 'User not found');
+  });
+
+  it('POST /api/users/fcm-token should return 400 for invalid request body', async () => {
+    await testDb.insert(users).values({ id: TEST_USER_ID, email: 'valid@example.com' });
+
+    const res = await authedRequest(
+      '/api/users/fcm-token',
+      {
+        method: 'POST',
+        body: JSON.stringify({ token: 'missing-platform' }),
+      },
+      { id: TEST_USER_ID },
+    );
+
+    expect(res.status).toBe(400);
   });
 });

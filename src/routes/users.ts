@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import { UserProfileSchema } from '../schemas/user.schema.js';
 import { UpdateUserSchema } from '../schemas/user.schema.js';
-import { getCurrentUser, updateCurrentUser } from '../services/user.service.js';
+import { getCurrentUser, registerFcmToken, updateCurrentUser } from '../services/user.service.js';
 
 export const usersRoute = new OpenAPIHono();
 
@@ -105,10 +105,30 @@ usersRoute.openapi(
         description: 'Token stored',
         content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
       },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      404: {
+        description: 'User not found',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
     },
   }),
-  // TODO: [Service] Get data and call register FCM token service.
-  (c) => c.json({ success: true }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { token, platform } = c.req.valid('json');
+
+    await registerFcmToken(userId, token, platform);
+
+    return c.json({ success: true }, 200);
+  },
 );
 
 usersRoute.openapi(
