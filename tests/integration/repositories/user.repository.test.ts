@@ -66,4 +66,30 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
     const user = await userRepository.findById('missing_id_999');
     expect(user).toBeNull();
   });
+
+  it('should update a user and correctly format lat/lng into PostGIS location', async () => {
+    await testDb.insert(users).values({
+      id: 'update_user_123',
+      name: 'Old Name',
+      email: 'update@example.com',
+      passwordHash: 'hashed_pw_123',
+    });
+
+    const updatedUser = await userRepository.updateById('update_user_123', {
+      name: 'New Name',
+      address: '123 Map St',
+      deliveryRangeMiles: 15,
+      lat: 40.7128,
+      lng: -74.006,
+    });
+
+    expect(updatedUser).toBeDefined();
+    expect(updatedUser?.name).toBe('New Name');
+    expect(updatedUser?.address).toBe('123 Map St');
+    expect(updatedUser?.deliveryRangeMiles).toBe('15');
+
+    const fetchedUser = await userRepository.findById('update_user_123');
+    expect(fetchedUser?.location).toBeDefined();
+    expect(fetchedUser?.location).not.toBeNull();
+  });
 });

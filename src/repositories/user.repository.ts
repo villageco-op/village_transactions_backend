@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { eq, type SQL, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { users } from '../db/schema.js';
 import type { DbClient, User } from '../db/types.js';
+import type { UpdateUserPayload } from '../schemas/user.schema.js';
 
 export const userRepository = {
   db: defaultDb as unknown as DbClient,
@@ -34,5 +35,34 @@ export const userRepository = {
   async findById(id: string): Promise<User | null> {
     const [user] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
     return user ?? null;
+  },
+
+  /**
+   * Updates a user's profile information by their ID.
+   * @param id - The unique user ID to update
+   * @param data - The update payload (handles extracting lat/lng to a PostGIS point)
+   * @returns The updated user object if found, otherwise null
+   */
+  async updateById(id: string, data: UpdateUserPayload): Promise<User | null> {
+    type UpdateSchema = Partial<typeof users.$inferInsert>;
+    const updatePayload: { [K in keyof UpdateSchema]: UpdateSchema[K] | SQL } = {};
+
+    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.address !== undefined) updatePayload.address = data.address;
+    if (data.deliveryRangeMiles !== undefined) {
+      updatePayload.deliveryRangeMiles = data.deliveryRangeMiles.toString();
+    }
+
+    if (data.lat !== undefined && data.lng !== undefined) {
+      updatePayload.location = sql`ST_SetSRID(ST_MakePoint(${data.lng}, ${data.lat}), 4326)`;
+    }
+
+    const [updatedUser] = await this.db
+      .update(users)
+      .set(updatePayload)
+      .where(eq(users.id, id))
+      .returning();
+
+    return updatedUser ?? null;
   },
 };
