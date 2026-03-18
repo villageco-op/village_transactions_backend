@@ -1,5 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
+import { CreateProduceSchema } from '../schemas/produce.schema.js';
+import { createProduceListing } from '../services/produce.service.js';
+
 export const produceRoute = new OpenAPIHono();
 
 produceRoute.openapi(
@@ -61,21 +64,12 @@ produceRoute.openapi(
     method: 'post',
     path: '/',
     operationId: 'createProduce',
-    description: 'Create a new listing.',
+    description: 'Create a new produce listing.',
     request: {
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              title: z.string(),
-              pricePerOz: z.number(),
-              totalOzInventory: z.number(),
-              harvestFrequencyDays: z.number(),
-              seasonStart: z.string(),
-              seasonEnd: z.string(),
-              images: z.array(z.string()),
-              isSubscribable: z.boolean(),
-            }),
+            schema: CreateProduceSchema,
           },
         },
       },
@@ -85,10 +79,30 @@ produceRoute.openapi(
         description: 'Listing created',
         content: { 'application/json': { schema: z.object({ id: z.string() }) } },
       },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      500: {
+        description: 'Server Error',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
     },
   }),
-  // TODO: [Service] Get data and call create produce service.
-  (c) => c.json({ id: 'prod_123' }, 201),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = c.req.valid('json');
+
+    const newProduce = await createProduceListing(userId, body);
+
+    return c.json({ id: newProduce.id }, 201);
+  },
 );
 
 produceRoute.openapi(
