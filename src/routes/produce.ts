@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
-import { CreateProduceSchema } from '../schemas/produce.schema.js';
-import { createProduceListing } from '../services/produce.service.js';
+import { CreateProduceSchema, UpdateProduceSchema } from '../schemas/produce.schema.js';
+import { createProduceListing, updateProduceListing } from '../services/produce.service.js';
 
 export const produceRoute = new OpenAPIHono();
 
@@ -83,10 +83,6 @@ produceRoute.openapi(
         description: 'Unauthorized',
         content: { 'application/json': { schema: z.object({ error: z.string() }) } },
       },
-      500: {
-        description: 'Server Error',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
-      },
     },
   }),
   async (c) => {
@@ -112,14 +108,11 @@ produceRoute.openapi(
     operationId: 'updateProduce',
     description: 'Update a listing or pause it.',
     request: {
-      params: z.object({ id: z.string() }),
+      params: z.object({ id: z.string().uuid() }),
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              status: z.enum(['active', 'paused']),
-              totalOzInventory: z.number(),
-            }),
+            schema: UpdateProduceSchema,
           },
         },
       },
@@ -127,12 +120,43 @@ produceRoute.openapi(
     responses: {
       200: {
         description: 'Listing updated',
-        content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+        content: {
+          'application/json': { schema: z.object({ success: z.boolean(), id: z.string() }) },
+        },
+      },
+      400: {
+        description: 'Bad Request',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      404: {
+        description: 'Not Found / Unauthorized Listing Ownership',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
       },
     },
   }),
-  // TODO: [Service] Get data and call update produce service.
-  (c) => c.json({ success: true }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json');
+
+    const updatedProduce = await updateProduceListing(id, userId, body);
+
+    if (!updatedProduce) {
+      return c.json({ error: 'Listing not found or unauthorized' }, 404);
+    }
+
+    return c.json({ success: true, id: updatedProduce.id }, 200);
+  },
 );
 
 produceRoute.openapi(

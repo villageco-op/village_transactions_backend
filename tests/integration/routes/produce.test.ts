@@ -51,25 +51,97 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     expect(Array.isArray(body)).toBe(true);
   });
 
-  it('PUT /api/produce/:id should return 200', async () => {
+  it('PUT /api/produce/:id should return 200 and update the DB listing', async () => {
+    // 1. Create a listing directly in DB to guarantee it exists
+    const [dbProduce] = await testDb
+      .insert(produce)
+      .values({
+        sellerId: TEST_USER_ID,
+        title: 'Plums',
+        produceType: 'fruit',
+        pricePerOz: '0.40',
+        totalOzInventory: '300',
+        harvestFrequencyDays: 5,
+        seasonStart: '2024-05-01',
+        seasonEnd: '2024-07-31',
+        images: [],
+        status: 'active',
+      })
+      .returning();
+
+    // 2. Perform PUT request to update it
     const res = await authedRequest(
-      '/api/produce/prod_123',
+      `/api/produce/${dbProduce.id}`,
       {
         method: 'PUT',
         body: JSON.stringify({
-          status: 'active',
-          totalOzInventory: 200,
+          status: 'paused',
+          totalOzInventory: 250, // decreased inventory
         }),
       },
       { id: TEST_USER_ID },
     );
+
+    // 3. Assert Route Response
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ success: true });
+    const body = await res.json();
+    expect(body).toEqual({ success: true, id: dbProduce.id });
+
+    // 4. Assert DB changes occurred
+    const [updatedDbProduce] = await testDb
+      .select()
+      .from(produce)
+      .where(eq(produce.id, dbProduce.id));
+    expect(updatedDbProduce.status).toBe('paused');
+    expect(updatedDbProduce.totalOzInventory).toBe('250.00');
+  });
+
+  it('PUT /api/produce/:id should return 400 for an invalid UUID format', async () => {
+    const res = await authedRequest(
+      '/api/produce/invalid_id_format',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'paused' }),
+      },
+      { id: TEST_USER_ID },
+    );
+    expect(res.status).toBe(400); // Because param validation expects a UUID
+  });
+
+  it('PUT /api/produce/:id should return 400 if the request body is empty', async () => {
+    const dummyId = crypto.randomUUID();
+    const res = await authedRequest(
+      `/api/produce/${dummyId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({}), // empty body
+      },
+      { id: TEST_USER_ID },
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it('PUT /api/produce/:id should return 404 for a non-existent or unauthorized listing', async () => {
+    const randomValidId = crypto.randomUUID();
+    const res = await authedRequest(
+      `/api/produce/${randomValidId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'paused' }),
+      },
+      { id: TEST_USER_ID },
+    );
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toHaveProperty('error', 'Listing not found or unauthorized');
   });
 
   it('DELETE /api/produce/:id should return 200', async () => {
+    const validDummyId = '123e4567-e89b-12d3-a456-426614174000';
     const res = await authedRequest(
-      '/api/produce/prod_123',
+      `/api/produce/${validDummyId}`,
       {
         method: 'DELETE',
       },
