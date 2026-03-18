@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import {
   createProduceListing,
+  deleteProduceListing,
   updateProduceListing,
 } from '../../../src/services/produce.service.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
@@ -10,6 +11,7 @@ vi.mock('../../../src/repositories/produce.repository.js', () => ({
   produceRepository: {
     create: vi.fn(),
     update: vi.fn(),
+    softDelete: vi.fn(),
   },
 }));
 
@@ -122,5 +124,32 @@ describe('ProduceService - updateProduceListing', () => {
     );
 
     expect(produceRepository.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ProduceService - deleteProduceListing', () => {
+  const mockId = '123e4567-e89b-12d3-a456-426614174000';
+  const mockSellerId = 'user_123';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully soft delete a produce listing and return true', async () => {
+    vi.mocked(produceRepository.softDelete).mockResolvedValueOnce(true);
+
+    const result = await deleteProduceListing(mockId, mockSellerId);
+
+    expect(result).toBe(true);
+    expect(produceRepository.softDelete).toHaveBeenCalledWith(mockId, mockSellerId);
+  });
+
+  it('should return false if the listing is not found or unauthorized', async () => {
+    vi.mocked(produceRepository.softDelete).mockResolvedValueOnce(false);
+
+    const result = await deleteProduceListing(mockId, mockSellerId);
+
+    expect(result).toBe(false);
+    expect(produceRepository.softDelete).toHaveBeenCalledWith(mockId, mockSellerId);
   });
 });

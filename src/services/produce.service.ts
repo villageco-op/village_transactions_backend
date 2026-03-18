@@ -25,3 +25,13 @@ export async function updateProduceListing(
 ) {
   return await produceRepository.update(id, sellerId, data);
 }
+
+/**
+ * Soft deletes an existing produce listing.
+ * @param id - The ID of the listing to delete
+ * @param sellerId - User's unique ID injected by auth session
+ * @returns A boolean representing success
+ */
+export async function deleteProduceListing(id: string, sellerId: string): Promise<boolean> {
+  return await produceRepository.softDelete(id, sellerId);
+}

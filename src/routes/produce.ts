@@ -1,7 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import { CreateProduceSchema, UpdateProduceSchema } from '../schemas/produce.schema.js';
-import { createProduceListing, updateProduceListing } from '../services/produce.service.js';
+import {
+  createProduceListing,
+  deleteProduceListing,
+  updateProduceListing,
+} from '../services/produce.service.js';
 
 export const produceRoute = new OpenAPIHono();
 
@@ -165,14 +169,42 @@ produceRoute.openapi(
     path: '/{id}',
     operationId: 'deleteProduce',
     description: 'Remove a listing (soft delete).',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: z.string().uuid() }) },
     responses: {
       200: {
         description: 'Listing deleted',
         content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
       },
+      400: {
+        description: 'Bad Request',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      404: {
+        description: 'Not Found / Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
     },
   }),
-  // TODO: [Service] Call delete produce service.
-  (c) => c.json({ success: true }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id } = c.req.valid('param');
+
+    const success = await deleteProduceListing(id, userId);
+
+    if (!success) {
+      return c.json({ error: 'Listing not found or unauthorized' }, 404);
+    }
+
+    return c.json({ success: true }, 200);
+  },
 );
