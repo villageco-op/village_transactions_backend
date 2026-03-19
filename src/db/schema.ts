@@ -74,3 +74,17 @@ export const produce = pgTable('produce', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
+
+export const cartReservations = pgTable('cart_reservations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  buyerId: text('buyer_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => produce.id, { onDelete: 'cascade' }),
+  quantityOz: numeric('quantity_oz', { precision: 10, scale: 2 }).notNull(),
+  isSubscription: boolean('is_subscription').default(false),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});

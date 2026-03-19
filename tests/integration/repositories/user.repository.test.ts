@@ -1,21 +1,24 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 
-import { createTestDb, closeTestDb, truncateTables } from '../../test-utils/testcontainer-db.js';
+import {
+  truncateTables,
+  getTestDb,
+  closeTestDbConnection,
+} from '../../test-utils/testcontainer-db.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { users, fcmTokens } from '../../../src/db/schema.js';
 
 describe('UserRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
 
-  beforeAll(async () => {
-    testDb = await createTestDb();
-
+  beforeAll(() => {
+    testDb = getTestDb();
     userRepository.setDb(testDb);
-  }, 60_000);
+  });
 
   afterAll(async () => {
-    await closeTestDb();
+    await closeTestDbConnection();
   });
 
   beforeEach(async () => {
