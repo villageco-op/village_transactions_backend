@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { addToCart, getCart, removeFromCart } from '../../../src/services/cart.service.js';
+import {
+  addToCart,
+  getCart,
+  releaseExpiredCarts,
+  removeFromCart,
+} from '../../../src/services/cart.service.js';
 import { cartRepository } from '../../../src/repositories/cart.repository.js';
 
 vi.mock('../../../src/repositories/cart.repository.js', () => ({
@@ -7,6 +12,7 @@ vi.mock('../../../src/repositories/cart.repository.js', () => ({
     addToCart: vi.fn(),
     getActiveCart: vi.fn(),
     removeFromCart: vi.fn(),
+    releaseExpiredCarts: vi.fn(),
   },
 }));
 
@@ -186,5 +192,27 @@ describe('CartService - removeFromCart', () => {
     vi.mocked(cartRepository.removeFromCart).mockRejectedValueOnce(new Error('DB Error'));
 
     await expect(removeFromCart(mockBuyerId, mockReservationId)).rejects.toThrow('DB Error');
+  });
+});
+
+describe('CartService - releaseExpiredCarts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully call releaseExpiredCarts on the repository and return the count', async () => {
+    const mockDeletedCount = 4;
+    vi.mocked(cartRepository.releaseExpiredCarts).mockResolvedValueOnce(mockDeletedCount);
+
+    const result = await releaseExpiredCarts();
+
+    expect(result).toBe(mockDeletedCount);
+    expect(cartRepository.releaseExpiredCarts).toHaveBeenCalledOnce();
+  });
+
+  it('should propagate errors from the repository', async () => {
+    vi.mocked(cartRepository.releaseExpiredCarts).mockRejectedValueOnce(new Error('DB Error'));
+
+    await expect(releaseExpiredCarts()).rejects.toThrow('DB Error');
   });
 });

@@ -86,4 +86,20 @@ export const cartRepository = {
 
     return deleted.length > 0;
   },
+
+  /**
+   * Globally drops all expired reservations across all buyers.
+   * Triggered automatically by the cron job.
+   * @returns The number of deleted reservations
+   */
+  async releaseExpiredCarts(): Promise<number> {
+    const now = new Date();
+
+    const deleted = await this.db
+      .delete(cartReservations)
+      .where(lt(cartReservations.expiresAt, now))
+      .returning({ id: cartReservations.id });
+
+    return deleted.length;
+  },
 };

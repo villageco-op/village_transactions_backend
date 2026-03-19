@@ -154,4 +154,29 @@ describe('CartRepository - Integration', { timeout: 60_000 }, () => {
       .where(eq(cartReservations.id, reservation.id));
     expect(check).toHaveLength(1);
   });
+
+  it('should globally delete expired reservations for all buyers', async () => {
+    const BUYER_2_ID = 'buyer_repo_2';
+    await testDb.insert(users).values([{ id: BUYER_2_ID, email: 'buyer2@test.com' }]);
+
+    const now = new Date();
+    const pastDate = new Date(now.getTime() - 1000 * 60 * 10);
+    const futureDate = new Date(now.getTime() + 1000 * 60 * 10);
+
+    await testDb.insert(cartReservations).values([
+      { buyerId: BUYER_ID, productId: product_id, quantityOz: '1', expiresAt: pastDate },
+      { buyerId: BUYER_2_ID, productId: product_id, quantityOz: '2', expiresAt: pastDate },
+      { buyerId: BUYER_2_ID, productId: product_id, quantityOz: '3', expiresAt: futureDate },
+    ]);
+
+    const deletedCount = await cartRepository.releaseExpiredCarts();
+
+    expect(deletedCount).toBe(2);
+
+    const remaining = await testDb.select().from(cartReservations);
+
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].quantityOz).toBe('3.00');
+    expect(remaining[0].buyerId).toBe(BUYER_2_ID);
+  });
 });

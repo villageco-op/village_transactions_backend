@@ -69,3 +69,12 @@ export async function getCart(buyerId: string) {
 export async function removeFromCart(buyerId: string, reservationId: string) {
   return await cartRepository.removeFromCart(buyerId, reservationId);
 }
+
+/**
+ * Cleans up all globally expired cart reservations.
+ * Expected to be executed by a secure cron trigger.
+ * @returns The number of removed reservations
+ */
+export async function releaseExpiredCarts(): Promise<number> {
+  return await cartRepository.releaseExpiredCarts();
+}

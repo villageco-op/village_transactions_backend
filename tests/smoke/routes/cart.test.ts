@@ -30,4 +30,25 @@ describe('Cart API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('POST /api/cron/release-carts should return 200 with valid CRON_SECRET token', async () => {
+    const secret = process.env.CRON_SECRET || 'fallback-secret-if-none';
+    process.env.CRON_SECRET = secret;
+
+    const res = await authedRequest(
+      '/api/cron/release-carts',
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${secret}`,
+        },
+      },
+      { id: '' },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(typeof body.count).toBe('number');
+  });
 });
