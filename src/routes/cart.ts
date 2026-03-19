@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
-import { AddToCartSchema } from '../schemas/cart.schema.js';
-import { addToCart } from '../services/cart.service.js';
+import { AddToCartSchema, GetCartResponseSchema } from '../schemas/cart.schema.js';
+import { addToCart, getCart } from '../services/cart.service.js';
 
 export const cartRoute = new OpenAPIHono();
 
@@ -13,11 +13,27 @@ cartRoute.openapi(
     description:
       "Fetch user's active cart, grouped by seller. Drops expired reservations automatically.",
     responses: {
-      200: { description: 'Cart Object', content: { 'application/json': { schema: z.any() } } },
+      200: {
+        description: 'Cart Object',
+        content: { 'application/json': { schema: GetCartResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
     },
   }),
-  // TODO: [Service] Call get cart service.
-  (c) => c.json({}, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const cart = await getCart(userId);
+    return c.json({ cart }, 200);
+  },
 );
 
 cartRoute.openapi(

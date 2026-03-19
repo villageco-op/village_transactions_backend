@@ -10,3 +10,52 @@ import type { AddToCartPayload } from '../schemas/cart.schema.js';
 export async function addToCart(buyerId: string, data: AddToCartPayload) {
   return await cartRepository.addToCart(buyerId, data);
 }
+
+/**
+ * Fetches the user's active cart and groups items by seller.
+ * @param buyerId - User's unique ID injected by auth session
+ * @returns Array of cart reservations grouped by seller
+ */
+export async function getCart(buyerId: string) {
+  const activeItems = await cartRepository.getActiveCart(buyerId);
+
+  type GroupedCart = {
+    seller: { id: string; name: string | null };
+    items: {
+      reservationId: string;
+      productId: string;
+      title: string;
+      pricePerOz: string;
+      quantityOz: string;
+      isSubscription: boolean | null;
+      expiresAt: string;
+      images: string[] | null;
+    }[];
+  };
+
+  const grouped = new Map<string, GroupedCart>();
+
+  for (const row of activeItems) {
+    const { seller } = row;
+
+    if (!grouped.has(seller.id)) {
+      grouped.set(seller.id, {
+        seller,
+        items: [],
+      });
+    }
+
+    grouped.get(seller.id)!.items.push({
+      reservationId: row.reservation.id,
+      productId: row.product.id,
+      title: row.product.title,
+      pricePerOz: row.product.pricePerOz,
+      quantityOz: row.reservation.quantityOz,
+      isSubscription: row.reservation.isSubscription,
+      expiresAt: row.reservation.expiresAt.toISOString(),
+      images: row.product.images,
+    });
+  }
+
+  return Array.from(grouped.values());
+}
