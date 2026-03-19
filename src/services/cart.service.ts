@@ -59,3 +59,13 @@ export async function getCart(buyerId: string) {
 
   return Array.from(grouped.values());
 }
+
+/**
+ * Removes a specific item reservation from the user's active cart.
+ * @param buyerId - User's unique ID injected by auth session
+ * @param reservationId - The unique ID of the reservation to remove
+ * @returns A boolean indicating whether the removal was successful
+ */
+export async function removeFromCart(buyerId: string, reservationId: string) {
+  return await cartRepository.removeFromCart(buyerId, reservationId);
+}

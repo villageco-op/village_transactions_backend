@@ -22,4 +22,12 @@ describe('Cart API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('DELETE /api/cart/remove/:reservationId should not return a 500 error', async () => {
+    const res = await authedRequest('/api/cart/remove/123e4567-e89b-12d3-a456-426614174000', {
+      method: 'DELETE',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });

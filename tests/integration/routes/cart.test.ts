@@ -177,14 +177,90 @@ describe('Cart API Integration', { timeout: 60_000 }, () => {
   });
 
   describe('DELETE /api/cart/remove/:reservationId', () => {
-    it('should return 200 success regardless of record existence', async () => {
+    let testReservationId: string;
+
+    beforeEach(async () => {
+      const SELLER_ID = 'seller_del_1';
+
+      await testDb
+        .insert(users)
+        .values([{ id: SELLER_ID, name: 'Seller', email: 'del@example.com' }]);
+
+      const [p] = await testDb
+        .insert(produce)
+        .values([
+          {
+            sellerId: SELLER_ID,
+            title: 'Delete Item',
+            pricePerOz: '0.20',
+            totalOzInventory: '50',
+            harvestFrequencyDays: 1,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+          },
+        ])
+        .returning();
+
+      const [res] = await testDb
+        .insert(cartReservations)
+        .values({
+          buyerId: TEST_BUYER_ID,
+          productId: p.id,
+          quantityOz: '2.0',
+          expiresAt: new Date(Date.now() + 1000 * 60 * 15),
+        })
+        .returning();
+
+      testReservationId = res.id;
+    });
+
+    it('should return 200 and physically delete the reservation from the DB', async () => {
       const res = await authedRequest(
-        '/api/cart/remove/res_123',
+        `/api/cart/remove/${testReservationId}`,
         { method: 'DELETE' },
         { id: TEST_BUYER_ID },
       );
+
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ success: true });
+
+      const dbRes = await testDb
+        .select()
+        .from(cartReservations)
+        .where(eq(cartReservations.id, testReservationId));
+      expect(dbRes).toHaveLength(0);
+    });
+
+    it("should return 200 with success false if the record doesn't exist", async () => {
+      const fakeUuid = '00000000-0000-0000-0000-000000000000';
+      const res = await authedRequest(
+        `/api/cart/remove/${fakeUuid}`,
+        { method: 'DELETE' },
+        { id: TEST_BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ success: false });
+    });
+
+    it('should return 400 for an invalid UUID format', async () => {
+      const res = await authedRequest(
+        `/api/cart/remove/not-a-uuid-format`,
+        { method: 'DELETE' },
+        { id: TEST_BUYER_ID },
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should return 401 if unauthenticated', async () => {
+      const res = await authedRequest(
+        `/api/cart/remove/${testReservationId}`,
+        { method: 'DELETE' },
+        { id: '' }, // empty ID to simulate unauthenticated
+      );
+
+      expect(res.status).toBe(401);
     });
   });
 });

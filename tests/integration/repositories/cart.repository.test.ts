@@ -103,4 +103,55 @@ describe('CartRepository - Integration', { timeout: 60_000 }, () => {
     expect(allReservations).toHaveLength(1);
     expect(allReservations[0].quantityOz).toBe('10.00');
   });
+
+  it('should successfully remove an existing reservation', async () => {
+    const [reservation] = await testDb
+      .insert(cartReservations)
+      .values({
+        buyerId: BUYER_ID,
+        productId: product_id,
+        quantityOz: '5',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      })
+      .returning();
+
+    const success = await cartRepository.removeFromCart(BUYER_ID, reservation.id);
+    expect(success).toBe(true);
+
+    const check = await testDb
+      .select()
+      .from(cartReservations)
+      .where(eq(cartReservations.id, reservation.id));
+    expect(check).toHaveLength(0);
+  });
+
+  it('should return false if removing a non-existent reservation', async () => {
+    const fakeUuid = '00000000-0000-0000-0000-000000000000';
+    const success = await cartRepository.removeFromCart(BUYER_ID, fakeUuid);
+
+    expect(success).toBe(false);
+  });
+
+  it('should return false if reservation belongs to another buyer', async () => {
+    const [reservation] = await testDb
+      .insert(cartReservations)
+      .values({
+        buyerId: BUYER_ID,
+        productId: product_id,
+        quantityOz: '5',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      })
+      .returning();
+
+    const OTHER_BUYER_ID = 'different_buyer_123';
+    const success = await cartRepository.removeFromCart(OTHER_BUYER_ID, reservation.id);
+
+    expect(success).toBe(false);
+
+    const check = await testDb
+      .select()
+      .from(cartReservations)
+      .where(eq(cartReservations.id, reservation.id));
+    expect(check).toHaveLength(1);
+  });
 });
