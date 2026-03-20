@@ -160,4 +160,19 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
     const fetchedUser = await userRepository.findById(userId);
     expect(fetchedUser?.stripeAccountId).toBe('acct_stripe_internal_456');
   });
+
+  it('should update the stripe onboarding completion status', async () => {
+    const userId = 'stripe_onboard_user_123';
+    await testDb.insert(users).values({
+      id: userId,
+      email: 'stripe.onboarding@example.com',
+      stripeAccountId: 'acct_onboard_123',
+      stripeOnboardingComplete: false,
+    });
+
+    await userRepository.updateStripeOnboardingStatus('acct_onboard_123', true);
+
+    const fetchedUser = await userRepository.findById(userId);
+    expect(fetchedUser?.stripeOnboardingComplete).toBe(true);
+  });
 });

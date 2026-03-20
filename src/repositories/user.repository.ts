@@ -106,4 +106,19 @@ export const userRepository = {
 
     return updatedUser ?? null;
   },
+
+  /**
+   * Updates a user's Stripe Onboarding Complete status by their Stripe Account ID.
+   * @param stripeAccountId - The generated Stripe Account ID
+   * @param isComplete - Whether the onboarding is successfully complete
+   */
+  async updateStripeOnboardingStatus(stripeAccountId: string, isComplete: boolean): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        stripeOnboardingComplete: isComplete,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(users.stripeAccountId, stripeAccountId));
+  },
 };

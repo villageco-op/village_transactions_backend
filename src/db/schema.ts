@@ -55,6 +55,14 @@ export const fcmTokens = pgTable('fcm_tokens', {
 });
 
 export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
+export const paymentMethodEnum = pgEnum('payment_method', ['card', 'snap']);
+export const fulfillmentTypeEnum = pgEnum('fulfillment_type', ['pickup', 'delivery']);
+export const orderStatusEnum = pgEnum('order_status', ['pending', 'completed', 'cancelled']);
+export const subscriptionStatusEnum = pgEnum('subscription_status', [
+  'active',
+  'paused',
+  'cancelled',
+]);
 
 export const produce = pgTable('produce', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -87,4 +95,51 @@ export const cartReservations = pgTable('cart_reservations', {
   isSubscription: boolean('is_subscription').default(false),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const orders = pgTable('orders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  buyerId: text('buyer_id')
+    .notNull()
+    .references(() => users.id),
+  sellerId: text('seller_id')
+    .notNull()
+    .references(() => users.id),
+  stripeSessionId: text('stripe_session_id').unique(),
+  paymentMethod: paymentMethodEnum('payment_method').notNull(),
+  fulfillmentType: fulfillmentTypeEnum('fulfillment_type').notNull(),
+  scheduledTime: timestamp('scheduled_time').notNull(),
+  status: orderStatusEnum('status').default('pending'),
+  cancelReason: text('cancel_reason'),
+  totalAmount: numeric('total_amount', { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const orderItems = pgTable('order_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orderId: uuid('order_id')
+    .notNull()
+    .references(() => orders.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => produce.id),
+  quantityOz: numeric('quantity_oz', { precision: 10, scale: 2 }).notNull(),
+  pricePerOz: numeric('price_per_oz', { precision: 10, scale: 2 }).notNull(),
+});
+
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  buyerId: text('buyer_id')
+    .notNull()
+    .references(() => users.id),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => produce.id),
+  quantityOz: numeric('quantity_oz', { precision: 10, scale: 2 }).notNull(),
+  status: subscriptionStatusEnum('status').default('active'),
+  fulfillmentType: fulfillmentTypeEnum('fulfillment_type').notNull(),
+  nextDeliveryDate: timestamp('next_delivery_date'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
