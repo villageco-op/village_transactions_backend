@@ -2,11 +2,12 @@ import { HTTPException } from 'hono/http-exception';
 import Stripe from 'stripe';
 import type { Mocked } from 'vitest';
 
+import { cartRepository } from '../repositories/cart.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
 import { updateInternalStripeAccountId } from './user.service.js';
 
-type StripeClient = Pick<Stripe, 'accounts' | 'accountLinks'>;
+type StripeClient = Pick<Stripe, 'accounts' | 'accountLinks' | 'checkout'>;
 
 let stripe: StripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
@@ -56,4 +57,100 @@ export async function generateStripeOnboardLink(userId: string) {
   });
 
   return accountLink.url;
+}
+
+/**
+ * Creates a Stripe Checkout session for a specific seller's produce.
+ * @param buyerId - the unique buyer id
+ * @param payload - checkout specific information
+ * @param payload.sellerId - the unique seller id
+ * @param payload.fulfillmentType - pickup or delivery
+ * @param payload.scheduledTime - the datatime the order will be picked up or delivered
+ * @returns The checkout session url
+ */
+export async function createCheckoutSession(
+  buyerId: string,
+  payload: { sellerId: string; fulfillmentType: string; scheduledTime: string },
+) {
+  const activeCartGroups = await cartRepository.getActiveCart(buyerId);
+
+  const sellerItems = activeCartGroups.filter((item) => item.seller.id === payload.sellerId);
+
+  if (sellerItems.length === 0) {
+    throw new HTTPException(400, { message: 'No active reservations found for this seller.' });
+  }
+
+  for (const item of sellerItems) {
+    if (item.product.status !== 'active') {
+      throw new HTTPException(400, {
+        message: `Product is no longer available: ${item.product.title}`,
+      });
+    }
+
+    if (Number(item.product.totalOzInventory) < Number(item.reservation.quantityOz)) {
+      throw new HTTPException(400, {
+        message: `Insufficient inventory for product: ${item.product.title}`,
+      });
+    }
+  }
+
+  const seller = await userRepository.findById(payload.sellerId);
+  if (!seller) {
+    throw new HTTPException(404, { message: 'Seller not found.' });
+  }
+
+  if (!seller.stripeAccountId || !seller.stripeOnboardingComplete) {
+    throw new HTTPException(400, {
+      message: 'Seller is not properly configured to receive payments.',
+    });
+  }
+
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = sellerItems.map((item) => {
+    const priceCents = Number(item.product.pricePerOz) * 100;
+    const qty = Number(item.reservation.quantityOz);
+    const totalLineItemAmountCents = Math.round(priceCents * qty);
+
+    return {
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: item.product.title,
+          description: `${item.reservation.quantityOz} oz`,
+        },
+        unit_amount: totalLineItemAmountCents,
+      },
+      quantity: 1,
+    };
+  });
+
+  const reservationIds = sellerItems.map((item) => item.reservation.id).join(',');
+  const applicationFeeAmount = 200; // Flat 200 cents ($2.00) cut
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    line_items: lineItems,
+    mode: 'payment',
+    success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/cart`,
+    payment_intent_data: {
+      application_fee_amount: applicationFeeAmount,
+      transfer_data: {
+        destination: seller.stripeAccountId,
+      },
+    },
+    metadata: {
+      buyerId,
+      sellerId: payload.sellerId,
+      reservationIds,
+      fulfillmentType: payload.fulfillmentType,
+      scheduledTime: payload.scheduledTime,
+    },
+  });
+
+  if (!session.url) {
+    throw new HTTPException(500, { message: 'Failed to create checkout session URL.' });
+  }
+
+  return session.url;
 }

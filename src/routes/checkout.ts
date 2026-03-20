@@ -1,5 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
+import {
+  CreateCheckoutSessionSchema,
+  CheckoutSessionResponseSchema,
+} from '../schemas/checkout.schema.js';
+import { createCheckoutSession } from '../services/stripe.service.js';
+
 export const checkoutRoute = new OpenAPIHono();
 
 checkoutRoute.openapi(
@@ -12,11 +18,7 @@ checkoutRoute.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              sellerId: z.string(),
-              fulfillmentType: z.enum(['pickup', 'delivery']),
-              scheduledTime: z.iso.datetime(),
-            }),
+            schema: CreateCheckoutSessionSchema,
           },
         },
       },
@@ -24,12 +26,32 @@ checkoutRoute.openapi(
     responses: {
       200: {
         description: 'Session created',
-        content: { 'application/json': { schema: z.object({ url: z.string() }) } },
+        content: { 'application/json': { schema: CheckoutSessionResponseSchema } },
+      },
+      400: {
+        description: 'Bad Request',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
       },
     },
   }),
-  // TODO: [Service] Get data and call create Stripe session service.
-  (c) => c.json({ url: 'https://checkout.stripe.com/...' }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const buyerId = authUser?.session?.user?.id;
+
+    if (!buyerId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const payload = c.req.valid('json');
+
+    const url = await createCheckoutSession(buyerId, payload);
+
+    return c.json({ url }, 200);
+  },
 );
 
 checkoutRoute.openapi(
