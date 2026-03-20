@@ -140,4 +140,24 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
     expect(tokensUser2[0].token).toBe('shared_device_token');
     expect(tokensUser2[0].platform).toBe('android');
   });
+
+  it('should update only the internal stripe account id', async () => {
+    const userId = 'stripe_update_user_123';
+    await testDb.insert(users).values({
+      id: userId,
+      name: 'Stripe Tester',
+      email: 'stripe.tester@example.com',
+    });
+
+    const updatedUser = await userRepository.updateStripeAccountId(
+      userId,
+      'acct_stripe_internal_456',
+    );
+
+    expect(updatedUser).toBeDefined();
+    expect(updatedUser?.stripeAccountId).toBe('acct_stripe_internal_456');
+
+    const fetchedUser = await userRepository.findById(userId);
+    expect(fetchedUser?.stripeAccountId).toBe('acct_stripe_internal_456');
+  });
 });
