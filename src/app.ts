@@ -68,6 +68,7 @@ app.use('/api/produce/*', verifyAuth());
 app.use('/api/cart/*', verifyAuth());
 app.use('/api/stripe/connect/onboard', verifyAuth());
 app.use('/api/checkout/*', verifyAuth());
+app.use('/api/subscriptions/*', verifyAuth());
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);

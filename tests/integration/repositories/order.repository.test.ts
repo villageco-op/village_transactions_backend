@@ -71,6 +71,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       buyerId,
       sellerId,
       stripeSessionId: 'cs_test_repo_123',
+      stripeSubscriptionId: 'sub_test_repo_123',
       totalAmount: 12.75,
       fulfillmentType: 'pickup',
       scheduledTime,
@@ -93,6 +94,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
     expect(subs).toHaveLength(1);
     expect(subs[0].productId).toBe(testProduce.id);
     expect(subs[0].quantityOz).toBe('25.50');
+    expect(subs[0].stripeSubscriptionId).toBe('sub_test_repo_123');
 
     const [updatedProduce] = await testDb
       .select()

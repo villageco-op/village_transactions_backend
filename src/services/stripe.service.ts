@@ -9,7 +9,7 @@ import { userRepository } from '../repositories/user.repository.js';
 import { sendPushNotification } from './notification.service.js';
 import { updateInternalStripeAccountId } from './user.service.js';
 
-type StripeClient = Pick<Stripe, 'accounts' | 'accountLinks' | 'checkout'>;
+type StripeClient = Pick<Stripe, 'accounts' | 'accountLinks' | 'checkout' | 'subscriptions'>;
 
 let stripe: StripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
@@ -199,11 +199,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   const totalAmount = session.amount_total ? session.amount_total / 100 : 0;
 
+  const stripeSubscriptionId =
+    typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+
   try {
     await orderRepository.fulfillCheckoutSession({
       buyerId,
       sellerId,
       stripeSessionId: session.id,
+      stripeSubscriptionId,
       totalAmount,
       fulfillmentType: fulfillmentType as 'pickup' | 'delivery',
       scheduledTime: new Date(scheduledTime),
@@ -233,4 +237,26 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 async function handleAccountUpdated(account: Stripe.Account) {
   const isComplete = account.details_submitted && account.charges_enabled;
   await userRepository.updateStripeOnboardingStatus(account.id, isComplete);
+}
+
+/**
+ * Updates the remote Stripe subscription status (Pause, Resume, Cancel).
+ * @param stripeSubscriptionId - The ID of the subscription in Stripe.
+ * @param status - The new status intent.
+ */
+export async function updateStripeSubscriptionStatus(
+  stripeSubscriptionId: string,
+  status: 'active' | 'paused' | 'cancelled',
+) {
+  if (status === 'cancelled') {
+    await stripe.subscriptions.cancel(stripeSubscriptionId);
+  } else if (status === 'paused') {
+    await stripe.subscriptions.update(stripeSubscriptionId, {
+      pause_collection: { behavior: 'void' },
+    });
+  } else if (status === 'active') {
+    await stripe.subscriptions.update(stripeSubscriptionId, {
+      pause_collection: '',
+    });
+  }
 }

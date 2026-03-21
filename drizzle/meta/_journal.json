@@ -43,6 +43,13 @@
       "when": 1774017545365,
       "tag": "0005_absurd_young_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774104627058,
+      "tag": "0006_smiling_tigra",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi, Mocked } from 'vitest';
 import Stripe from 'stripe';
 
-import { request } from '../../test-utils/request.js';
 import { authedRequest } from '../../test-utils/auth.js';
 import {
   truncateTables,

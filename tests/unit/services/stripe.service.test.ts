@@ -19,6 +19,10 @@ const mockStripe = {
   accountLinks: {
     create: vi.fn().mockResolvedValue({ url: 'test_url' }),
   },
+  subscriptions: {
+    update: vi.fn(),
+    cancel: vi.fn(),
+  },
 } as unknown as Mocked<Stripe>;
 
 vi.mock('../../../src/repositories/user.repository.js', () => ({
@@ -149,7 +153,8 @@ describe('StripeService - processStripeWebhookEvent', () => {
       data: {
         object: {
           id: 'cs_test_123',
-          amount_total: 1500, // $15.00
+          subscription: 'sub_stripe_abc123',
+          amount_total: 1500,
           metadata: {
             buyerId: 'buyer_1',
             sellerId: 'seller_1',
@@ -167,6 +172,7 @@ describe('StripeService - processStripeWebhookEvent', () => {
       buyerId: 'buyer_1',
       sellerId: 'seller_1',
       stripeSessionId: 'cs_test_123',
+      stripeSubscriptionId: 'sub_stripe_abc123',
       totalAmount: 15,
       fulfillmentType: 'pickup',
       scheduledTime: new Date('2026-05-15T12:00:00Z'),
