@@ -11,14 +11,14 @@ import { updateStripeSubscriptionStatus } from './stripe.service.js';
  * and finally persists the change in the local database.
  * @param buyerId - The unique identifier of the buyer owning the subscription.
  * @param subscriptionId - The unique identifier of the subscription to update.
- * @param status - The new status to apply ('active', 'paused', or 'cancelled').
+ * @param status - The new status to apply ('active', 'paused', or 'canceled').
  * @returns The updated subscription record from the database.
  * @throws {HTTPException} 404 error if the subscription does not exist for the given buyer.
  */
 export async function updateSubscriptionStatus(
   buyerId: string,
   subscriptionId: string,
-  status: 'active' | 'paused' | 'cancelled',
+  status: 'active' | 'paused' | 'canceled',
 ) {
   const subscription = await subscriptionRepository.getBuyerSubscription(buyerId, subscriptionId);
 

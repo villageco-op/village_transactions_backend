@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 export const UpdateSubscriptionStatusSchema = z.object({
-  status: z.enum(['active', 'paused', 'cancelled']).openapi({
+  status: z.enum(['active', 'paused', 'canceled']).openapi({
     example: 'active',
     description: 'The new status for the subscription',
   }),

@@ -50,6 +50,13 @@
       "when": 1774104627058,
       "tag": "0006_smiling_tigra",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1774139256991,
+      "tag": "0007_serious_cable",
+      "breakpoints": true
     }
   ]
 }

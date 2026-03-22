@@ -11,6 +11,7 @@ import { updateInternalStripeAccountId } from '../../../src/services/user.servic
 import { processStripeWebhookEvent } from '../../../src/services/stripe.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
+import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
 
 const mockStripe = {
   accounts: {
@@ -22,6 +23,14 @@ const mockStripe = {
   subscriptions: {
     update: vi.fn(),
     cancel: vi.fn(),
+  },
+  checkout: {
+    sessions: {
+      retrieve: vi.fn(),
+    },
+  },
+  refunds: {
+    create: vi.fn(),
   },
 } as unknown as Mocked<Stripe>;
 
@@ -203,5 +212,33 @@ describe('StripeService - processStripeWebhookEvent', () => {
 
     expect(orderRepository.fulfillCheckoutSession).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe('StripeService - refundCheckoutSession', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should issue a full refund if payment intent exists', async () => {
+    vi.mocked(mockStripe.checkout.sessions.retrieve).mockResolvedValueOnce({
+      id: 'cs_123',
+      payment_intent: 'pi_123',
+    } as any);
+
+    await refundCheckoutSession('cs_123');
+
+    expect(mockStripe.checkout.sessions.retrieve).toHaveBeenCalledWith('cs_123');
+    expect(mockStripe.refunds.create).toHaveBeenCalledWith({ payment_intent: 'pi_123' });
+  });
+
+  it('should throw an HTTPException if payment intent is missing', async () => {
+    vi.mocked(mockStripe.checkout.sessions.retrieve).mockResolvedValueOnce({
+      id: 'cs_123',
+      payment_intent: null,
+    } as any);
+
+    await expect(refundCheckoutSession('cs_123')).rejects.toThrow(HTTPException);
+    expect(mockStripe.refunds.create).not.toHaveBeenCalled();
   });
 });

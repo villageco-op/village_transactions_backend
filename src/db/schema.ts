@@ -57,11 +57,11 @@ export const fcmTokens = pgTable('fcm_tokens', {
 export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
 export const paymentMethodEnum = pgEnum('payment_method', ['card', 'snap']);
 export const fulfillmentTypeEnum = pgEnum('fulfillment_type', ['pickup', 'delivery']);
-export const orderStatusEnum = pgEnum('order_status', ['pending', 'completed', 'cancelled']);
+export const orderStatusEnum = pgEnum('order_status', ['pending', 'completed', 'canceled']);
 export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'active',
   'paused',
-  'cancelled',
+  'canceled',
 ]);
 
 export const produce = pgTable('produce', {

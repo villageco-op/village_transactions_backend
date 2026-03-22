@@ -38,7 +38,7 @@ export const subscriptionRepository = {
    * @param status - The new status to be set.
    * @returns The newly updated subscription record.
    */
-  async updateStatus(subscriptionId: string, status: 'active' | 'paused' | 'cancelled') {
+  async updateStatus(subscriptionId: string, status: 'active' | 'paused' | 'canceled') {
     const [updated] = await this.db
       .update(subscriptions)
       .set({ status, updatedAt: new Date() })
