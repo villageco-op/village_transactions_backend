@@ -16,6 +16,17 @@ import {
   time,
 } from 'drizzle-orm/pg-core';
 
+export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
+export const paymentMethodEnum = pgEnum('payment_method', ['card', 'snap']);
+export const fulfillmentTypeEnum = pgEnum('fulfillment_type', ['pickup', 'delivery']);
+export const orderStatusEnum = pgEnum('order_status', ['pending', 'completed', 'canceled']);
+export const subscriptionStatusEnum = pgEnum('subscription_status', [
+  'active',
+  'paused',
+  'canceled',
+]);
+export const scheduleTypeEnum = pgEnum('schedule_type', ['pickup', 'delivery']);
+
 const geography = customType<{ data: string }>({
   dataType() {
     return 'geography';
@@ -65,21 +76,12 @@ export const scheduleRules = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     dayOfWeek: varchar('day_of_week', { length: 10 }).notNull(),
+    type: scheduleTypeEnum('type').default('pickup'),
     startTime: time('start_time').notNull(),
     endTime: time('end_time').notNull(),
   },
   (t) => [unique().on(t.sellerId, t.dayOfWeek, t.startTime, t.endTime)],
 );
-
-export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
-export const paymentMethodEnum = pgEnum('payment_method', ['card', 'snap']);
-export const fulfillmentTypeEnum = pgEnum('fulfillment_type', ['pickup', 'delivery']);
-export const orderStatusEnum = pgEnum('order_status', ['pending', 'completed', 'canceled']);
-export const subscriptionStatusEnum = pgEnum('subscription_status', [
-  'active',
-  'paused',
-  'canceled',
-]);
 
 export const produce = pgTable('produce', {
   id: uuid('id').primaryKey().defaultRandom(),

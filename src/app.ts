@@ -70,6 +70,7 @@ app.use('/api/stripe/connect/onboard', verifyAuth());
 app.use('/api/checkout/*', verifyAuth());
 app.use('/api/subscriptions/*', verifyAuth());
 app.use('/api/orders/*', verifyAuth());
+app.use('/api/availability/*', verifyAuth());
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);

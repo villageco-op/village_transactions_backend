@@ -122,10 +122,8 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     await testDb.insert(users).values({ id: TEST_USER_ID, email: 'scheduler@example.com' });
 
     const payload = {
-      pickupWindows: [
-        { day: 'Monday', start: '09:00', end: '17:00' },
-        { day: 'Wednesday', start: '10:00', end: '14:00' },
-      ],
+      pickupWindows: [{ day: 'Monday', start: '09:00', end: '17:00' }],
+      deliveryWindows: [{ day: 'Wednesday', start: '10:00', end: '14:00' }],
     };
 
     const res = await authedRequest(
@@ -148,8 +146,14 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(dbRules).toHaveLength(2);
     expect(
       dbRules.some(
-        (r: { dayOfWeek: string; startTime: string }) =>
-          r.dayOfWeek === 'Monday' && r.startTime === '09:00:00',
+        (r: { dayOfWeek: string; startTime: string; type: string }) =>
+          r.dayOfWeek === 'Monday' && r.startTime === '09:00:00' && r.type === 'pickup',
+      ),
+    ).toBe(true);
+    expect(
+      dbRules.some(
+        (r: { dayOfWeek: string; startTime: string; type: string }) =>
+          r.dayOfWeek === 'Wednesday' && r.startTime === '10:00:00' && r.type === 'delivery',
       ),
     ).toBe(true);
   });
@@ -163,6 +167,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
         method: 'PUT',
         body: JSON.stringify({
           pickupWindows: [{ day: 'Monday' /* missing start/end */ }],
+          deliveryWindows: [],
         }),
       },
       { id: TEST_USER_ID },
@@ -178,6 +183,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
         method: 'PUT',
         body: JSON.stringify({
           pickupWindows: [],
+          deliveryWindows: [],
         }),
       },
       { id: 'non_existent_user' },

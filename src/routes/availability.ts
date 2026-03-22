@@ -1,4 +1,11 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+
+import {
+  AvailabilityResponseSchema,
+  GetAvailabilityParamsSchema,
+  GetAvailabilityQuerySchema,
+} from '../schemas/availability.schema.js';
+import { getAvailability } from '../services/availability.service.js';
 
 export const availabilityRoute = new OpenAPIHono();
 
@@ -9,16 +16,22 @@ availabilityRoute.openapi(
     operationId: 'getAvailability',
     description: 'Fetch available pickup/delivery slots for a seller.',
     request: {
-      params: z.object({ sellerId: z.string() }),
-      query: z.object({ type: z.enum(['pickup', 'delivery']), date: z.string() }),
+      params: GetAvailabilityParamsSchema,
+      query: GetAvailabilityQuerySchema,
     },
     responses: {
       200: {
         description: 'Available slots',
-        content: { 'application/json': { schema: z.array(z.string()) } },
+        content: { 'application/json': { schema: AvailabilityResponseSchema } },
       },
     },
   }),
-  // TODO: [Service] Get data and call get availability service.
-  (c) => c.json([], 200),
+  async (c) => {
+    const { sellerId } = c.req.valid('param');
+    const { type, date } = c.req.valid('query');
+
+    const availableSlots = await getAvailability(sellerId, date, type);
+
+    return c.json(availableSlots, 200);
+  },
 );
