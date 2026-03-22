@@ -43,4 +43,12 @@ describe('Produce API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/produce/list should not return a 500 error', async () => {
+    const res = await authedRequest('/api/produce/list?lat=40.7128&lng=-74.0060', {
+      method: 'GET',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });

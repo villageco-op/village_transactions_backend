@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { authedRequest } from '../../test-utils/auth.js';
 import {
   truncateTables,
@@ -30,6 +30,8 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       name: 'Integration Seller',
       email: 'seller.api@example.com',
       passwordHash: 'secret_hash',
+      location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+      deliveryRangeMiles: '20',
     });
   });
 
@@ -309,5 +311,92 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body).toHaveProperty('error', 'Listing not found or unauthorized');
+  });
+
+  it('GET /api/produce/list should return 200 with correctly mapped fields', async () => {
+    await testDb.insert(produce).values({
+      sellerId: TEST_USER_ID,
+      title: 'Plums',
+      produceType: 'fruit',
+      pricePerOz: '0.40',
+      totalOzInventory: '300',
+      harvestFrequencyDays: 5,
+      seasonStart: '2024-05-01',
+      seasonEnd: '2024-07-31',
+      availableBy: new Date(),
+      images: ['https://example.com/plum1.jpg', 'https://example.com/plum2.jpg'],
+      status: 'active',
+    });
+
+    const res = await authedRequest(
+      '/api/produce/list?lat=45.0&lng=-90.0&limit=10',
+      {},
+      { id: TEST_USER_ID },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBeGreaterThan(0);
+
+    const firstItem = body[0];
+
+    expect(firstItem).toHaveProperty('id');
+    expect(firstItem).toHaveProperty('name', 'Plums');
+    expect(firstItem).toHaveProperty('sellerName', 'Integration Seller');
+    expect(firstItem).toHaveProperty('sellerId', TEST_USER_ID);
+    expect(firstItem).toHaveProperty('price', '0.40');
+    expect(firstItem).toHaveProperty('amount', '300.00');
+    expect(firstItem).toHaveProperty('availableBy');
+    expect(firstItem).toHaveProperty('distance');
+    expect(typeof firstItem.distance).toBe('number');
+    expect(firstItem).toHaveProperty('thumbnail', 'https://example.com/plum1.jpg');
+  });
+
+  it('GET /api/produce/list should filter by delivery capability when requested', async () => {
+    const NO_DELIVERY_USER = 'no_delivery_user';
+    await testDb.insert(users).values({
+      id: NO_DELIVERY_USER,
+      name: 'No Delivery Seller',
+      location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+      deliveryRangeMiles: '0',
+    });
+
+    await testDb.insert(produce).values([
+      {
+        sellerId: TEST_USER_ID,
+        title: 'Delivery Apples',
+        pricePerOz: '0.50',
+        totalOzInventory: '100',
+        harvestFrequencyDays: 1,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        availableBy: new Date(),
+        status: 'active',
+      },
+      {
+        sellerId: NO_DELIVERY_USER,
+        title: 'Pickup Only Apples',
+        pricePerOz: '0.50',
+        totalOzInventory: '100',
+        harvestFrequencyDays: 1,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        availableBy: new Date(),
+        status: 'active',
+      },
+    ]);
+
+    const res = await authedRequest(
+      '/api/produce/list?lat=45.0&lng=-90.0&hasDelivery=true',
+      {},
+      { id: TEST_USER_ID },
+    );
+
+    const body = await res.json();
+    expect(body.length).toBe(1);
+    expect(body[0].sellerId).toBe(TEST_USER_ID);
+    expect(body[0].name).toBe('Delivery Apples');
   });
 });

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createProduceListing,
   deleteProduceListing,
+  getProduceList,
   updateProduceListing,
 } from '../../../src/services/produce.service.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
@@ -12,6 +13,7 @@ vi.mock('../../../src/repositories/produce.repository.js', () => ({
     create: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    getList: vi.fn(),
   },
 }));
 
@@ -151,5 +153,86 @@ describe('ProduceService - deleteProduceListing', () => {
 
     expect(result).toBe(false);
     expect(produceRepository.softDelete).toHaveBeenCalledWith(mockId, mockSellerId);
+  });
+});
+
+describe('ProduceService - getProduceList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should format repository results, extracting the thumbnail and parsing distance', async () => {
+    const mockDbDate = new Date();
+    const mockRepoResponse = [
+      {
+        id: 'prod_1',
+        name: 'Apples',
+        price: '0.50',
+        amount: '100',
+        images: ['https://example.com/apple1.jpg', 'https://example.com/apple2.jpg'],
+        isSubscribable: true,
+        availableBy: mockDbDate,
+        sellerId: 'user_1',
+        sellerName: 'Farmer Bob',
+        distance: '5.234', // simulated PG string or number return
+      },
+      {
+        id: 'prod_2',
+        name: 'Oranges',
+        price: '0.75',
+        amount: '50',
+        images: [], // No images case
+        isSubscribable: false,
+        availableBy: mockDbDate,
+        sellerId: 'user_2',
+        sellerName: 'Farmer Jane',
+        distance: '10.5',
+      },
+    ];
+
+    vi.mocked(produceRepository.getList).mockResolvedValueOnce(mockRepoResponse as any);
+
+    const result = await getProduceList({
+      lat: 40.0,
+      lng: -70.0,
+      limit: 20,
+      offset: 0,
+    });
+
+    // Check parameters passed to repo
+    expect(produceRepository.getList).toHaveBeenCalledWith({
+      lat: 40.0,
+      lng: -70.0,
+      limit: 20,
+      offset: 0,
+    });
+
+    // Verify first item mapping (has images)
+    expect(result[0]).toEqual({
+      id: 'prod_1',
+      name: 'Apples',
+      price: '0.50',
+      amount: '100',
+      isSubscribable: true,
+      availableBy: mockDbDate,
+      sellerId: 'user_1',
+      sellerName: 'Farmer Bob',
+      distance: 5.234, // Converted to number
+      thumbnail: 'https://example.com/apple1.jpg', // Extracted first image
+    });
+
+    // Verify second item mapping (no images)
+    expect(result[1]).toEqual({
+      id: 'prod_2',
+      name: 'Oranges',
+      price: '0.75',
+      amount: '50',
+      isSubscribable: false,
+      availableBy: mockDbDate,
+      sellerId: 'user_2',
+      sellerName: 'Farmer Jane',
+      distance: 10.5,
+      thumbnail: null, // Null when empty
+    });
   });
 });

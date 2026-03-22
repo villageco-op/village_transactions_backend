@@ -1,10 +1,16 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
-import { CreateProduceSchema, UpdateProduceSchema } from '../schemas/produce.schema.js';
+import {
+  CreateProduceSchema,
+  ProduceQuerySchema,
+  UpdateProduceSchema,
+  ProduceListItemSchema,
+} from '../schemas/produce.schema.js';
 import {
   createProduceListing,
   deleteProduceListing,
   updateProduceListing,
+  getProduceList,
 } from '../services/produce.service.js';
 
 export const produceRoute = new OpenAPIHono();
@@ -43,24 +49,29 @@ produceRoute.openapi(
     operationId: 'getProduceList',
     description: 'See list of produce/sellers.',
     request: {
-      query: z.object({
-        lat: z.coerce.number(),
-        lng: z.coerce.number(),
-        sortBy: z.enum(['distance', 'price']).optional(),
-        hasDelivery: z.enum(['true', 'false']).optional(),
-        limit: z.coerce.number().default(20),
-        offset: z.coerce.number().default(0),
-      }),
+      query: ProduceQuerySchema,
     },
     responses: {
       200: {
         description: 'List of produce',
-        content: { 'application/json': { schema: z.array(z.any()) } },
+        content: { 'application/json': { schema: z.array(ProduceListItemSchema) } },
       },
     },
   }),
-  // TODO: [Service] Get data and call get produce list service.
-  (c) => c.json([], 200),
+  async (c) => {
+    const query = c.req.valid('query');
+
+    const items = await getProduceList({
+      lat: query.lat,
+      lng: query.lng,
+      sortBy: query.sortBy,
+      hasDelivery: query.hasDelivery,
+      limit: query.limit,
+      offset: query.offset,
+    });
+
+    return c.json(items, 200);
+  },
 );
 
 produceRoute.openapi(
