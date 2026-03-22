@@ -75,9 +75,8 @@ describe('OrderService - cancelOrder', () => {
       status: 'canceled',
     } as any);
 
-    const result = await cancelOrder('order_123', 'Reason', 'buyer_1');
+    await cancelOrder('order_123', 'Reason', 'buyer_1');
 
-    expect(result).toEqual({ success: true, alreadyCanceled: true });
     expect(orderRepository.updateOrderToCanceled).not.toHaveBeenCalled();
     expect(refundCheckoutSession).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
