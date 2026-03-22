@@ -77,5 +77,15 @@ export async function closeTestDbConnection() {
  * IMPORTANT: As tables are created, add them here to ensure they get reset.
  */
 export async function truncateTables(db: any) {
-  await db.execute(`TRUNCATE TABLE users, produce, cart_reservations RESTART IDENTITY CASCADE;`);
+  await db.execute(`
+    TRUNCATE TABLE 
+      users, 
+      produce, 
+      cart_reservations, 
+      schedule_rules, 
+      orders, 
+      order_items, 
+      subscriptions 
+    RESTART IDENTITY CASCADE;
+  `);
 }

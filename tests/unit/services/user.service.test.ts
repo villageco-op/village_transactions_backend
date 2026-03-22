@@ -6,8 +6,10 @@ import {
   registerFcmToken,
   updateCurrentUser,
   updateInternalStripeAccountId,
+  updateScheduleRules,
 } from '../../../src/services/user.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
+import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
 
 vi.mock('../../../src/repositories/user.repository.js', () => ({
   userRepository: {
@@ -15,6 +17,12 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
     updateById: vi.fn(),
     updateFcmToken: vi.fn(),
     updateStripeAccountId: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/schedule-rule.repository.js', () => ({
+  scheduleRuleRepository: {
+    replaceSellerRules: vi.fn(),
   },
 }));
 
@@ -177,6 +185,45 @@ describe('UserService - getCurrentUser', () => {
 
       expect(result).toEqual(mockDbUpdatedUser);
       expect(userRepository.updateStripeAccountId).toHaveBeenCalledWith('user_123', 'acct_123');
+    });
+  });
+
+  describe('updateScheduleRules', () => {
+    it('should throw a 404 HTTPException if the user is not found', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+      const payload = {
+        pickupWindows: [{ day: 'Monday', start: '09:00', end: '17:00' }],
+      };
+
+      await expect(updateScheduleRules('missing_user_id', payload)).rejects.toThrow(HTTPException);
+      await expect(updateScheduleRules('missing_user_id', payload)).rejects.toMatchObject({
+        status: 404,
+      });
+
+      expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
+      expect(scheduleRuleRepository.replaceSellerRules).not.toHaveBeenCalled();
+    });
+
+    it('should map payload correctly and call repository replace method', async () => {
+      const mockDbUser = { id: 'seller_123', email: 'seller@example.com' };
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(mockDbUser as any);
+      vi.mocked(scheduleRuleRepository.replaceSellerRules).mockResolvedValueOnce();
+
+      const payload = {
+        pickupWindows: [
+          { day: 'Monday', start: '09:00', end: '12:00' },
+          { day: 'Wednesday', start: '13:00', end: '17:00' },
+        ],
+      };
+
+      await updateScheduleRules('seller_123', payload);
+
+      expect(userRepository.findById).toHaveBeenCalledWith('seller_123');
+      expect(scheduleRuleRepository.replaceSellerRules).toHaveBeenCalledWith('seller_123', [
+        { dayOfWeek: 'Monday', startTime: '09:00', endTime: '12:00' },
+        { dayOfWeek: 'Wednesday', startTime: '13:00', endTime: '17:00' },
+      ]);
     });
   });
 });
