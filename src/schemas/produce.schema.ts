@@ -54,5 +54,27 @@ export const ProduceQuerySchema = z.object({
   offset: z.coerce.number().default(0),
 });
 
+export const ProduceMapQuerySchema = z.object({
+  lat: z.coerce.number(),
+  lng: z.coerce.number(),
+  radiusMiles: z.coerce.number().default(50),
+  produceType: z.string().optional(),
+  hasDelivery: z.enum(['true', 'false']).optional(),
+  maxPrice: z.coerce.number().optional(),
+});
+
+export const ProduceMapItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  thumbnail: z.string().nullable(),
+});
+
+export const SellerMapGroupSchema = z.object({
+  sellerId: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  produce: z.array(ProduceMapItemSchema),
+});
+
 export type CreateProducePayload = z.infer<typeof CreateProduceSchema>;
 export type UpdateProducePayload = z.infer<typeof UpdateProduceSchema>;

@@ -5,12 +5,15 @@ import {
   ProduceQuerySchema,
   UpdateProduceSchema,
   ProduceListItemSchema,
+  ProduceMapQuerySchema,
+  SellerMapGroupSchema,
 } from '../schemas/produce.schema.js';
 import {
   createProduceListing,
   deleteProduceListing,
   updateProduceListing,
   getProduceList,
+  getProduceMap,
 } from '../services/produce.service.js';
 
 export const produceRoute = new OpenAPIHono();
@@ -22,24 +25,29 @@ produceRoute.openapi(
     operationId: 'getProduceMap',
     description: 'See sellers on a map.',
     request: {
-      query: z.object({
-        lat: z.coerce.number(),
-        lng: z.coerce.number(),
-        radiusMiles: z.coerce.number().optional(),
-        produceType: z.string().optional(),
-        hasDelivery: z.enum(['true', 'false']).optional(),
-        maxPrice: z.coerce.number().optional(),
-      }),
+      query: ProduceMapQuerySchema,
     },
     responses: {
       200: {
         description: 'Map items',
-        content: { 'application/json': { schema: z.array(z.any()) } },
+        content: { 'application/json': { schema: z.array(SellerMapGroupSchema) } },
       },
     },
   }),
-  // TODO: [Service] Get data and call get produce map service.
-  (c) => c.json([], 200),
+  async (c) => {
+    const query = c.req.valid('query');
+
+    const items = await getProduceMap({
+      lat: query.lat,
+      lng: query.lng,
+      radiusMiles: query.radiusMiles,
+      produceType: query.produceType,
+      hasDelivery: query.hasDelivery,
+      maxPrice: query.maxPrice,
+    });
+
+    return c.json(items, 200);
+  },
 );
 
 produceRoute.openapi(

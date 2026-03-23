@@ -67,3 +67,58 @@ export async function getProduceList(params: {
     };
   });
 }
+
+/**
+ * Retrieves listings formatted for a map view, grouped by seller.
+ * This function takes flat produce data and transforms it into a seller-centric
+ * structure, making it easier to render map markers that represent multiple items.
+ * @param params - The configuration object for the produce map search.
+ * @param params.lat - The center latitude for the search radius.
+ * @param params.lng - The center longitude for the search radius.
+ * @param params.radiusMiles - The circular search boundary in miles.
+ * @param params.produceType - Optional filter for specific categories (e.g., 'vegetable').
+ * @param params.hasDelivery - If 'true', only returns items within the seller's delivery range.
+ * @param params.maxPrice - The upper price limit per ounce.
+ * @returns A promise resolving to an array of grouped objects, where each object contains
+ * a seller's ID, their geographic coordinates, and a list of their available produce.
+ */
+export async function getProduceMap(params: {
+  lat: number;
+  lng: number;
+  radiusMiles?: number;
+  produceType?: string;
+  hasDelivery?: 'true' | 'false';
+  maxPrice?: number;
+}) {
+  const items = await produceRepository.getMapItems(params);
+
+  const sellerGroups = new Map<
+    string,
+    {
+      sellerId: string;
+      lat: number;
+      lng: number;
+      produce: { id: string; name: string; thumbnail: string | null }[];
+    }
+  >();
+
+  for (const item of items) {
+    if (!sellerGroups.has(item.sellerId)) {
+      sellerGroups.set(item.sellerId, {
+        sellerId: item.sellerId,
+        lat: item.lat,
+        lng: item.lng,
+        produce: [],
+      });
+    }
+
+    const group = sellerGroups.get(item.sellerId)!;
+    group.produce.push({
+      id: item.id,
+      name: item.name,
+      thumbnail: item.images && item.images.length > 0 ? item.images[0] : null,
+    });
+  }
+
+  return Array.from(sellerGroups.values());
+}

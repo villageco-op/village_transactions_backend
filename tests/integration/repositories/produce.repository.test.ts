@@ -285,4 +285,91 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
     });
   });
+
+  describe('getMapItems', () => {
+    beforeEach(async () => {
+      await testDb.insert(produce).values([
+        {
+          sellerId: TEST_SELLER_ID, // Madison (-89.4012, 43.0731)
+          title: 'Joe Carrots',
+          produceType: 'vegetable',
+          pricePerOz: '1.00',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+          images: ['joe_carrot.jpg'],
+        },
+        {
+          sellerId: OTHER_SELLER_ID, // Chicago (-87.6298, 41.8781)
+          title: 'Jane Apples',
+          produceType: 'fruit',
+          pricePerOz: '0.25',
+          totalOzInventory: '500',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+          images: [],
+        },
+      ]);
+    });
+
+    it('should filter items by the specified radius and extract valid lat/lng geometry', async () => {
+      // Query near Madison with a small radius
+      const result = await produceRepository.getMapItems({
+        lat: 43.0731,
+        lng: -89.4012,
+        radiusMiles: 10,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].sellerId).toBe(TEST_SELLER_ID);
+      expect(result[0].name).toBe('Joe Carrots');
+      expect(result[0].lat).toBeCloseTo(43.0731);
+      expect(result[0].lng).toBeCloseTo(-89.4012);
+    });
+
+    it('should filter out items that exceed maxPrice', async () => {
+      // Query from somewhere between Madison and Chicago with huge radius
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        maxPrice: 0.5, // Joe's 1.00 carrots should be excluded
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+      expect(result[0].name).toBe('Jane Apples');
+    });
+
+    it('should filter items by specific produceType', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        produceType: 'vegetable', // Jane's fruit apples should be excluded
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].sellerId).toBe(TEST_SELLER_ID);
+      expect(result[0].name).toBe('Joe Carrots');
+    });
+
+    it('should filter by delivery capability when hasDelivery is requested', async () => {
+      // Query exactly at Chicago (Jane's location)
+      const result = await produceRepository.getMapItems({
+        lat: 41.8781,
+        lng: -87.6298,
+        radiusMiles: 500,
+        hasDelivery: 'true',
+      });
+
+      // Joe shouldn't be here because his 15mi delivery doesn't reach Chicago
+      expect(result).toHaveLength(1);
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+    });
+  });
 });

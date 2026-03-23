@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { produce, users } from '../db/schema.js';
@@ -158,5 +158,63 @@ export const produceRepository = {
     }
 
     return await query.limit(limit).offset(offset);
+  },
+
+  /**
+   * Retrieves a lightweight list of produce map items using spatial filtering.
+   * Extracts latitude and longitude directly from PostGIS geography by casting to geometry.
+   * @param params - Search parameters for the spatial query.
+   * @param params.lat - The latitude of the search center.
+   * @param params.lng - The longitude of the search center.
+   * @param params.radiusMiles - The radius (in miles) to search within. Defaults to 50.
+   * @param params.produceType - Filter by a specific type of produce (e.g., 'fruit', 'veg').
+   * @param params.hasDelivery - If 'true', limits results to sellers whose delivery range covers the user.
+   * @param params.maxPrice - The maximum allowed price per ounce for the items.
+   * @returns A promise resolving to an array of items containing basic produce info and seller coordinates.
+   */
+  async getMapItems(params: {
+    lat: number;
+    lng: number;
+    radiusMiles?: number;
+    produceType?: string;
+    hasDelivery?: 'true' | 'false';
+    maxPrice?: number;
+  }) {
+    const { lat, lng, radiusMiles = 50, produceType, hasDelivery, maxPrice } = params;
+
+    const userLocation = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
+    const distanceMiles = sql<number>`ST_Distance(${users.location}, ${userLocation}) / 1609.344`;
+
+    const conditions = [
+      eq(produce.status, 'active'),
+      isNotNull(users.location),
+      sql`${distanceMiles} <= ${radiusMiles}`,
+    ];
+
+    if (hasDelivery === 'true') {
+      conditions.push(sql`${users.deliveryRangeMiles} > 0`);
+      conditions.push(sql`${distanceMiles} <= ${users.deliveryRangeMiles}`);
+    }
+
+    if (produceType) {
+      conditions.push(eq(produce.produceType, produceType));
+    }
+
+    if (maxPrice !== undefined) {
+      conditions.push(sql`${produce.pricePerOz} <= ${maxPrice}`);
+    }
+
+    return await this.db
+      .select({
+        id: produce.id,
+        name: produce.title,
+        images: produce.images,
+        sellerId: users.id,
+        lat: sql<number>`ST_Y(${users.location}::geometry)`,
+        lng: sql<number>`ST_X(${users.location}::geometry)`,
+      })
+      .from(produce)
+      .innerJoin(users, eq(produce.sellerId, users.id))
+      .where(and(...conditions));
   },
 };

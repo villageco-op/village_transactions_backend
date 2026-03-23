@@ -4,6 +4,7 @@ import {
   createProduceListing,
   deleteProduceListing,
   getProduceList,
+  getProduceMap,
   updateProduceListing,
 } from '../../../src/services/produce.service.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
@@ -14,6 +15,7 @@ vi.mock('../../../src/repositories/produce.repository.js', () => ({
     update: vi.fn(),
     softDelete: vi.fn(),
     getList: vi.fn(),
+    getMapItems: vi.fn(),
   },
 }));
 
@@ -234,5 +236,78 @@ describe('ProduceService - getProduceList', () => {
       distance: 10.5,
       thumbnail: null, // Null when empty
     });
+  });
+});
+
+describe('ProduceService - getProduceMap', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should correctly group items by sellerId and construct lightweight produce arrays', async () => {
+    const mockRepoResponse = [
+      {
+        id: 'prod_1',
+        name: 'Apples',
+        images: ['https://example.com/apple1.jpg'],
+        sellerId: 'user_1',
+        lat: 40.0,
+        lng: -70.0,
+      },
+      {
+        id: 'prod_2',
+        name: 'Carrots',
+        images: [],
+        sellerId: 'user_1',
+        lat: 40.0,
+        lng: -70.0,
+      },
+      {
+        id: 'prod_3',
+        name: 'Oranges',
+        images: ['https://example.com/orange.jpg'],
+        sellerId: 'user_2',
+        lat: 41.0,
+        lng: -71.0,
+      },
+    ];
+
+    vi.mocked(produceRepository.getMapItems).mockResolvedValueOnce(mockRepoResponse as any);
+
+    const result = await getProduceMap({
+      lat: 40.0,
+      lng: -70.0,
+      radiusMiles: 50,
+    });
+
+    expect(produceRepository.getMapItems).toHaveBeenCalledWith({
+      lat: 40.0,
+      lng: -70.0,
+      radiusMiles: 50,
+    });
+
+    expect(result).toHaveLength(2);
+
+    const seller1 = result.find((s: { sellerId: string }) => s.sellerId === 'user_1');
+    expect(seller1).toBeDefined();
+    expect(seller1?.lat).toBe(40.0);
+    expect(seller1?.lng).toBe(-70.0);
+    expect(seller1?.produce).toHaveLength(2);
+    expect(seller1?.produce[0]).toEqual({
+      id: 'prod_1',
+      name: 'Apples',
+      thumbnail: 'https://example.com/apple1.jpg',
+    });
+    expect(seller1?.produce[1]).toEqual({
+      id: 'prod_2',
+      name: 'Carrots',
+      thumbnail: null,
+    });
+
+    const seller2 = result.find((s) => s.sellerId === 'user_2');
+    expect(seller2).toBeDefined();
+    expect(seller2?.lat).toBe(41.0);
+    expect(seller2?.lng).toBe(-71.0);
+    expect(seller2?.produce).toHaveLength(1);
   });
 });
