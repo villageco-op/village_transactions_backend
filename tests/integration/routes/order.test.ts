@@ -64,19 +64,28 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
     expect(Array.isArray(body)).toBe(true);
   });
 
-  it('PUT /api/orders/:id/schedule should return 200', async () => {
+  it('PUT /api/orders/:id/schedule should return 200 and trigger notification', async () => {
+    const newTime = new Date('2025-12-01T14:00:00Z').toISOString();
+
     const res = await authedRequest(
-      '/api/orders/order_123/schedule',
+      `/api/orders/${testOrder.id}/schedule`,
       {
         method: 'PUT',
         body: JSON.stringify({
-          newTime: '2023-12-01T14:00:00Z',
+          newTime,
         }),
       },
       { id: BUYER_ID },
     );
+
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
+
+    expect(notificationService.sendPushNotification).toHaveBeenCalledWith(
+      SELLER_ID,
+      'Order Rescheduled 🕒',
+      expect.stringContaining('buyer'),
+    );
   });
 
   it('PUT /api/orders/:id/cancel should cancel the order successfully', async () => {

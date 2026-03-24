@@ -44,3 +44,45 @@ export async function cancelOrder(orderId: string, reason: string, requestingUse
     `The ${role.toLowerCase()} has canceled the order. Reason: ${reason}`,
   );
 }
+
+/**
+ * Reschedules an order to a new time and sends a notification to the other party.
+ * @param orderId - The ID of the order to reschedule
+ * @param newTime - The new scheduled time string (ISO 8601)
+ * @param requestingUserId - The ID of the user requesting the change
+ */
+export async function rescheduleOrder(orderId: string, newTime: string, requestingUserId: string) {
+  const order = await orderRepository.getOrderById(orderId);
+
+  if (!order) {
+    throw new HTTPException(404, { message: 'Order not found' });
+  }
+
+  const isBuyer = order.buyerId === requestingUserId;
+  const isSeller = order.sellerId === requestingUserId;
+
+  if (!isBuyer && !isSeller) {
+    throw new HTTPException(404, { message: 'Unauthorized' });
+  }
+
+  if (order.status !== 'pending') {
+    throw new HTTPException(400, { message: 'Only pending orders can be rescheduled' });
+  }
+
+  const newScheduledTime = new Date(newTime);
+  await orderRepository.updateOrderScheduleTime(orderId, newScheduledTime);
+
+  const targetUserId = isBuyer ? order.sellerId : order.buyerId;
+  const role = isBuyer ? 'Buyer' : 'Seller';
+
+  const dateString = newScheduledTime.toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+
+  await sendPushNotification(
+    targetUserId,
+    'Order Rescheduled 🕒',
+    `The ${role.toLowerCase()} has requested a new time for your order: ${dateString}.`,
+  );
+}
