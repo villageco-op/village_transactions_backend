@@ -117,3 +117,32 @@ export async function getOrders(
     timeframeDays,
   });
 }
+
+/**
+ * Gets formatted payout line items for the seller based on a specific rolling timeframe.
+ * @param sellerId - User's (Seller's) unique ID
+ * @param timeframe - e.g. "90days"
+ * @returns Formatted array of payout records
+ */
+export async function getSellerPayouts(sellerId: string, timeframe: string) {
+  const daysMatch = timeframe.match(/^(\d+)days$/);
+  const days = daysMatch ? parseInt(daysMatch[1], 10) : 90;
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const rows = await orderRepository.getPayoutHistory(sellerId, startDate);
+
+  return rows.map((row) => {
+    const qtyOz = Number(row.quantityOz);
+    const price = Number(row.pricePerOz);
+
+    return {
+      date: row.date?.toISOString() ?? new Date().toISOString(),
+      buyerName: row.buyerName ?? 'Unknown',
+      productName: row.productName ?? 'Unknown',
+      quantityLbs: Number((qtyOz / 16).toFixed(2)),
+      amountDollars: Number((qtyOz * price).toFixed(2)),
+    };
+  });
+}
