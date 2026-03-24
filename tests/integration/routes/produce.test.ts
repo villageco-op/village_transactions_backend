@@ -570,4 +570,90 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(400);
     });
   });
+
+  describe('GET /api/produce/me', () => {
+    beforeEach(async () => {
+      const OTHER_SELLER_ID = 'another_seller_xyz';
+      await testDb.insert(users).values({
+        id: OTHER_SELLER_ID,
+        name: 'Another Seller',
+        email: 'another@example.com',
+      });
+
+      await testDb.insert(produce).values([
+        {
+          sellerId: TEST_USER_ID,
+          title: 'Active Apples',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 1,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+        },
+        {
+          sellerId: TEST_USER_ID,
+          title: 'Paused Peaches',
+          pricePerOz: '0.60',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 1,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'paused',
+        },
+        {
+          sellerId: OTHER_SELLER_ID,
+          title: 'Other Users Oranges',
+          pricePerOz: '0.40',
+          totalOzInventory: '200',
+          harvestFrequencyDays: 1,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+        },
+      ]);
+    });
+
+    it('should return 200 and a list of the authenticated sellers own listings', async () => {
+      const res = await authedRequest(
+        '/api/produce/me?limit=10&offset=0',
+        { method: 'GET' },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(2);
+
+      const titles = body.map((item: any) => item.title);
+      expect(titles).toContain('Active Apples');
+      expect(titles).toContain('Paused Peaches');
+      expect(titles).not.toContain('Other Users Oranges');
+    });
+
+    it('should correctly filter the sellers listings by status', async () => {
+      const res = await authedRequest(
+        '/api/produce/me?limit=10&offset=0&status=paused',
+        { method: 'GET' },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body).toHaveLength(1);
+      expect(body[0].title).toBe('Paused Peaches');
+      expect(body[0].status).toBe('paused');
+    });
+
+    it('should return 401 if the user is unauthenticated', async () => {
+      const res = await authedRequest('/api/produce/me', { method: 'GET' }, { id: '' });
+
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.error).toBe('Unauthorized');
+    });
+  });
 });

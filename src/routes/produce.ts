@@ -9,6 +9,8 @@ import {
   SellerMapGroupSchema,
   ProduceOrdersQuerySchema,
   ProduceOrderListItemSchema,
+  ProduceSchema,
+  SellerProduceQuerySchema,
 } from '../schemas/produce.schema.js';
 import {
   createProduceListing,
@@ -17,6 +19,7 @@ import {
   getProduceList,
   getProduceMap,
   getProduceOrders,
+  getSellerProduceListings,
 } from '../services/produce.service.js';
 
 export const produceRoute = new OpenAPIHono();
@@ -274,5 +277,45 @@ produceRoute.openapi(
     }
 
     return c.json(orders, 200);
+  },
+);
+
+produceRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/me',
+    operationId: 'getSellerListings',
+    description: "Fetch the authenticated seller's own produce listings with full details.",
+    request: {
+      query: SellerProduceQuerySchema,
+    },
+    responses: {
+      200: {
+        description: "List of the seller's produce",
+        content: { 'application/json': { schema: z.array(ProduceSchema) } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const query = c.req.valid('query');
+
+    const items = await getSellerProduceListings(userId, {
+      limit: query.limit,
+      offset: query.offset,
+      status: query.status,
+    });
+
+    return c.json(items, 200);
   },
 );
