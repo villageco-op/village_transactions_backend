@@ -7,7 +7,7 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
-import { users, produce } from '../../../src/db/schema.js';
+import { users, produce, orderItems, orders } from '../../../src/db/schema.js';
 
 describe('Produce API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -451,5 +451,123 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
 
     expect(sellerGroup.produce[1].name).toBe('Map Carrots');
     expect(sellerGroup.produce[1].thumbnail).toBeNull();
+  });
+
+  describe('GET /api/produce/:id/orders', () => {
+    const BUYER_ID = 'buyer_integration_123';
+
+    beforeEach(async () => {
+      await testDb.insert(users).values({
+        id: BUYER_ID,
+        name: 'Hungry Buyer',
+        email: 'buyer.api@example.com',
+      });
+    });
+
+    it('should return 200 and a paginated list of orders for the seller', async () => {
+      const [dbProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: TEST_USER_ID,
+          title: 'Tomatoes',
+          produceType: 'vegetable',
+          pricePerOz: '0.20',
+          totalOzInventory: '500',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-06-01',
+          seasonEnd: '2024-09-30',
+        })
+        .returning();
+
+      const [dbOrder] = await testDb
+        .insert(orders)
+        .values({
+          buyerId: BUYER_ID,
+          sellerId: TEST_USER_ID,
+          stripeSessionId: crypto.randomUUID(),
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          status: 'pending',
+          totalAmount: '5.00',
+        })
+        .returning();
+
+      await testDb.insert(orderItems).values({
+        orderId: dbOrder.id,
+        productId: dbProduce.id,
+        quantityOz: '25',
+        pricePerOz: '0.20',
+      });
+
+      const res = await authedRequest(
+        `/api/produce/${dbProduce.id}/orders?limit=5&offset=0`,
+        { method: 'GET' },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body.length).toBe(1);
+
+      const firstItem = body[0];
+      expect(firstItem.id).toBe(dbOrder.id);
+      expect(firstItem.status).toBe('pending');
+      expect(firstItem.fulfillmentType).toBe('pickup');
+      expect(firstItem.quantityOz).toBe('25.00');
+      expect(firstItem.totalAmount).toBe('5.00');
+      expect(firstItem.buyer.id).toBe(BUYER_ID);
+      expect(firstItem.buyer.name).toBe('Hungry Buyer');
+    });
+
+    it('should return 401 if unauthenticated', async () => {
+      const randomValidId = crypto.randomUUID();
+      const res = await authedRequest(
+        `/api/produce/${randomValidId}/orders`,
+        { method: 'GET' },
+        { id: '' }, // No session
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 404 if the produce does not exist or user is not the seller', async () => {
+      const OTHER_SELLER_ID = 'other_seller_999';
+      await testDb.insert(users).values({ id: OTHER_SELLER_ID, email: 'other@example.com' });
+
+      const [otherProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: OTHER_SELLER_ID,
+          title: 'Not Your Produce',
+          produceType: 'vegetable',
+          pricePerOz: '1.00',
+          totalOzInventory: '10',
+          harvestFrequencyDays: 1,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      // Requested by TEST_USER_ID (not the owner)
+      const res = await authedRequest(
+        `/api/produce/${otherProduce.id}/orders`,
+        { method: 'GET' },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('Listing not found or unauthorized');
+    });
+
+    it('should return 400 for an invalid UUID format in params', async () => {
+      const res = await authedRequest(
+        '/api/produce/not-a-valid-uuid/orders',
+        { method: 'GET' },
+        { id: TEST_USER_ID },
+      );
+      expect(res.status).toBe(400);
+    });
   });
 });

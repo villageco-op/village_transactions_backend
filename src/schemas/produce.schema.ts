@@ -76,5 +76,27 @@ export const SellerMapGroupSchema = z.object({
   produce: z.array(ProduceMapItemSchema),
 });
 
+export const ProduceOrdersQuerySchema = z.object({
+  limit: z.coerce.number().default(10),
+  offset: z.coerce.number().default(0),
+});
+
+export const ProduceOrderBuyerSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  image: z.string().nullable(),
+});
+
+export const ProduceOrderListItemSchema = z.object({
+  id: z.uuid(),
+  status: z.enum(['pending', 'completed', 'canceled']).nullable(),
+  fulfillmentType: z.enum(['pickup', 'delivery']),
+  scheduledTime: z.coerce.date(),
+  totalAmount: z.string(),
+  quantityOz: z.string(),
+  createdAt: z.coerce.date().nullable(),
+  buyer: ProduceOrderBuyerSchema,
+});
+
 export type CreateProducePayload = z.infer<typeof CreateProduceSchema>;
 export type UpdateProducePayload = z.infer<typeof UpdateProduceSchema>;

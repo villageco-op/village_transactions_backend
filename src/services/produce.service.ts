@@ -122,3 +122,20 @@ export async function getProduceMap(params: {
 
   return Array.from(sellerGroups.values());
 }
+
+/**
+ * Retrieves paginated orders for a specific produce listing.
+ * @param produceId - The ID of the listing.
+ * @param sellerId - The ID of the user requesting the orders (must be the seller).
+ * @param limit - Pagination limit.
+ * @param offset - Pagination offset.
+ * @returns Array of orders or null if unauthorized/not found.
+ */
+export async function getProduceOrders(
+  produceId: string,
+  sellerId: string,
+  limit: number,
+  offset: number,
+) {
+  return await produceRepository.getProduceOrders(produceId, sellerId, limit, offset);
+}
