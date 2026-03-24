@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
-import { cancelOrder, rescheduleOrder } from '../../../src/services/order.service.js';
+import { cancelOrder, getOrders, rescheduleOrder } from '../../../src/services/order.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
@@ -11,6 +11,7 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
     getOrderById: vi.fn(),
     updateOrderToCanceled: vi.fn(),
     updateOrderScheduleTime: vi.fn(),
+    getOrders: vi.fn(),
   },
 }));
 
@@ -179,5 +180,50 @@ describe('OrderService - rescheduleOrder', () => {
     await expect(
       rescheduleOrder('order_456', '2025-12-01T12:00:00.000Z', 'random_hacker'),
     ).rejects.toThrow(new HTTPException(404, { message: 'Unauthorized' }));
+  });
+});
+
+describe('OrderService - getOrders', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should call repository with parsed timeframeDays when timeframe is provided', async () => {
+    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce([]);
+
+    await getOrders('user_1', 'buyer', 'pending', '30days');
+
+    expect(orderRepository.getOrders).toHaveBeenCalledWith({
+      userId: 'user_1',
+      role: 'buyer',
+      status: 'pending',
+      timeframeDays: 30,
+    });
+  });
+
+  it('should call repository without timeframeDays if timeframe is omitted', async () => {
+    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce([]);
+
+    await getOrders('user_2', 'seller');
+
+    expect(orderRepository.getOrders).toHaveBeenCalledWith({
+      userId: 'user_2',
+      role: 'seller',
+      status: undefined,
+      timeframeDays: undefined,
+    });
+  });
+
+  it('should call repository without timeframeDays if timeframe format is invalid', async () => {
+    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce([]);
+
+    await getOrders('user_3', 'buyer', undefined, 'invalid_string');
+
+    expect(orderRepository.getOrders).toHaveBeenCalledWith({
+      userId: 'user_3',
+      role: 'buyer',
+      status: undefined,
+      timeframeDays: undefined,
+    });
   });
 });

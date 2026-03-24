@@ -1,7 +1,14 @@
-import { eq, inArray, and, gt } from 'drizzle-orm';
+import { eq, inArray, and, gt, desc, gte } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
-import { cartReservations, orders, orderItems, produce, subscriptions } from '../db/schema.js';
+import {
+  cartReservations,
+  orders,
+  orderItems,
+  produce,
+  subscriptions,
+  users,
+} from '../db/schema.js';
 import type { DbClient } from '../db/types.js';
 
 export const orderRepository = {
@@ -188,5 +195,88 @@ export const orderRepository = {
       .returning();
 
     return updatedOrder;
+  },
+
+  /**
+   * Retrieves historical or active orders for a specific user with full relational data.
+   * @remarks
+   * This method fetches orders where the user is either the buyer or the seller,
+   * joins counterparty profile information, and aggregates all associated order items
+   * and product details into a nested structure.
+   * @param params - The filter criteria for the query.
+   * @param params.userId - The unique identifier of the user whose orders are being retrieved.
+   * @param params.role - Determines if the user is fetched as the 'buyer' or 'seller' in the transaction.
+   * @param params.status - (Optional) Filter by order state: 'pending', 'completed', or 'canceled'.
+   * @param params.timeframeDays - (Optional) Limit results to orders created within this many days from today.
+   * @returns A promise resolving to an array of orders. Each order includes:
+   * - Full order record fields
+   * - `counterparty`: Public profile of the other party (ID, name, image, email)
+   * - `items`: An array of order items, each including the full `product` (produce) details.
+   * @throws Will throw an error if the database connection fails or the query is malformed.
+   */
+  async getOrders(params: {
+    userId: string;
+    role: 'buyer' | 'seller';
+    status?: 'pending' | 'completed' | 'canceled';
+    timeframeDays?: number;
+  }) {
+    const conditions = [];
+
+    if (params.role === 'seller') {
+      conditions.push(eq(orders.sellerId, params.userId));
+    } else {
+      conditions.push(eq(orders.buyerId, params.userId));
+    }
+
+    if (params.status) {
+      conditions.push(eq(orders.status, params.status));
+    }
+
+    if (params.timeframeDays) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - params.timeframeDays);
+      conditions.push(gte(orders.createdAt, cutoffDate));
+    }
+
+    const ordersResult = await this.db
+      .select({
+        order: orders,
+        counterparty: {
+          id: users.id,
+          name: users.name,
+          image: users.image,
+          email: users.email,
+        },
+      })
+      .from(orders)
+      .leftJoin(users, eq(params.role === 'seller' ? orders.buyerId : orders.sellerId, users.id))
+      .where(and(...conditions))
+      .orderBy(desc(orders.createdAt));
+
+    if (ordersResult.length === 0) {
+      return [];
+    }
+
+    const orderIds = ordersResult.map((o) => o.order.id);
+
+    const itemsResult = await this.db
+      .select({
+        orderItem: orderItems,
+        product: produce,
+      })
+      .from(orderItems)
+      .innerJoin(produce, eq(orderItems.productId, produce.id))
+      .where(inArray(orderItems.orderId, orderIds));
+
+    return ordersResult.map((o) => ({
+      ...o.order,
+      counterparty: o.counterparty,
+      items: itemsResult
+        .filter((i) => i.orderItem.orderId === o.order.id)
+        .map((i) => ({
+          ...i.orderItem,
+          product: i.product,
+        })),
+    }));
   },
 };

@@ -7,7 +7,7 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
-import { users, orders } from '../../../src/db/schema.js';
+import { users, orders, orderItems, produce } from '../../../src/db/schema.js';
 
 import * as stripeService from '../../../src/services/stripe.service.js';
 import * as notificationService from '../../../src/services/notification.service.js';
@@ -36,9 +36,22 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
     vi.clearAllMocks();
 
     await testDb.insert(users).values([
-      { id: BUYER_ID, email: 'buyer@test.com' },
-      { id: SELLER_ID, email: 'seller@test.com' },
+      { id: BUYER_ID, name: 'Test Buyer', email: 'buyer@test.com' },
+      { id: SELLER_ID, name: 'Test Seller', email: 'seller@test.com' },
     ]);
+
+    const [testProduct] = await testDb
+      .insert(produce)
+      .values({
+        sellerId: SELLER_ID,
+        title: 'Fresh Berries',
+        pricePerOz: '1.20',
+        totalOzInventory: '100',
+        harvestFrequencyDays: 7,
+        seasonStart: '2025-01-01',
+        seasonEnd: '2025-12-31',
+      })
+      .returning();
 
     const [createdOrder] = await testDb
       .insert(orders)
@@ -49,10 +62,17 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
         status: 'pending',
         fulfillmentType: 'pickup',
         scheduledTime: new Date(),
-        totalAmount: '10.00',
+        totalAmount: '12.00',
         paymentMethod: 'card',
       })
       .returning();
+
+    await testDb.insert(orderItems).values({
+      orderId: createdOrder.id,
+      productId: testProduct.id,
+      quantityOz: '10',
+      pricePerOz: '1.20',
+    });
 
     testOrder = createdOrder;
   });
@@ -108,5 +128,58 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       'Order Canceled ❌',
       'The buyer has canceled the order. Reason: Cannot make pickup time',
     );
+  });
+
+  describe('GET /api/orders', () => {
+    it('should return successfully with correct structure for a buyer', async () => {
+      const res = await authedRequest(
+        '/api/orders?role=buyer&status=pending',
+        {},
+        { id: BUYER_ID },
+      );
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(1);
+
+      const retrievedOrder = body[0];
+      expect(retrievedOrder.id).toBe(testOrder.id);
+      expect(retrievedOrder.totalAmount).toBe('12.00');
+
+      expect(retrievedOrder.counterparty).toBeDefined();
+      expect(retrievedOrder.counterparty.id).toBe(SELLER_ID);
+      expect(retrievedOrder.counterparty.name).toBe('Test Seller');
+
+      expect(retrievedOrder.items).toBeDefined();
+      expect(Array.isArray(retrievedOrder.items)).toBe(true);
+      expect(retrievedOrder.items).toHaveLength(1);
+      expect(retrievedOrder.items[0].product.title).toBe('Fresh Berries');
+    });
+
+    it('should return successfully with correct structure for a seller', async () => {
+      const res = await authedRequest('/api/orders?role=seller', {}, { id: SELLER_ID });
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body).toHaveLength(1);
+
+      const retrievedOrder = body[0];
+      expect(retrievedOrder.id).toBe(testOrder.id);
+      expect(retrievedOrder.counterparty.id).toBe(BUYER_ID);
+      expect(retrievedOrder.counterparty.name).toBe('Test Buyer');
+    });
+
+    it('should return an empty array if status does not match', async () => {
+      const res = await authedRequest(
+        '/api/orders?role=buyer&status=completed',
+        {},
+        { id: BUYER_ID },
+      );
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body).toHaveLength(0);
+    });
   });
 });

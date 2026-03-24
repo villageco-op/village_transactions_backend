@@ -4,11 +4,13 @@ import { HTTPException } from 'hono/http-exception';
 import {
   CancelOrderBodySchema,
   CancelOrderParamsSchema,
+  GetOrdersQuerySchema,
   OrderActionSuccessSchema,
+  OrderSchema,
   RescheduleOrderBodySchema,
   RescheduleOrderParamsSchema,
 } from '../schemas/order.schema.js';
-import { cancelOrder, rescheduleOrder } from '../services/order.service.js';
+import { cancelOrder, getOrders, rescheduleOrder } from '../services/order.service.js';
 
 export const ordersRoute = new OpenAPIHono();
 
@@ -19,20 +21,33 @@ ordersRoute.openapi(
     operationId: 'getOrders',
     description: 'Get historical or active orders.',
     request: {
-      query: z.object({
-        role: z.enum(['buyer', 'seller']),
-        status: z.enum(['pending', 'completed', 'canceled']),
-      }),
+      query: GetOrdersQuerySchema,
     },
     responses: {
       200: {
         description: 'Orders list',
-        content: { 'application/json': { schema: z.array(z.any()) } },
+        content: { 'application/json': { schema: z.array(OrderSchema) } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
       },
     },
   }),
-  // TODO: [Service] Get data and call get orders service.
-  (c) => c.json([], 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      throw new HTTPException(401, { message: 'Unauthorized' });
+    }
+
+    const { role, status, timeframe } = c.req.valid('query');
+
+    const ordersList = await getOrders(userId, role, status, timeframe);
+
+    return c.json(ordersList, 200);
+  },
 );
 
 ordersRoute.openapi(

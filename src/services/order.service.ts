@@ -86,3 +86,34 @@ export async function rescheduleOrder(orderId: string, newTime: string, requesti
     `The ${role.toLowerCase()} has requested a new time for your order: ${dateString}.`,
   );
 }
+
+/**
+ * Gets historical or active orders for a user.
+ * @param userId - The ID of the user requesting their orders
+ * @param role - Whether the user is acting as a 'buyer' or 'seller'
+ * @param status - Optional status to filter by
+ * @param timeframe - Optional timeframe string (e.g. "30days")
+ * @returns List of orders
+ */
+export async function getOrders(
+  userId: string,
+  role: 'buyer' | 'seller',
+  status?: 'pending' | 'completed' | 'canceled',
+  timeframe?: string,
+) {
+  let timeframeDays: number | undefined;
+
+  if (timeframe) {
+    const match = timeframe.match(/^(\d+)days$/);
+    if (match) {
+      timeframeDays = parseInt(match[1], 10);
+    }
+  }
+
+  return await orderRepository.getOrders({
+    userId,
+    role,
+    status,
+    timeframeDays,
+  });
+}
