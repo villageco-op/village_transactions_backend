@@ -47,6 +47,10 @@ export const users = pgTable('users', {
   image: text('image'),
   passwordHash: text('password_hash'),
 
+  aboutMe: text('about_me'),
+  specialties: jsonb('specialties').$type<string[]>().default([]),
+  goal: numeric('goal', { precision: 10, scale: 2 }),
+
   address: text('address'),
   location: geography('location'),
   deliveryRangeMiles: numeric('delivery_range_miles').default('0'),

@@ -51,6 +51,9 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       name: 'Marketplace Seller',
       email: 'seller@example.com',
       passwordHash: 'hashed_pw_456',
+      aboutMe: 'I am a passionate local farmer.',
+      specialties: ['tomatoes', 'carrots', 'corn'],
+      goal: '500.00',
       address: '789 Commerce Way',
       deliveryRangeMiles: '50.5',
       stripeAccountId: 'acct_123abc',
@@ -61,8 +64,11 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
     expect(user).toBeDefined();
     expect(user?.id).toBe('seller_123');
+    expect(user?.aboutMe).toBe('I am a passionate local farmer.');
+    expect(user?.specialties).toEqual(['tomatoes', 'carrots', 'corn']);
+    expect(user?.goal).toBe('500.00');
     expect(user?.address).toBe('789 Commerce Way');
-    expect(user?.deliveryRangeMiles).toBe('50.5'); // Numeric types return as string
+    expect(user?.deliveryRangeMiles).toBe('50.5');
     expect(user?.stripeAccountId).toBe('acct_123abc');
     expect(user?.stripeOnboardingComplete).toBe(true);
   });
@@ -82,6 +88,9 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
     const updatedUser = await userRepository.updateById('update_user_123', {
       name: 'New Name',
+      aboutMe: 'Updated bio',
+      specialties: ['apples', 'peaches'],
+      goal: 1000,
       address: '123 Map St',
       deliveryRangeMiles: 15,
       lat: 40.7128,
@@ -90,6 +99,9 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
     expect(updatedUser).toBeDefined();
     expect(updatedUser?.name).toBe('New Name');
+    expect(updatedUser?.aboutMe).toBe('Updated bio');
+    expect(updatedUser?.specialties).toEqual(['apples', 'peaches']);
+    expect(updatedUser?.goal).toBe('1000.00');
     expect(updatedUser?.address).toBe('123 Map St');
     expect(updatedUser?.deliveryRangeMiles).toBe('15');
 
