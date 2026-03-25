@@ -7,6 +7,7 @@ import type { DatabaseError } from './interfaces/error.interface.js';
 import { getAuthConfig } from './lib/auth-config.js';
 import { openApiConfig } from './lib/openapi-config.js';
 import { availabilityRoute } from './routes/availability.js';
+import { buyerRoute } from './routes/buyer.js';
 import { cartRoute } from './routes/cart.js';
 import { checkoutRoute } from './routes/checkout.js';
 import { cronRoute } from './routes/cron.js';
@@ -72,6 +73,7 @@ app.use('/api/subscriptions/*', verifyAuth());
 app.use('/api/orders/*', verifyAuth());
 app.use('/api/availability/*', verifyAuth());
 app.use('/api/seller/*', verifyAuth());
+app.use('/api/buyer/*', verifyAuth());
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);
@@ -84,6 +86,7 @@ app.route('/api/availability', availabilityRoute);
 app.route('/api/conversations', messagingRoute.conversationsRoute);
 app.route('/api/messages', messagingRoute.messagesRoute);
 app.route('/api/seller', sellerRoute);
+app.route('/api/buyer', buyerRoute);
 app.route('/api/cron', cronRoute);
 
 app.doc('/doc', openApiConfig);
