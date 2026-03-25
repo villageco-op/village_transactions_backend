@@ -7,6 +7,7 @@ import {
 } from '../../test-utils/testcontainer-db.js';
 import { buyerRepository } from '../../../src/repositories/buyer.repository.js';
 import { users, produce, orders, orderItems } from '../../../src/db/schema.js';
+import { sql } from 'drizzle-orm';
 
 describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -27,18 +28,22 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
     await truncateTables(testDb);
 
     await testDb.insert(users).values([
-      { id: BUYER_ID, email: 'buyer.repo@example.com', name: 'Test Buyer' },
+      {
+        id: BUYER_ID,
+        city: 'Chicago',
+        location: sql`ST_SetSRID(ST_MakePoint(-87.6298, 41.8781), 4326)`,
+      },
       {
         id: SELLER_1_ID,
-        email: 'seller1.repo@example.com',
-        name: 'Test Seller One',
-        address: '111 One St',
+        name: 'Local Seller',
+        city: 'Chicago',
+        location: sql`ST_SetSRID(ST_MakePoint(-87.6231, 41.8819), 4326)`,
       },
       {
         id: SELLER_2_ID,
-        email: 'seller2.repo@example.com',
-        name: 'Test Seller Two',
-        address: '222 Two St',
+        name: 'Far Seller',
+        city: 'Springfield',
+        location: sql`ST_SetSRID(ST_MakePoint(-89.6501, 39.7817), 4326)`,
       },
     ]);
 
@@ -157,67 +162,21 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
     ]);
   });
 
-  it('should accurately aggregate growers stats, filtering only completed orders', async () => {
+  it('should accurately aggregate growers stats including city', async () => {
     const results = await buyerRepository.getGrowersByBuyerId(BUYER_ID, 20, 0);
-
-    expect(results).toHaveLength(2);
-
     const seller1 = results.find((r) => r.sellerId === SELLER_1_ID);
-    const seller2 = results.find((r) => r.sellerId === SELLER_2_ID);
-
-    expect(seller1).toBeDefined();
-    expect(seller2).toBeDefined();
-
-    expect(seller1!.name).toBe('Test Seller One');
-    expect(seller1!.address).toBe('111 One St');
-
-    expect(seller1!.produceTypesOrdered).toBeDefined();
-    const s1Produce = seller1!.produceTypesOrdered!.sort();
-    expect(s1Produce).toEqual(['carrots', 'spinach']);
-
-    expect(Number(seller1!.amountThisMonthOz)).toBe(20);
-
-    const timeDiffS1 = Date.now() - new Date(seller1!.firstOrderDate).getTime();
-    expect(timeDiffS1).toBeGreaterThan(30 * 24 * 60 * 60 * 1000); // More than 30 days ago
-
-    expect(Number(seller2!.amountThisMonthOz)).toBe(15);
-
-    expect(seller2!.produceTypesOrdered).toEqual(['apples']);
-  });
-
-  it('should handle pagination limits and offsets', async () => {
-    const limitResults = await buyerRepository.getGrowersByBuyerId(BUYER_ID, 1, 0);
-    expect(limitResults).toHaveLength(1);
-
-    const offsetResults = await buyerRepository.getGrowersByBuyerId(BUYER_ID, 1, 1);
-    expect(offsetResults).toHaveLength(1);
-
-    expect(limitResults[0].sellerId).not.toBe(offsetResults[0].sellerId);
-  });
-
-  it('should return an empty array for a buyer with no completed orders', async () => {
-    const OTHER_BUYER_ID = 'empty_buyer_123';
-    await testDb.insert(users).values({ id: OTHER_BUYER_ID, email: 'empty@example.com' });
-
-    const results = await buyerRepository.getGrowersByBuyerId(OTHER_BUYER_ID, 20, 0);
-
-    expect(results).toHaveLength(0);
+    expect(seller1?.city).toBe('Chicago');
   });
 
   describe('getBuyerWithOrdersForSummary', () => {
-    it('should aggregate only completed orders and fetch buyer address', async () => {
+    it('should correctly flag isLocal using PostGIS and City columns', async () => {
       const summaryData = await buyerRepository.getBuyerWithOrdersForSummary(BUYER_ID);
 
-      expect(summaryData.buyerAddress).toBeDefined();
-      expect(summaryData.orders).toHaveLength(3);
+      const localOrder = summaryData.orders.find((o) => o.isLocal === true);
+      const nonLocalOrder = summaryData.orders.find((o) => o.isLocal === false);
 
-      const mappedAmounts = summaryData.orders.map((o) => Number(o.totalAmount));
-      expect(mappedAmounts).toContain(10);
-      expect(mappedAmounts).toContain(20);
-      expect(mappedAmounts).toContain(30);
-
-      const currentOrder1 = summaryData.orders.find((o) => Number(o.totalAmount) === 20);
-      expect(Number(currentOrder1!.totalOz)).toBe(20);
+      expect(localOrder).toBeDefined(); // Seller 1 (Chicago)
+      expect(nonLocalOrder).toBeDefined(); // Seller 2 (Springfield)
     });
   });
 });

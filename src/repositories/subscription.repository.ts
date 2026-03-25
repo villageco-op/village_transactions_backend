@@ -1,7 +1,7 @@
 import { eq, and } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
-import { subscriptions } from '../db/schema.js';
+import { produce, subscriptions } from '../db/schema.js';
 import type { DbClient, Subscription } from '../db/types.js';
 
 export const subscriptionRepository = {
@@ -46,5 +46,22 @@ export const subscriptionRepository = {
       .returning();
 
     return updated;
+  },
+
+  /**
+   * Retrieves all active subscriptions for a specific buyer, including produce details.
+   * @param buyerId - The ID of the buyer.
+   * @returns An array of active subscriptions.
+   */
+  async getActiveSubscriptionsForBuyer(buyerId: string) {
+    return await this.db
+      .select({
+        id: subscriptions.id,
+        produceName: produce.title,
+        amount: subscriptions.quantityOz,
+      })
+      .from(subscriptions)
+      .innerJoin(produce, eq(subscriptions.productId, produce.id))
+      .where(and(eq(subscriptions.buyerId, buyerId), eq(subscriptions.status, 'active')));
   },
 };

@@ -92,6 +92,7 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       specialties: ['apples', 'peaches'],
       goal: 1000,
       address: '123 Map St',
+      city: 'Houston',
       deliveryRangeMiles: 15,
       lat: 40.7128,
       lng: -74.006,

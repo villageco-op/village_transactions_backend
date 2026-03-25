@@ -3,10 +3,15 @@ import { HTTPException } from 'hono/http-exception';
 
 import {
   BillingSummaryResponseSchema,
+  BuyerDashboardResponseSchema,
   GetGrowersQuerySchema,
   GrowersResponseSchema,
 } from '../schemas/buyer.schema.js';
-import { getBillingSummary, getGrowersForBuyer } from '../services/buyer.service.js';
+import {
+  getBillingSummary,
+  getBuyerDashboardMetrics,
+  getGrowersForBuyer,
+} from '../services/buyer.service.js';
 
 export const buyerRoute = new OpenAPIHono();
 
@@ -75,5 +80,36 @@ buyerRoute.openapi(
     const summary = await getBillingSummary(userId);
 
     return c.json(summary, 200);
+  },
+);
+
+buyerRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/dashboard',
+    operationId: 'getBuyerDashboard',
+    description: 'Fetches all summary metrics required for the buyer main dashboard view.',
+    responses: {
+      200: {
+        description: 'Dashboard metrics',
+        content: { 'application/json': { schema: BuyerDashboardResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      throw new HTTPException(401, { message: 'Unauthorized' });
+    }
+
+    const metrics = await getBuyerDashboardMetrics(userId);
+
+    return c.json(metrics, 200);
   },
 );

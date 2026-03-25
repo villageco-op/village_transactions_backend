@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, ne } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { users, orders, orderItems, produce } from '../db/schema.js';
@@ -28,6 +28,7 @@ export const buyerRepository = {
         sellerId: users.id,
         name: users.name,
         address: users.address,
+        city: users.city,
         produceTypesOrdered: sql<
           string[]
         >`array_agg(DISTINCT ${produce.produceType}) FILTER (WHERE ${produce.produceType} IS NOT NULL)`,
@@ -53,28 +54,72 @@ export const buyerRepository = {
    * @returns The buyers address and a list of completed orders.
    */
   async getBuyerWithOrdersForSummary(buyerId: string) {
-    const buyerQuery = await this.db
-      .select({ address: users.address })
-      .from(users)
-      .where(eq(users.id, buyerId))
-      .limit(1);
-
     const ordersData = await this.db
       .select({
         id: orders.id,
         totalAmount: orders.totalAmount,
-        sellerAddress: users.address,
         totalOz: sql<number | string>`SUM(${orderItems.quantityOz})`,
+        isLocal: sql<boolean>`
+          (${users.city} = (SELECT city FROM ${users} WHERE id = ${buyerId})) OR 
+          (ST_Distance(${users.location}, (SELECT location FROM ${users} WHERE id = ${buyerId})) / 1609.344 <= 50)
+        `,
       })
       .from(orders)
       .innerJoin(users, eq(orders.sellerId, users.id))
       .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
       .where(and(eq(orders.buyerId, buyerId), eq(orders.status, 'completed')))
-      .groupBy(orders.id, orders.totalAmount, users.address);
+      .groupBy(orders.id, orders.totalAmount, users.city, users.location);
 
-    return {
-      buyerAddress: buyerQuery[0]?.address ?? null,
-      orders: ordersData,
-    };
+    return { orders: ordersData };
+  },
+
+  /**
+   * Fetches the raw dashboard metrics for a buyer, including spend, volume, and grower distances.
+   * @param buyerId - The buyer's ID
+   * @returns Raw dashboard aggregates
+   */
+  async getDashboardMetrics(buyerId: string) {
+    const [spendAgg] = await this.db
+      .select({
+        spendThisMonth: sql<
+          number | null
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE) THEN ${orders.totalAmount} ELSE 0 END)`,
+        spendLastMonth: sql<
+          number | null
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
+      })
+      .from(orders)
+      .where(and(eq(orders.buyerId, buyerId), ne(orders.status, 'canceled')));
+
+    const [weightAgg] = await this.db
+      .select({
+        ozThisWeek: sql<
+          number | null
+        >`SUM(CASE WHEN date_trunc('week', ${orders.createdAt}) = date_trunc('week', CURRENT_DATE) THEN ${orderItems.quantityOz} ELSE 0 END)`,
+        ozLastWeek: sql<
+          number | null
+        >`SUM(CASE WHEN date_trunc('week', ${orders.createdAt}) = date_trunc('week', CURRENT_DATE - INTERVAL '1 week') THEN ${orderItems.quantityOz} ELSE 0 END)`,
+      })
+      .from(orders)
+      .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .where(and(eq(orders.buyerId, buyerId), ne(orders.status, 'canceled')));
+
+    const growers = await this.db
+      .select({
+        sellerId: users.id,
+        distance: sql<
+          number | null
+        >`ST_Distance(${users.location}, (SELECT location FROM ${users} WHERE id = ${buyerId})) / 1609.344`,
+        isLocal: sql<boolean>`
+          (${users.city} = (SELECT city FROM ${users} WHERE id = ${buyerId})) OR 
+          (ST_Distance(${users.location}, (SELECT location FROM ${users} WHERE id = ${buyerId})) / 1609.344 <= 50)
+        `,
+      })
+      .from(users)
+      .innerJoin(orders, eq(users.id, orders.sellerId))
+      .where(and(eq(orders.buyerId, buyerId), ne(orders.status, 'canceled')))
+      .groupBy(users.id, users.location, users.city);
+
+    return { spendAgg, weightAgg, growers };
   },
 };

@@ -14,6 +14,7 @@ describe('Users API - Smoke Tests', () => {
       body: JSON.stringify({
         name: 'John Doe',
         address: '123 Main St',
+        city: 'Memphis',
         lat: 45.0,
         lng: -90.0,
         deliveryRangeMiles: 10,
