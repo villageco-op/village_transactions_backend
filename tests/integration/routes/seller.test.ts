@@ -9,6 +9,7 @@ import {
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { users, orders, orderItems, produce } from '../../../src/db/schema.js';
 import { sellerRepository } from '../../../src/repositories/seller.repository.js';
+import { produceRepository } from '../../../src/repositories/produce.repository.js';
 
 describe('Seller API', () => {
   const SELLER_ID = 'seller_integration_abc';
@@ -36,6 +37,7 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
     testDb = getTestDb();
     orderRepository.setDb(testDb);
     sellerRepository.setDb(testDb);
+    produceRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -137,6 +139,29 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
         produceName: 'Fresh Berries',
         amount: 19.2,
       });
+    });
+  });
+
+  describe('GET /api/seller/dashboard', () => {
+    it('should return 200 and formatted dashboard data for authenticated seller', async () => {
+      const res = await authedRequest('/api/seller/dashboard', {}, { id: SELLER_ID });
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+
+      expect(body.monthlyGoal).toBe(1000);
+      expect(body.earnedThisMonth).toBe(19.2);
+      expect(body.soldThisWeekLbs).toBe(1);
+      expect(body.activeListingsCount).toBe(1);
+      expect(body.activeListingsNames).toEqual(['Fresh Berries']);
+      expect(body.earningsByProduceThisMonth).toHaveLength(1);
+      expect(body.earningsByProduceThisMonth[0]).toMatchObject({
+        produceName: 'Fresh Berries',
+        earned: 19.2,
+      });
+      expect(body.sellerLocation).toHaveProperty('lat');
+      expect(body.sellerLocation).toHaveProperty('lng');
+      expect(body.sellerLocation).toHaveProperty('address');
     });
   });
 });
