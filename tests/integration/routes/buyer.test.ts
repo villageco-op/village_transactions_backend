@@ -28,9 +28,24 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
     await truncateTables(testDb);
 
     await testDb.insert(users).values([
-      { id: BUYER_ID, email: 'buyer@example.com', name: 'Hungry Buyer' },
-      { id: SELLER_1_ID, email: 'seller1@example.com', name: 'Farm One', address: '123 Dirt Rd' },
-      { id: SELLER_2_ID, email: 'seller2@example.com', name: 'Farm Two', address: '456 Apple Ave' },
+      {
+        id: BUYER_ID,
+        email: 'buyer@example.com',
+        name: 'Hungry Buyer',
+        address: '123 House Ave, Ruraltown, CA 90000',
+      },
+      {
+        id: SELLER_1_ID,
+        email: 'seller1@example.com',
+        name: 'Farm One',
+        address: '456 Dirt Rd, Ruraltown, CA 90000',
+      },
+      {
+        id: SELLER_2_ID,
+        email: 'seller2@example.com',
+        name: 'Farm Two',
+        address: '789 Apple Ave, Faraway, CA 90001',
+      },
     ]);
 
     const [produce1, produce2, produce3] = await testDb
@@ -140,7 +155,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
 
     expect(seller1Stats.sellerId).toBe(SELLER_1_ID);
     expect(seller1Stats.name).toBe('Farm One');
-    expect(seller1Stats.address).toBe('123 Dirt Rd');
+    expect(seller1Stats.address).toBe('456 Dirt Rd, Ruraltown, CA 90000');
 
     expect(seller1Stats.produceTypesOrdered.sort()).toEqual(['carrots', 'spinach'].sort());
 
@@ -150,5 +165,22 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
     expect(new Date(seller1Stats.firstOrderDate).getTime()).toBeLessThan(
       Date.now() - 30 * 24 * 60 * 60 * 1000,
     );
+  });
+
+  it('GET /api/buyer/billing-summary should return aggregated financial stats', async () => {
+    const res = await authedRequest(
+      `/api/buyer/billing-summary`,
+      { method: 'GET' },
+      { id: BUYER_ID },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.totalSpent).toBe(48);
+    expect(body.totalProduceLbs).toBe(3);
+    expect(body.avgCostPerLb).toBe(16);
+
+    expect(body.localSourcingPercentage).toBe(100);
   });
 });

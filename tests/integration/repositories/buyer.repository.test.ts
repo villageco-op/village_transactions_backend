@@ -203,4 +203,21 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
 
     expect(results).toHaveLength(0);
   });
+
+  describe('getBuyerWithOrdersForSummary', () => {
+    it('should aggregate only completed orders and fetch buyer address', async () => {
+      const summaryData = await buyerRepository.getBuyerWithOrdersForSummary(BUYER_ID);
+
+      expect(summaryData.buyerAddress).toBeDefined();
+      expect(summaryData.orders).toHaveLength(3);
+
+      const mappedAmounts = summaryData.orders.map((o) => Number(o.totalAmount));
+      expect(mappedAmounts).toContain(10);
+      expect(mappedAmounts).toContain(20);
+      expect(mappedAmounts).toContain(30);
+
+      const currentOrder1 = summaryData.orders.find((o) => Number(o.totalAmount) === 20);
+      expect(Number(currentOrder1!.totalOz)).toBe(20);
+    });
+  });
 });

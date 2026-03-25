@@ -45,4 +45,36 @@ export const buyerRepository = {
       .limit(limit)
       .offset(offset);
   },
+
+  /**
+   * Retrieves the buyer's address and a flattened list of their completed orders
+   * joined with the seller's address and aggregated item weights.
+   * @param buyerId - The buyers ID
+   * @returns The buyers address and a list of completed orders.
+   */
+  async getBuyerWithOrdersForSummary(buyerId: string) {
+    const buyerQuery = await this.db
+      .select({ address: users.address })
+      .from(users)
+      .where(eq(users.id, buyerId))
+      .limit(1);
+
+    const ordersData = await this.db
+      .select({
+        id: orders.id,
+        totalAmount: orders.totalAmount,
+        sellerAddress: users.address,
+        totalOz: sql<number | string>`SUM(${orderItems.quantityOz})`,
+      })
+      .from(orders)
+      .innerJoin(users, eq(orders.sellerId, users.id))
+      .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .where(and(eq(orders.buyerId, buyerId), eq(orders.status, 'completed')))
+      .groupBy(orders.id, orders.totalAmount, users.address);
+
+    return {
+      buyerAddress: buyerQuery[0]?.address ?? null,
+      orders: ordersData,
+    };
+  },
 };
