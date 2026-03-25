@@ -8,6 +8,7 @@ import {
 } from '../../test-utils/testcontainer-db.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { users, orders, orderItems, produce } from '../../../src/db/schema.js';
+import { sellerRepository } from '../../../src/repositories/seller.repository.js';
 
 describe('Seller API', () => {
   const SELLER_ID = 'seller_integration_abc';
@@ -34,6 +35,7 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     orderRepository.setDb(testDb);
+    sellerRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -45,7 +47,7 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
 
     await testDb.insert(users).values([
       { id: BUYER_ID, name: 'Alice', email: 'alice@test.com' },
-      { id: SELLER_ID, name: 'Bob Seller', email: 'bob@seller.com' },
+      { id: SELLER_ID, name: 'Bob Seller', email: 'bob@seller.com', goal: '1000' },
     ]);
 
     const [testProduct] = await testDb
@@ -116,6 +118,25 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
 
       expect(Array.isArray(body)).toBe(true);
       expect(body).toHaveLength(1);
+    });
+  });
+
+  describe('GET /api/seller/earnings', () => {
+    it('should map the raw repository metrics into the formatted earnings schema', async () => {
+      const res = await authedRequest('/api/seller/earnings', {}, { id: SELLER_ID });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.monthlyGoal).toBe(1000);
+      expect(body.earnedThisMonth).toBe(19.2); // $19.20 made this month
+      expect(body.remainingToGoal).toBe(980.8); // 1000 - 19.20
+      expect(body.avgPerLbSold).toBe(19.2); // $19.20 total / 1 lb total
+
+      expect(body.amountSoldDollarsPerProduceThisMonth).toHaveLength(1);
+      expect(body.amountSoldDollarsPerProduceThisMonth[0]).toMatchObject({
+        produceName: 'Fresh Berries',
+        amount: 19.2,
+      });
     });
   });
 });
