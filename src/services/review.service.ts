@@ -13,7 +13,6 @@ export async function createReview(buyerId: string, data: CreateReviewPayload) {
   const existingReview = await reviewRepository.findByOrderAndBuyer(data.orderId, buyerId);
 
   if (existingReview) {
-    console.log(existingReview);
     throw new HTTPException(400, { message: 'A review already exists for this order' });
   }
 
@@ -26,7 +25,6 @@ export async function createReview(buyerId: string, data: CreateReviewPayload) {
   });
 
   if (!review) {
-    console.log('failed to create review');
     throw new HTTPException(500, { message: 'Failed to create review' });
   }
 
