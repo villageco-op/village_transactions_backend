@@ -1,7 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 
 import { reviewRepository } from '../repositories/review.repository.js';
-import type { CreateReviewPayload } from '../schemas/review.schema.js';
+import type { CreateReviewPayload, GetSellerReviewsQuery } from '../schemas/review.schema.js';
 
 /**
  * Creates a new review for an order.
@@ -29,4 +29,35 @@ export async function createReview(buyerId: string, data: CreateReviewPayload) {
   }
 
   return review;
+}
+
+/**
+ * Retrieves a paginated list of reviews for a seller.
+ * @param sellerId - The ID of the seller to fetch reviews for
+ * @param query - Pagination and sorting options
+ * @returns A list of reviews and pagination details
+ */
+export async function getSellerReviews(sellerId: string, query: GetSellerReviewsQuery) {
+  const { page, limit, sortBy, sortOrder } = query;
+  const offset = (page - 1) * limit;
+
+  const [items, total] = await Promise.all([
+    reviewRepository.findReviewsBySellerId(sellerId, { limit, offset, sortBy, sortOrder }),
+    reviewRepository.countBySellerId(sellerId),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    reviews: items.map((item) => ({
+      ...item,
+      createdAt: item.createdAt?.toISOString() ?? new Date().toISOString(),
+    })),
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages,
+    },
+  };
 }

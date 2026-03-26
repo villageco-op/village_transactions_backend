@@ -1,7 +1,15 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
-import { UpdateScheduleRulesSchema, UserProfileSchema } from '../schemas/user.schema.js';
-import { UpdateUserSchema } from '../schemas/user.schema.js';
+import {
+  GetSellerReviewsQuerySchema,
+  PaginatedReviewsResponseSchema,
+} from '../schemas/review.schema.js';
+import {
+  UpdateScheduleRulesSchema,
+  UserProfileSchema,
+  UpdateUserSchema,
+} from '../schemas/user.schema.js';
+import { getSellerReviews } from '../services/review.service.js';
 import {
   getCurrentUser,
   registerFcmToken,
@@ -179,5 +187,34 @@ usersRoute.openapi(
     await updateScheduleRules(userId, body);
 
     return c.json({ success: true }, 200);
+  },
+);
+
+usersRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}/reviews',
+    operationId: 'getSellerReviews',
+    description: 'Get a paginated list of reviews for a specific seller.',
+    request: {
+      params: z.object({
+        id: z.string().openapi({ description: 'User ID of the seller' }),
+      }),
+      query: GetSellerReviewsQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'A paginated list of seller reviews',
+        content: { 'application/json': { schema: PaginatedReviewsResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const query = c.req.valid('query');
+
+    const result = await getSellerReviews(id, query);
+
+    return c.json(result, 200);
   },
 );

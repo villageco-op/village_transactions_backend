@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
-import { createReview } from '../../../src/services/review.service.js';
+import { createReview, getSellerReviews } from '../../../src/services/review.service.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
 
 vi.mock('../../../src/repositories/review.repository.js', () => ({
   reviewRepository: {
     create: vi.fn(),
     findByOrderAndBuyer: vi.fn(),
+    findReviewsBySellerId: vi.fn(),
+    countBySellerId: vi.fn(),
   },
 }));
 
@@ -76,5 +78,67 @@ describe('ReviewService - createReview', () => {
       mockBuyerId,
     );
     expect(reviewRepository.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ReviewService - getSellerReviews', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return a correctly paginated response structure', async () => {
+    const mockDate = new Date('2024-01-01T00:00:00Z');
+
+    vi.mocked(reviewRepository.countBySellerId).mockResolvedValueOnce(25);
+    vi.mocked(reviewRepository.findReviewsBySellerId).mockResolvedValueOnce([
+      {
+        id: 'review_1',
+        rating: 5,
+        comment: 'Great',
+        createdAt: mockDate,
+        buyer: { id: 'buyer_1', name: 'Alice', image: null },
+      },
+    ]);
+
+    const query = { page: 2, limit: 10, sortBy: 'createdAt' as const, sortOrder: 'desc' as const };
+    const result = await getSellerReviews('seller_123', query);
+
+    // Assert pagination math
+    expect(reviewRepository.findReviewsBySellerId).toHaveBeenCalledWith('seller_123', {
+      limit: 10,
+      offset: 10,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    });
+
+    expect(result).toEqual({
+      reviews: [
+        {
+          id: 'review_1',
+          rating: 5,
+          comment: 'Great',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          buyer: { id: 'buyer_1', name: 'Alice', image: null },
+        },
+      ],
+      pagination: {
+        total: 25,
+        page: 2,
+        limit: 10,
+        totalPages: 3,
+      },
+    });
+  });
+
+  it('should return empty array if seller has no reviews', async () => {
+    vi.mocked(reviewRepository.countBySellerId).mockResolvedValueOnce(0);
+    vi.mocked(reviewRepository.findReviewsBySellerId).mockResolvedValueOnce([]);
+
+    const query = { page: 1, limit: 10, sortBy: 'createdAt' as const, sortOrder: 'desc' as const };
+    const result = await getSellerReviews('ghost_seller', query);
+
+    expect(result.reviews).toHaveLength(0);
+    expect(result.pagination.total).toBe(0);
+    expect(result.pagination.totalPages).toBe(0);
   });
 });
