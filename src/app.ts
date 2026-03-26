@@ -65,7 +65,6 @@ app.use('/api/auth/*', authHandler());
 
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-app.use('/api/users/*', verifyAuth());
 app.use('/api/produce/*', verifyAuth());
 app.use('/api/cart/*', verifyAuth());
 app.use('/api/stripe/connect/onboard', verifyAuth());

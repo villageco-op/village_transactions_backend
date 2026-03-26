@@ -100,4 +100,22 @@ export const reviewRepository = {
 
     return result?.count ?? 0;
   },
+
+  /**
+   * Aggregates review counts by rating for a given seller.
+   * @param sellerId - The unique identifier of the seller
+   * @returns An array of objects containing the rating and count
+   */
+  async getReviewStatsBySellerId(sellerId: string) {
+    const result = await this.db
+      .select({
+        rating: reviews.rating,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(reviews)
+      .where(eq(reviews.sellerId, sellerId))
+      .groupBy(reviews.rating);
+
+    return result;
+  },
 };

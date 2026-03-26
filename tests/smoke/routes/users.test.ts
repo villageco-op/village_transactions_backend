@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { authedRequest } from '../../test-utils/auth.js';
+import { request } from '../../test-utils/request.js';
 
 describe('Users API - Smoke Tests', () => {
   it('GET /api/users/me should not return a 500 error', async () => {
@@ -49,6 +50,11 @@ describe('Users API - Smoke Tests', () => {
 
   it('GET /api/users/:id/reviews should not return a 500 error', async () => {
     const res = await authedRequest('/api/users/any_seller_id/reviews?page=1&limit=5');
+    expect(res.status).not.toBe(500);
+  });
+
+  it('GET /api/users/:id should not return a 500 error', async () => {
+    const res = await request('/api/users/any_seller_id');
     expect(res.status).not.toBe(500);
   });
 });

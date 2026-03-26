@@ -1,4 +1,4 @@
-import { eq, inArray, and, gt, desc, gte } from 'drizzle-orm';
+import { eq, inArray, and, gt, desc, gte, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import {
@@ -307,5 +307,20 @@ export const orderRepository = {
         ),
       )
       .orderBy(desc(orders.createdAt));
+  },
+
+  /**
+   * Counts the number of unique buyers that have placed an order with a seller since a given date.
+   * @param sellerId - The unique identifier of the seller
+   * @param since - The starting date to filter orders
+   * @returns The count of unique active buyers
+   */
+  async getActiveBuyerCount(sellerId: string, since: Date): Promise<number> {
+    const [result] = await this.db
+      .select({ count: sql<number>`count(distinct ${orders.buyerId})::int` })
+      .from(orders)
+      .where(and(eq(orders.sellerId, sellerId), gte(orders.createdAt, since)));
+
+    return result?.count ?? 0;
   },
 };
