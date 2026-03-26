@@ -14,6 +14,7 @@ import { cronRoute } from './routes/cron.js';
 import { messagingRoute } from './routes/messaging.js';
 import { ordersRoute } from './routes/orders.js';
 import { produceRoute } from './routes/produce.js';
+import { reviewsRoute } from './routes/reviews.js';
 import { sellerRoute } from './routes/seller.js';
 import { stripeRoute } from './routes/stripe.js';
 import { subscriptionsRoute } from './routes/subscriptions.js';
@@ -74,6 +75,7 @@ app.use('/api/orders/*', verifyAuth());
 app.use('/api/availability/*', verifyAuth());
 app.use('/api/seller/*', verifyAuth());
 app.use('/api/buyer/*', verifyAuth());
+app.use('/api/reviews/*', verifyAuth());
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);
@@ -87,6 +89,7 @@ app.route('/api/conversations', messagingRoute.conversationsRoute);
 app.route('/api/messages', messagingRoute.messagesRoute);
 app.route('/api/seller', sellerRoute);
 app.route('/api/buyer', buyerRoute);
+app.route('/api/reviews', reviewsRoute);
 app.route('/api/cron', cronRoute);
 
 app.doc('/doc', openApiConfig);
