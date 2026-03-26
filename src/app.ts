@@ -10,6 +10,7 @@ import { availabilityRoute } from './routes/availability.js';
 import { buyerRoute } from './routes/buyer.js';
 import { cartRoute } from './routes/cart.js';
 import { checkoutRoute } from './routes/checkout.js';
+import { contactRoute } from './routes/contact.js';
 import { cronRoute } from './routes/cron.js';
 import { messagingRoute } from './routes/messaging.js';
 import { ordersRoute } from './routes/orders.js';
@@ -90,6 +91,7 @@ app.route('/api/seller', sellerRoute);
 app.route('/api/buyer', buyerRoute);
 app.route('/api/reviews', reviewsRoute);
 app.route('/api/cron', cronRoute);
+app.route('/api/contact', contactRoute);
 
 app.doc('/doc', openApiConfig);
 
