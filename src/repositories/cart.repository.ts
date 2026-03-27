@@ -70,4 +70,20 @@ export const cartRepository = {
       .innerJoin(users, eq(produce.sellerId, users.id))
       .where(and(eq(cartReservations.buyerId, buyerId), gte(cartReservations.expiresAt, now)));
   },
+
+  /**
+   * Removes an item from the cart, releasing the reservation early.
+   *
+   * @param buyerId - The ID of the user who owns the reservation
+   * @param reservationId - The unique ID of the reservation to be removed
+   * @returns A boolean indicating if a reservation was successfully removed
+   */
+  async removeFromCart(buyerId: string, reservationId: string): Promise<boolean> {
+    const deleted = await this.db
+      .delete(cartReservations)
+      .where(and(eq(cartReservations.id, reservationId), eq(cartReservations.buyerId, buyerId)))
+      .returning({ id: cartReservations.id });
+
+    return deleted.length > 0;
+  },
 };

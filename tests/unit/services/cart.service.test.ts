@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { addToCart, getCart } from '../../../src/services/cart.service.js';
+import { addToCart, getCart, removeFromCart } from '../../../src/services/cart.service.js';
 import { cartRepository } from '../../../src/repositories/cart.repository.js';
 
 vi.mock('../../../src/repositories/cart.repository.js', () => ({
   cartRepository: {
     addToCart: vi.fn(),
     getActiveCart: vi.fn(),
+    removeFromCart: vi.fn(),
   },
 }));
 
@@ -152,5 +153,38 @@ describe('CartService - getCart', () => {
     vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([]);
     const cart = await getCart(mockBuyerId);
     expect(cart).toEqual([]);
+  });
+});
+
+describe('CartService - removeFromCart', () => {
+  const mockBuyerId = 'buyer_123';
+  const mockReservationId = '123e4567-e89b-12d3-a456-426614174000';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return true when a reservation is successfully removed', async () => {
+    vi.mocked(cartRepository.removeFromCart).mockResolvedValueOnce(true);
+
+    const result = await removeFromCart(mockBuyerId, mockReservationId);
+
+    expect(result).toBe(true);
+    expect(cartRepository.removeFromCart).toHaveBeenCalledWith(mockBuyerId, mockReservationId);
+  });
+
+  it('should return false when a reservation does not exist', async () => {
+    vi.mocked(cartRepository.removeFromCart).mockResolvedValueOnce(false);
+
+    const result = await removeFromCart(mockBuyerId, mockReservationId);
+
+    expect(result).toBe(false);
+    expect(cartRepository.removeFromCart).toHaveBeenCalledWith(mockBuyerId, mockReservationId);
+  });
+
+  it('should propagate errors from the repository', async () => {
+    vi.mocked(cartRepository.removeFromCart).mockRejectedValueOnce(new Error('DB Error'));
+
+    await expect(removeFromCart(mockBuyerId, mockReservationId)).rejects.toThrow('DB Error');
   });
 });
