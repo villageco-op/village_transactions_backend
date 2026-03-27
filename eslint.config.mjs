@@ -88,7 +88,7 @@ export default [
     },
   },
   {
-    files: ['src/index.ts'],
+    files: ['src/app.ts'],
     rules: { 'no-restricted-imports': 'off' }
   }
 ];
