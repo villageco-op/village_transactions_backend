@@ -139,3 +139,24 @@ export async function getProduceOrders(
 ) {
   return await produceRepository.getProduceOrders(produceId, sellerId, limit, offset);
 }
+
+/**
+ * Retrieves a paginated list of the authenticated seller's own produce listings.
+ * @param sellerId - The ID of the authenticated seller.
+ * @param params - Pagination and filtering configuration.
+ * @param params.limit - The maximum number of items to return.
+ * @param params.offset - The number of items to skip.
+ * @param params.status - Optional status filter.
+ * @returns Array of full produce details.
+ */
+export async function getSellerProduceListings(
+  sellerId: string,
+  params: { limit: number; offset: number; status?: 'active' | 'paused' | 'deleted' },
+) {
+  return await produceRepository.getSellerListings({
+    sellerId,
+    limit: params.limit,
+    offset: params.offset,
+    status: params.status,
+  });
+}

@@ -260,4 +260,36 @@ export const produceRepository = {
       .limit(limit)
       .offset(offset);
   },
+
+  /**
+   * Retrieves a paginated list of a seller's own produce listings with full details.
+   * @param params - The configuration object for the produce query.
+   * @param params.sellerId - The ID of the seller whose listings are being fetched.
+   * @param params.limit - Max items per page.
+   * @param params.offset - Starting index for results.
+   * @param params.status - Optional status filter (active, paused, deleted).
+   * @returns Array of full produce records.
+   */
+  async getSellerListings(params: {
+    sellerId: string;
+    limit: number;
+    offset: number;
+    status?: 'active' | 'paused' | 'deleted';
+  }) {
+    const { sellerId, limit, offset, status } = params;
+
+    const conditions = [eq(produce.sellerId, sellerId)];
+
+    if (status) {
+      conditions.push(eq(produce.status, status));
+    }
+
+    return await this.db
+      .select()
+      .from(produce)
+      .where(and(...conditions))
+      .orderBy(desc(produce.createdAt))
+      .limit(limit)
+      .offset(offset);
+  },
 };

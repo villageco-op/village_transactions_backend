@@ -6,6 +6,7 @@ import {
   getProduceList,
   getProduceMap,
   getProduceOrders,
+  getSellerProduceListings,
   updateProduceListing,
 } from '../../../src/services/produce.service.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
@@ -18,6 +19,7 @@ vi.mock('../../../src/repositories/produce.repository.js', () => ({
     getList: vi.fn(),
     getMapItems: vi.fn(),
     getProduceOrders: vi.fn(),
+    getSellerListings: vi.fn(),
   },
 }));
 
@@ -373,6 +375,57 @@ describe('ProduceService - getProduceOrders', () => {
     );
 
     await expect(getProduceOrders(mockProduceId, mockSellerId, 10, 0)).rejects.toThrow(
+      'Database Timeout',
+    );
+  });
+});
+
+describe('ProduceService - getSellerProduceListings', () => {
+  const mockSellerId = 'user_123';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully retrieve a paginated list of the sellers own produce', async () => {
+    const mockDbProduce = [
+      {
+        id: 'prod_1',
+        sellerId: mockSellerId,
+        title: 'My Apples',
+        status: 'active',
+      },
+      {
+        id: 'prod_2',
+        sellerId: mockSellerId,
+        title: 'My Oranges',
+        status: 'paused',
+      },
+    ];
+
+    vi.mocked(produceRepository.getSellerListings).mockResolvedValueOnce(mockDbProduce as any);
+
+    const result = await getSellerProduceListings(mockSellerId, {
+      limit: 10,
+      offset: 0,
+      status: undefined,
+    });
+
+    expect(result).toEqual(mockDbProduce);
+    expect(produceRepository.getSellerListings).toHaveBeenCalledWith({
+      sellerId: mockSellerId,
+      limit: 10,
+      offset: 0,
+      status: undefined,
+    });
+  });
+
+  it('should propagate repository errors upward', async () => {
+    vi.mocked(produceRepository.getSellerListings).mockRejectedValueOnce(
+      new Error('Database Timeout'),
+    );
+
+    await expect(getSellerProduceListings(mockSellerId, { limit: 10, offset: 0 })).rejects.toThrow(
       'Database Timeout',
     );
   });

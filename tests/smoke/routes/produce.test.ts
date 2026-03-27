@@ -68,4 +68,12 @@ describe('Produce API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/produce/me should not return a 500 error', async () => {
+    const res = await authedRequest('/api/produce/me?limit=10&offset=0&status=active', {
+      method: 'GET',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });

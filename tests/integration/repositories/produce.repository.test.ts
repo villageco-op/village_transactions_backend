@@ -466,4 +466,83 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       expect(pageOutOfBounds).toHaveLength(0); // Valid structure, empty results
     });
   });
+
+  describe('getSellerListings', () => {
+    beforeEach(async () => {
+      await testDb.insert(produce).values([
+        {
+          sellerId: TEST_SELLER_ID,
+          title: 'Test Active 1',
+          pricePerOz: '1.00',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+          createdAt: new Date('2024-01-01T10:00:00Z'),
+        },
+        {
+          sellerId: TEST_SELLER_ID,
+          title: 'Test Paused 1',
+          pricePerOz: '1.00',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'paused',
+          createdAt: new Date('2024-01-02T10:00:00Z'),
+        },
+        {
+          sellerId: OTHER_SELLER_ID,
+          title: 'Other Sellers Active',
+          pricePerOz: '1.00',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+          createdAt: new Date('2024-01-03T10:00:00Z'),
+        },
+      ]);
+    });
+
+    it('should return only the requested sellers listings, ordered by newest first', async () => {
+      const results = await produceRepository.getSellerListings({
+        sellerId: TEST_SELLER_ID,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(results).toHaveLength(2);
+
+      expect(results[0].title).toBe('Test Paused 1');
+      expect(results[1].title).toBe('Test Active 1');
+
+      expect(results.some((r) => r.sellerId !== TEST_SELLER_ID)).toBe(false);
+    });
+
+    it('should filter correctly by status', async () => {
+      const results = await produceRepository.getSellerListings({
+        sellerId: TEST_SELLER_ID,
+        limit: 10,
+        offset: 0,
+        status: 'active',
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].title).toBe('Test Active 1');
+      expect(results[0].status).toBe('active');
+    });
+
+    it('should paginate correctly', async () => {
+      const results = await produceRepository.getSellerListings({
+        sellerId: TEST_SELLER_ID,
+        limit: 1,
+        offset: 1,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].title).toBe('Test Active 1');
+    });
+  });
 });

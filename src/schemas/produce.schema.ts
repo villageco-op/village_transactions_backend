@@ -1,4 +1,7 @@
 import { z } from '@hono/zod-openapi';
+import { createSelectSchema } from 'drizzle-zod';
+
+import { produce } from '../db/schema.js';
 
 const ProduceFields = z.object({
   title: z.string().min(1).openapi({ example: 'Organic Honeycrisp Apples' }),
@@ -97,6 +100,14 @@ export const ProduceOrderListItemSchema = z.object({
   createdAt: z.coerce.date().nullable(),
   buyer: ProduceOrderBuyerSchema,
 });
+
+export const SellerProduceQuerySchema = z.object({
+  limit: z.coerce.number().default(20),
+  offset: z.coerce.number().default(0),
+  status: z.enum(['active', 'paused', 'deleted']).optional(),
+});
+
+export const ProduceSchema = createSelectSchema(produce).openapi('Produce');
 
 export type CreateProducePayload = z.infer<typeof CreateProduceSchema>;
 export type UpdateProducePayload = z.infer<typeof UpdateProduceSchema>;
