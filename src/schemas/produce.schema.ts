@@ -3,80 +3,121 @@ import { createSelectSchema } from 'drizzle-zod';
 
 import { produce } from '../db/schema.js';
 
+import {
+  FulfillmentTypeSchema,
+  ImageUrlSchema,
+  IsoDateSchema,
+  IsoDateTimeSchema,
+  LatitudeSchema,
+  LongitudeSchema,
+  OrderStatusSchema,
+  PriceDollarsSchema,
+  ProduceStatusSchema,
+  ResourceIdSchema,
+  UserIdSchema,
+  WeightOzSchema,
+} from './common.schema.js';
+
 const ProduceFields = z.object({
-  title: z.string().min(1).openapi({ example: 'Organic Honeycrisp Apples' }),
-  produceType: z.string().optional().openapi({ example: 'fruit' }),
-  pricePerOz: z.number().positive().openapi({ example: 0.25 }),
-  totalOzInventory: z.number().nonnegative().openapi({ example: 500 }),
-  availableBy: z.coerce.date().optional().openapi({ example: '2026-03-25T10:00:00Z' }),
-  harvestFrequencyDays: z.number().int().nonnegative().openapi({ example: 7 }),
-  seasonStart: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .openapi({ example: '2024-09-01' }),
-  seasonEnd: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .openapi({ example: '2024-11-30' }),
-  images: z.array(z.url()).openapi({ example: ['https://example.com/apple.jpg'] }),
-  isSubscribable: z.boolean().openapi({ example: true }),
+  title: z.string().min(1).openapi({
+    example: 'Organic Honeycrisp Apples',
+    description: 'The public title of the produce listing',
+  }),
+  produceType: z.string().optional().openapi({
+    example: 'fruit',
+    description: 'Category of the produce (e.g., vegetable, fruit, herb)',
+  }),
+  pricePerOz: PriceDollarsSchema,
+  totalOzInventory: WeightOzSchema,
+  availableBy: z.coerce.date().optional().openapi({
+    example: '2026-03-25T10:00:00Z',
+    description: 'The date and time when the produce will be ready for pickup or delivery',
+  }),
+  harvestFrequencyDays: z.number().int().nonnegative().openapi({
+    example: 7,
+    description: 'How often this item is typically harvested, in days',
+  }),
+  seasonStart: IsoDateSchema,
+  seasonEnd: IsoDateSchema,
+  images: z.array(ImageUrlSchema).openapi({
+    example: ['https://example.com/apple.jpg'],
+    description: 'List of gallery images for the product',
+  }),
+  isSubscribable: z.boolean().openapi({
+    example: true,
+    description: 'Whether customers can set up recurring orders for this item',
+  }),
 });
 
 export const CreateProduceSchema = ProduceFields.extend({
   images: ProduceFields.shape.images.default([]),
   isSubscribable: ProduceFields.shape.isSubscribable.default(false),
-});
+}).openapi('CreateProducePayload');
 
 export const UpdateProduceSchema = ProduceFields.partial()
   .extend({
-    status: z.enum(['active', 'paused', 'deleted']).optional().openapi({ example: 'paused' }),
+    status: ProduceStatusSchema.optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided for update',
-  });
+  })
+  .openapi('UpdateProducePayload');
 
 export const ProduceListItemSchema = z.object({
-  id: z.uuid(),
-  thumbnail: z.url().nullable(),
-  name: z.string(),
-  sellerName: z.string().nullable(),
-  sellerId: z.string(),
-  price: z.string(),
-  amount: z.string(),
+  id: ResourceIdSchema,
+  thumbnail: ImageUrlSchema.nullable(),
+  name: z.string().openapi({ example: 'Honeycrisp Apples' }),
+  sellerName: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
+  sellerId: UserIdSchema,
+  price: z.string().openapi({ example: '4.50', description: 'Formatted price string' }),
+  amount: z.string().openapi({ example: '16oz', description: 'Formatted weight/quantity string' }),
   availableBy: z.date(),
-  distance: z.number(),
+  distance: z.number().openapi({ example: 5.2, description: 'Distance in miles from the user' }),
   isSubscribable: z.boolean().nullable(),
 });
 
 export const ProduceQuerySchema = z.object({
-  lat: z.coerce.number(),
-  lng: z.coerce.number(),
-  sortBy: z.enum(['distance', 'price']).optional(),
-  hasDelivery: z.enum(['true', 'false']).optional(),
-  limit: z.coerce.number().default(20),
-  offset: z.coerce.number().default(0),
+  lat: LatitudeSchema,
+  lng: LongitudeSchema,
+  sortBy: z.enum(['distance', 'price']).optional().openapi({
+    description: 'Sort order for the results',
+    example: 'distance',
+  }),
+  hasDelivery: z.enum(['true', 'false']).optional().openapi({
+    description: 'Filter for items that offer delivery',
+  }),
+  limit: z.coerce.number().default(20).openapi({ example: 20 }),
+  offset: z.coerce.number().default(0).openapi({ example: 0 }),
 });
 
 export const ProduceMapQuerySchema = z.object({
-  lat: z.coerce.number(),
-  lng: z.coerce.number(),
-  radiusMiles: z.coerce.number().default(50),
-  produceType: z.string().optional(),
+  lat: LatitudeSchema,
+  lng: LongitudeSchema,
+  radiusMiles: z.coerce.number().default(50).openapi({
+    description: 'Search radius in miles',
+    example: 25,
+  }),
+  produceType: z.string().optional().openapi({ example: 'spinach' }),
   hasDelivery: z.enum(['true', 'false']).optional(),
-  maxPrice: z.coerce.number().optional(),
+  maxPrice: z.coerce.number().optional().openapi({
+    description: 'Filter for items under a specific price point',
+    example: 10,
+  }),
 });
 
 export const ProduceMapItemSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  thumbnail: z.string().nullable(),
+  id: ResourceIdSchema,
+  name: z.string().openapi({ example: 'Kale' }),
+  thumbnail: ImageUrlSchema.nullable(),
 });
 
 export const SellerMapGroupSchema = z.object({
-  sellerId: z.string(),
-  lat: z.number(),
-  lng: z.number(),
-  produce: z.array(ProduceMapItemSchema),
+  sellerId: UserIdSchema,
+  lat: z.number().openapi({ example: 43.0731 }),
+  lng: z.number().openapi({ example: -89.4012 }),
+  produce: z.array(ProduceMapItemSchema).openapi({
+    description: 'List of produce items available at this specific map location',
+  }),
 });
 
 export const ProduceOrdersQuerySchema = z.object({
@@ -85,26 +126,26 @@ export const ProduceOrdersQuerySchema = z.object({
 });
 
 export const ProduceOrderBuyerSchema = z.object({
-  id: z.string(),
-  name: z.string().nullable(),
-  image: z.string().nullable(),
+  id: UserIdSchema,
+  name: z.string().nullable().openapi({ example: 'John Doe' }),
+  image: ImageUrlSchema.nullable(),
 });
 
 export const ProduceOrderListItemSchema = z.object({
-  id: z.uuid(),
-  status: z.enum(['pending', 'completed', 'canceled']).nullable(),
-  fulfillmentType: z.enum(['pickup', 'delivery']),
-  scheduledTime: z.coerce.date(),
-  totalAmount: z.string(),
-  quantityOz: z.string(),
-  createdAt: z.coerce.date().nullable(),
+  id: ResourceIdSchema,
+  status: OrderStatusSchema.nullable(),
+  fulfillmentType: FulfillmentTypeSchema,
+  scheduledTime: IsoDateSchema,
+  totalAmount: z.string().openapi({ example: '25.00' }),
+  quantityOz: z.string().openapi({ example: '32.0' }),
+  createdAt: IsoDateTimeSchema.nullable(),
   buyer: ProduceOrderBuyerSchema,
 });
 
 export const SellerProduceQuerySchema = z.object({
   limit: z.coerce.number().default(20),
   offset: z.coerce.number().default(0),
-  status: z.enum(['active', 'paused', 'deleted']).optional(),
+  status: ProduceStatusSchema.optional(),
 });
 
 export const ProduceSchema = createSelectSchema(produce).openapi('Produce');

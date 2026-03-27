@@ -1,18 +1,11 @@
 import { z } from '@hono/zod-openapi';
 
+import { FulfillmentTypeSchema, IsoDateTimeSchema, UserIdSchema } from './common.schema.js';
+
 export const CreateCheckoutSessionSchema = z.object({
-  sellerId: z.string().openapi({
-    example: 'sel_12345',
-    description: 'The unique identifier of the seller.',
-  }),
-  fulfillmentType: z.enum(['pickup', 'delivery']).openapi({
-    example: 'pickup',
-    description: 'The method by which the buyer will receive the goods.',
-  }),
-  scheduledTime: z.iso.datetime().openapi({
-    example: '2026-03-20T14:30:00Z',
-    description: 'ISO 8601 formatted date and time for fulfillment.',
-  }),
+  sellerId: UserIdSchema,
+  fulfillmentType: FulfillmentTypeSchema,
+  scheduledTime: IsoDateTimeSchema,
 });
 
 export type CreateCheckoutSessionPayload = z.infer<typeof CreateCheckoutSessionSchema>;

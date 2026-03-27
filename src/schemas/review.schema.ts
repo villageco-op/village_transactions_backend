@@ -1,11 +1,24 @@
 import { z } from '@hono/zod-openapi';
 
+import {
+  ImageUrlSchema,
+  IsoDateTimeSchema,
+  ResourceIdSchema,
+  UserIdSchema,
+} from './common.schema.js';
+
 export const CreateReviewSchema = z
   .object({
-    sellerId: z.string().openapi({ description: 'The user ID of the seller' }),
-    orderId: z.uuid().openapi({ description: 'The UUID of the completed order' }),
-    rating: z.number().int().min(1).max(5).openapi({ description: 'Star rating from 1 to 5' }),
-    comment: z.string().optional().openapi({ description: 'Optional review comment' }),
+    sellerId: UserIdSchema,
+    orderId: ResourceIdSchema,
+    rating: z.number().int().min(1).max(5).openapi({
+      example: 5,
+      description: 'Star rating from 1 to 5',
+    }),
+    comment: z.string().optional().openapi({
+      example: 'The apples were incredibly crisp and sweet!',
+      description: 'Optional text review from the buyer',
+    }),
   })
   .openapi('CreateReview');
 
@@ -16,7 +29,7 @@ export const GetSellerReviewsQuerySchema = z.object({
     .min(1)
     .optional()
     .default(1)
-    .openapi({ description: 'Page number' }),
+    .openapi({ example: 1, description: 'The page number for pagination' }),
   limit: z.coerce
     .number()
     .int()
@@ -24,42 +37,44 @@ export const GetSellerReviewsQuerySchema = z.object({
     .max(50)
     .optional()
     .default(10)
-    .openapi({ description: 'Items per page' }),
+    .openapi({ example: 10, description: 'Number of reviews to return per page' }),
   sortBy: z
     .enum(['createdAt', 'rating'])
     .optional()
     .default('createdAt')
-    .openapi({ description: 'Sort field' }),
+    .openapi({ example: 'createdAt', description: 'The field used to sort reviews' }),
   sortOrder: z
     .enum(['asc', 'desc'])
     .optional()
     .default('desc')
-    .openapi({ description: 'Sort direction' }),
+    .openapi({ example: 'desc', description: 'The direction of the sort' }),
 });
 
 export type GetSellerReviewsQuery = z.infer<typeof GetSellerReviewsQuerySchema>;
 
 export const ReviewBuyerSchema = z.object({
-  id: z.string(),
-  name: z.string().nullable(),
-  image: z.string().nullable(),
+  id: UserIdSchema,
+  name: z.string().nullable().openapi({ example: 'Alex River' }),
+  image: ImageUrlSchema.nullable(),
 });
 
 export const SellerReviewItemSchema = z.object({
-  id: z.string(),
-  rating: z.number(),
-  comment: z.string().nullable(),
-  createdAt: z.string(),
+  id: ResourceIdSchema,
+  rating: z.number().openapi({ example: 4 }),
+  comment: z.string().nullable().openapi({ example: 'Great produce, slightly late delivery.' }),
+  createdAt: IsoDateTimeSchema,
   buyer: ReviewBuyerSchema.nullable(),
 });
 
 export const PaginatedReviewsResponseSchema = z.object({
-  reviews: z.array(SellerReviewItemSchema),
+  reviews: z
+    .array(SellerReviewItemSchema)
+    .openapi({ description: 'List of reviews for the seller' }),
   pagination: z.object({
-    total: z.number(),
-    page: z.number(),
-    limit: z.number(),
-    totalPages: z.number(),
+    total: z.number().openapi({ example: 45, description: 'Total number of reviews available' }),
+    page: z.number().openapi({ example: 1 }),
+    limit: z.number().openapi({ example: 10 }),
+    totalPages: z.number().openapi({ example: 5 }),
   }),
 });
 

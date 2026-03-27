@@ -1,10 +1,9 @@
 import { z } from '@hono/zod-openapi';
 
+import { SubscriptionStatusSchema } from './common.schema.js';
+
 export const UpdateSubscriptionStatusSchema = z.object({
-  status: z.enum(['active', 'paused', 'canceled']).openapi({
-    example: 'active',
-    description: 'The new status for the subscription',
-  }),
+  status: SubscriptionStatusSchema,
 });
 
 export type UpdateSubscriptionStatusBody = z.infer<typeof UpdateSubscriptionStatusSchema>;

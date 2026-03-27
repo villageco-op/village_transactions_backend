@@ -38,6 +38,17 @@ jobs:
 
       - name: Run Tests
         run: pnpm test
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          POSTGRES_IMAGE: ${{ secrets.POSTGRES_IMAGE }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          VILLAGE_CONTACT_EMAIL: ${{ secrets.VILLAGE_CONTACT_EMAIL }}
+          VILLAGE_FROM_EMAIL: ${{ secrets.VILLAGE_FROM_EMAIL }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
 
   update-openapi:
     needs: backend-ci

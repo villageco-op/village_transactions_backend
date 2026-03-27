@@ -3,15 +3,10 @@ import { createSelectSchema } from 'drizzle-zod';
 
 import { orders } from '../db/schema.js';
 
+import { IsoDateTimeSchema, OrderStatusSchema, ResourceIdSchema } from './common.schema.js';
+
 export const CancelOrderParamsSchema = z.object({
-  id: z.uuid().openapi({
-    param: {
-      name: 'id',
-      in: 'path',
-    },
-    example: '550e8400-e29b-41d4-a716-446655440000',
-    description: 'The unique UUID of the order to cancel',
-  }),
+  id: ResourceIdSchema,
 });
 
 export const CancelOrderBodySchema = z.object({
@@ -22,26 +17,17 @@ export const CancelOrderBodySchema = z.object({
 });
 
 export const RescheduleOrderParamsSchema = z.object({
-  id: z.uuid().openapi({
-    param: {
-      name: 'id',
-      in: 'path',
-    },
-    example: '550e8400-e29b-41d4-a716-446655440000',
-    description: 'The unique UUID of the order to reschedule',
-  }),
+  id: ResourceIdSchema,
 });
 
 export const RescheduleOrderBodySchema = z.object({
-  newTime: z.iso.datetime().openapi({
-    example: '2024-12-01T12:00:00.000Z',
-    description: 'The new scheduled time for pickup/delivery (ISO 8601 string)',
-  }),
+  newTime: IsoDateTimeSchema,
 });
 
 export const OrderActionSuccessSchema = z.object({
   success: z.boolean().openapi({
     example: true,
+    description: 'Indicates if the requested order action was processed successfully',
   }),
 });
 
@@ -50,10 +36,7 @@ export const GetOrdersQuerySchema = z.object({
     description: 'The perspective from which to fetch orders',
     example: 'buyer',
   }),
-  status: z.enum(['pending', 'completed', 'canceled']).optional().openapi({
-    description: 'Filter orders by their current status',
-    example: 'pending',
-  }),
+  status: OrderStatusSchema.optional(),
   timeframe: z.string().optional().openapi({
     description: 'Optional timeframe filter (e.g., "7d", "30d", or ISO range)',
     example: 'recent',
