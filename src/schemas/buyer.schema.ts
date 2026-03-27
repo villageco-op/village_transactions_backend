@@ -1,5 +1,13 @@
 import { z } from '@hono/zod-openapi';
 
+import {
+  AddressSchema,
+  IsoDateTimeSchema,
+  PriceDollarsSchema,
+  ResourceIdSchema,
+  UserIdSchema,
+} from './common.schema.js';
+
 export const GetGrowersQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).optional().default(20).openapi({
     example: 20,
@@ -12,13 +20,25 @@ export const GetGrowersQuerySchema = z.object({
 });
 
 export const GrowerSchema = z.object({
-  sellerId: z.string().openapi({ example: 'user-123' }),
-  name: z.string().nullable().openapi({ example: 'Green Valley Farm' }),
-  address: z.string().nullable().openapi({ example: '123 Farm Lane, Ruraltown' }),
-  produceTypesOrdered: z.array(z.string()).openapi({ example: ['spinach', 'carrots'] }),
-  amountOrderedThisMonthLbs: z.number().openapi({ example: 12.5 }),
-  daysSinceFirstOrder: z.number().openapi({ example: 45 }),
-  firstOrderDate: z.string().openapi({ example: '2023-10-01T12:00:00.000Z' }),
+  sellerId: UserIdSchema,
+  name: z.string().nullable().openapi({
+    example: 'Green Valley Farm',
+    description: 'The display name of the grower',
+  }),
+  address: AddressSchema.nullable(),
+  produceTypesOrdered: z.array(z.string()).openapi({
+    example: ['spinach', 'carrots'],
+    description: 'List of produce categories previously purchased from this grower',
+  }),
+  amountOrderedThisMonthLbs: z.number().openapi({
+    example: 12.5,
+    description: 'Total weight of produce ordered from this grower in the current month',
+  }),
+  daysSinceFirstOrder: z.number().openapi({
+    example: 45,
+    description: 'Number of days since the first transaction with this grower',
+  }),
+  firstOrderDate: IsoDateTimeSchema,
 });
 
 export const GrowersResponseSchema = z.array(GrowerSchema);
@@ -37,20 +57,40 @@ export const BillingSummaryResponseSchema = z.object({
 });
 
 export const ActiveSubscriptionSchema = z.object({
-  id: z.string().openapi({ example: 'sub-123' }),
-  produceName: z.string().openapi({ example: 'Organic Apples' }),
+  id: ResourceIdSchema,
+  produceName: z.string().openapi({
+    example: 'Organic Apples',
+    description: 'Name of the recurring produce item',
+  }),
   amount: z.number().openapi({ example: 10.5, description: 'Subscription amount in Lbs' }),
 });
 
 export const BuyerDashboardResponseSchema = z.object({
-  onOrderThisWeekLbs: z.number().openapi({ example: 25.4 }),
-  percentChangeFromLastWeek: z.number().openapi({ example: 12.5 }),
-  totalSpendThisMonth: z.number().openapi({ example: 340.5 }),
-  totalSpendLastMonth: z.number().openapi({ example: 290.0 }),
-  activeSubscriptions: z.array(ActiveSubscriptionSchema),
-  localGrowersSupplying: z.number().openapi({ example: 3 }),
-  furthestGrowerDistanceMiles: z.number().openapi({ example: 45.2 }),
-  avgGrowerDistanceMiles: z.number().openapi({ example: 18.4 }),
+  onOrderThisWeekLbs: z.number().openapi({
+    example: 25.4,
+    description: 'Total weight of produce scheduled for delivery this week',
+  }),
+  percentChangeFromLastWeek: z.number().openapi({
+    example: 12.5,
+    description: 'Percentage change in order volume compared to the previous week',
+  }),
+  totalSpendThisMonth: PriceDollarsSchema,
+  totalSpendLastMonth: PriceDollarsSchema,
+  activeSubscriptions: z.array(ActiveSubscriptionSchema).openapi({
+    description: 'List of currently active recurring orders',
+  }),
+  localGrowersSupplying: z.number().openapi({
+    example: 3,
+    description: 'Count of local growers currently fulfilling orders',
+  }),
+  furthestGrowerDistanceMiles: z.number().openapi({
+    example: 45.2,
+    description: 'Distance in miles to the most distant supplier',
+  }),
+  avgGrowerDistanceMiles: z.number().openapi({
+    example: 18.4,
+    description: 'Mean distance in miles across all active suppliers',
+  }),
 });
 
 export type GetGrowersQuery = z.infer<typeof GetGrowersQuerySchema>;

@@ -24,7 +24,6 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'paused',
   'canceled',
 ]);
-export const scheduleTypeEnum = pgEnum('schedule_type', ['pickup', 'delivery']);
 
 const geography = customType<{ data: string }>({
   dataType() {
@@ -74,7 +73,7 @@ export const scheduleRules = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     dayOfWeek: varchar('day_of_week', { length: 10 }).notNull(),
-    type: scheduleTypeEnum('type').default('pickup'),
+    type: fulfillmentTypeEnum('type').default('pickup'),
     startTime: time('start_time').notNull(),
     endTime: time('end_time').notNull(),
   },
