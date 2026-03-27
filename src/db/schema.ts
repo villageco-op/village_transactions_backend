@@ -6,6 +6,11 @@ import {
   timestamp,
   numeric,
   boolean,
+  date,
+  integer,
+  jsonb,
+  pgEnum,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 const geography = customType<{ data: string }>({
@@ -37,4 +42,25 @@ export const users = pgTable('users', {
 
   fcmToken: text('fcm_token'),
   fcmPlatform: text('fcm_platform'),
+});
+
+export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
+
+export const produce = pgTable('produce', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sellerId: text('seller_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  produceType: text('produce_type'),
+  pricePerOz: numeric('price_per_oz', { precision: 10, scale: 2 }).notNull(),
+  totalOzInventory: numeric('total_oz_inventory', { precision: 10, scale: 2 }).notNull(),
+  harvestFrequencyDays: integer('harvest_frequency_days').notNull(),
+  seasonStart: date('season_start').notNull(),
+  seasonEnd: date('season_end').notNull(),
+  images: jsonb('images').$type<string[]>().default([]),
+  isSubscribable: boolean('is_subscribable').default(false),
+  status: produceStatusEnum('status').default('active'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
