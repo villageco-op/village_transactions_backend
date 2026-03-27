@@ -46,4 +46,9 @@ describe('Users API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/users/:id/reviews should not return a 500 error', async () => {
+    const res = await authedRequest('/api/users/any_seller_id/reviews?page=1&limit=5');
+    expect(res.status).not.toBe(500);
+  });
 });

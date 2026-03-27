@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
-import { reviews } from '../db/schema.js';
+import { reviews, users } from '../db/schema.js';
 import type { DbClient } from '../db/types.js';
 
 export const reviewRepository = {
@@ -39,5 +39,65 @@ export const reviewRepository = {
       .limit(1);
 
     return review ?? null;
+  },
+
+  /**
+   * Fetches a paginated and sorted list of reviews for a given seller,
+   * including buyer profile information via a left join.
+   * @param sellerId - The unique identifier of the seller
+   * @param options - Configuration for pagination and sorting
+   * @param options.limit - The number of records to return
+   * @param options.offset - The number of records to skip
+   * @param options.sortBy - The column to sort by ('createdAt' or 'rating')
+   * @param options.sortOrder - The direction of the sort ('asc' or 'desc')
+   * @returns A list of review objects with nested buyer details
+   */
+  async findReviewsBySellerId(
+    sellerId: string,
+    options: {
+      limit: number;
+      offset: number;
+      sortBy: 'createdAt' | 'rating';
+      sortOrder: 'asc' | 'desc';
+    },
+  ) {
+    const sortCol = options.sortBy === 'rating' ? reviews.rating : reviews.createdAt;
+    const sortFunc = options.sortOrder === 'desc' ? desc : asc;
+
+    const result = await this.db
+      .select({
+        id: reviews.id,
+        rating: reviews.rating,
+        comment: reviews.comment,
+        createdAt: reviews.createdAt,
+        buyer: {
+          id: users.id,
+          name: users.name,
+          image: users.image,
+        },
+      })
+      .from(reviews)
+      .leftJoin(users, eq(reviews.buyerId, users.id))
+      .where(eq(reviews.sellerId, sellerId))
+      .orderBy(sortFunc(sortCol))
+      .limit(options.limit)
+      .offset(options.offset);
+
+    return result;
+  },
+
+  /**
+   * Counts the total number of reviews associated with a specific seller.
+   * Useful for calculating total pages in pagination.
+   * @param sellerId - The unique identifier of the seller
+   * @returns The total count of reviews as a number
+   */
+  async countBySellerId(sellerId: string): Promise<number> {
+    const [result] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(reviews)
+      .where(eq(reviews.sellerId, sellerId));
+
+    return result?.count ?? 0;
   },
 };

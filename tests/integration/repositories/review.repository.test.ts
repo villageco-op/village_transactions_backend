@@ -79,4 +79,113 @@ describe('ReviewRepository - Integration', { timeout: 60_000 }, () => {
     const foundReview = await reviewRepository.findByOrderAndBuyer(ORDER_ID, BUYER_ID);
     expect(foundReview).toBeNull();
   });
+
+  describe('findReviewsBySellerId & countBySellerId', () => {
+    const BUYER_1 = 'buyer_1';
+    const BUYER_2 = 'buyer_2';
+    const SELLER_ID = 'target_seller';
+
+    beforeEach(async () => {
+      await truncateTables(testDb);
+
+      await testDb.insert(users).values([
+        { id: BUYER_1, name: 'Alice', email: 'alice@example.com' },
+        { id: BUYER_2, name: 'Bob', email: 'bob@example.com' },
+        { id: SELLER_ID, email: 'target.seller@example.com' },
+      ]);
+
+      await testDb.insert(orders).values([
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          buyerId: BUYER_1,
+          sellerId: SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '10',
+        },
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          buyerId: BUYER_2,
+          sellerId: SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '10',
+        },
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          buyerId: BUYER_1,
+          sellerId: SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '10',
+        },
+      ]);
+
+      await reviewRepository.create({
+        buyerId: BUYER_1,
+        sellerId: SELLER_ID,
+        orderId: '11111111-1111-1111-1111-111111111111',
+        rating: 3,
+        comment: 'Okay',
+      });
+      await reviewRepository.create({
+        buyerId: BUYER_2,
+        sellerId: SELLER_ID,
+        orderId: '22222222-2222-2222-2222-222222222222',
+        rating: 5,
+        comment: 'Perfect',
+      });
+      await reviewRepository.create({
+        buyerId: BUYER_1,
+        sellerId: SELLER_ID,
+        orderId: '33333333-3333-3333-3333-333333333333',
+        rating: 1,
+        comment: 'Terrible',
+      });
+    });
+
+    it('should correctly count the number of reviews for a seller', async () => {
+      const count = await reviewRepository.countBySellerId(SELLER_ID);
+      expect(count).toBe(3);
+    });
+
+    it('should sort by rating descending', async () => {
+      const results = await reviewRepository.findReviewsBySellerId(SELLER_ID, {
+        limit: 10,
+        offset: 0,
+        sortBy: 'rating',
+        sortOrder: 'desc',
+      });
+
+      expect(results).toHaveLength(3);
+      expect(results[0].rating).toBe(5); // Bob's review
+      expect(results[0].buyer?.name).toBe('Bob');
+      expect(results[1].rating).toBe(3); // Alice's first review
+      expect(results[2].rating).toBe(1); // Alice's second review
+    });
+
+    it('should respect pagination offset and limit', async () => {
+      const page1 = await reviewRepository.findReviewsBySellerId(SELLER_ID, {
+        limit: 2,
+        offset: 0,
+        sortBy: 'rating',
+        sortOrder: 'asc',
+      });
+      expect(page1).toHaveLength(2);
+      expect(page1[0].rating).toBe(1);
+      expect(page1[1].rating).toBe(3);
+
+      const page2 = await reviewRepository.findReviewsBySellerId(SELLER_ID, {
+        limit: 2,
+        offset: 2,
+        sortBy: 'rating',
+        sortOrder: 'asc',
+      });
+      expect(page2).toHaveLength(1);
+      expect(page2[0].rating).toBe(5);
+    });
+  });
 });

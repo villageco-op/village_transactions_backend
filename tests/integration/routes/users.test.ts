@@ -9,7 +9,9 @@ import {
 } from '../../test-utils/testcontainer-db.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
-import { users, fcmTokens, scheduleRules } from '../../../src/db/schema.js';
+import { users, fcmTokens, scheduleRules, orders, reviews } from '../../../src/db/schema.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { reviewRepository } from '../../../src/repositories/review.repository.js';
 
 describe('Users API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -20,6 +22,8 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     testDb = getTestDb();
     userRepository.setDb(testDb);
     scheduleRuleRepository.setDb(testDb);
+    orderRepository.setDb(testDb);
+    reviewRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -271,5 +275,90 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     );
 
     expect(res.status).toBe(400);
+  });
+
+  describe('GET /api/users/:id/reviews', () => {
+    const BUYER_ID = 'review_buyer';
+    const SELLER_ID = 'review_seller';
+
+    beforeEach(async () => {
+      await testDb.insert(users).values([
+        { id: BUYER_ID, name: 'Reviewer', email: 'reviewer@example.com' },
+        { id: SELLER_ID, name: 'Shop Owner', email: 'shopowner@example.com' },
+      ]);
+
+      const ORDER_1 = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+      const ORDER_2 = '11111111-2222-3333-4444-555555555555';
+
+      await testDb.insert(orders).values([
+        {
+          id: ORDER_1,
+          buyerId: BUYER_ID,
+          sellerId: SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '10',
+        },
+        {
+          id: ORDER_2,
+          buyerId: BUYER_ID,
+          sellerId: SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '20',
+        },
+      ]);
+
+      await testDb.insert(reviews).values([
+        {
+          buyerId: BUYER_ID,
+          sellerId: SELLER_ID,
+          orderId: ORDER_1,
+          rating: 5,
+          comment: 'Awesome',
+          createdAt: new Date('2024-01-01'),
+        },
+        {
+          buyerId: BUYER_ID,
+          sellerId: SELLER_ID,
+          orderId: ORDER_2,
+          rating: 2,
+          comment: 'Not great',
+          createdAt: new Date('2024-01-02'),
+        },
+      ]);
+    });
+
+    it('should fetch paginated reviews successfully', async () => {
+      const res = await authedRequest(
+        `/api/users/${SELLER_ID}/reviews?page=1&limit=1&sortBy=createdAt&sortOrder=desc`,
+        {},
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body).toHaveProperty('pagination');
+      expect(body.pagination.total).toBe(2);
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(1);
+      expect(body.pagination.totalPages).toBe(2);
+
+      expect(body).toHaveProperty('reviews');
+      expect(body.reviews).toHaveLength(1);
+      // Because we requested desc createdAt, the newest review (rating 2) should be first
+      expect(body.reviews[0].rating).toBe(2);
+      expect(body.reviews[0].comment).toBe('Not great');
+      expect(body.reviews[0].buyer).toHaveProperty('name', 'Reviewer');
+    });
+
+    it('should validate query parameters (e.g., max limit)', async () => {
+      const res = await authedRequest(`/api/users/${SELLER_ID}/reviews?limit=100`);
+
+      expect(res.status).toBe(400);
+    });
   });
 });
