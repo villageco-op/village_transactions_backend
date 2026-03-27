@@ -1,5 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
+import { AddToCartSchema } from '../schemas/cart.schema.js';
+import { addToCart } from '../services/cart.service.js';
+
 export const cartRoute = new OpenAPIHono();
 
 cartRoute.openapi(
@@ -27,11 +30,7 @@ cartRoute.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              productId: z.string(),
-              quantityOz: z.number(),
-              isSubscription: z.boolean(),
-            }),
+            schema: AddToCartSchema,
           },
         },
       },
@@ -39,12 +38,35 @@ cartRoute.openapi(
     responses: {
       200: {
         description: 'Added to cart',
-        content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+        content: {
+          'application/json': {
+            schema: z.object({
+              success: z.boolean(),
+              reservationId: z.uuid(),
+            }),
+          },
+        },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
       },
     },
   }),
-  // TODO: [Service] Get data and call add to cart service.
-  (c) => c.json({ success: true }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = c.req.valid('json');
+
+    const reservation = await addToCart(userId, body);
+
+    return c.json({ success: true, reservationId: reservation.id }, 200);
+  },
 );
 
 cartRoute.openapi(

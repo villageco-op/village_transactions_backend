@@ -29,6 +29,13 @@
       "when": 1773868732965,
       "tag": "0003_groovy_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773880324150,
+      "tag": "0004_exotic_black_bolt",
+      "breakpoints": true
     }
   ]
 }

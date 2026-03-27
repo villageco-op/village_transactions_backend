@@ -65,6 +65,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.use('/api/users/*', verifyAuth());
 app.use('/api/produce/*', verifyAuth());
+app.use('/api/cart/*', verifyAuth());
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);

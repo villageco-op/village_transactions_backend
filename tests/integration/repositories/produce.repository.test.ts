@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createTestDb, closeTestDb, truncateTables } from '../../test-utils/testcontainer-db.js';
+import {
+  truncateTables,
+  getTestDb,
+  closeTestDbConnection,
+} from '../../test-utils/testcontainer-db.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { users, produce } from '../../../src/db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -9,13 +13,13 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   const TEST_SELLER_ID = 'seller_repo_123';
   const OTHER_SELLER_ID = 'seller_repo_999';
 
-  beforeAll(async () => {
-    testDb = await createTestDb();
+  beforeAll(() => {
+    testDb = getTestDb();
     produceRepository.setDb(testDb);
-  }, 60_000);
+  });
 
   afterAll(async () => {
-    await closeTestDb();
+    await closeTestDbConnection();
   });
 
   beforeEach(async () => {

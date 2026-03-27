@@ -2,7 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { authedRequest } from '../../test-utils/auth.js';
-import { createTestDb, closeTestDb, truncateTables } from '../../test-utils/testcontainer-db.js';
+import {
+  truncateTables,
+  getTestDb,
+  closeTestDbConnection,
+} from '../../test-utils/testcontainer-db.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { users, fcmTokens } from '../../../src/db/schema.js';
 
@@ -11,13 +15,13 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
 
   const TEST_USER_ID = 'test_auth_user_123';
 
-  beforeAll(async () => {
-    testDb = await createTestDb();
+  beforeAll(() => {
+    testDb = getTestDb();
     userRepository.setDb(testDb);
-  }, 60_000);
+  });
 
   afterAll(async () => {
-    await closeTestDb();
+    await closeTestDbConnection();
   });
 
   beforeEach(async () => {
