@@ -40,8 +40,18 @@ export const users = pgTable('users', {
   stripeAccountId: text('stripe_account_id').unique(),
   stripeOnboardingComplete: boolean('stripe_onboarding_complete').default(false),
 
-  fcmToken: text('fcm_token'),
-  fcmPlatform: text('fcm_platform'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const fcmTokens = pgTable('fcm_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').unique().notNull(),
+  platform: text('platform').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
 });
 
 export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);

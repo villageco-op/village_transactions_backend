@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
+
 import { createTestDb, closeTestDb, truncateTables } from '../../test-utils/testcontainer-db.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
-import { users } from '../../../src/db/schema.js';
+import { users, fcmTokens } from '../../../src/db/schema.js';
 
 describe('UserRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -93,7 +95,7 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
     expect(fetchedUser?.location).not.toBeNull();
   });
 
-  it('should update FCM token and platform', async () => {
+  it('should insert FCM token and platform into the fcm_tokens table', async () => {
     const userId = 'repo_fcm_user';
     await testDb.insert(users).values({
       id: userId,
@@ -103,24 +105,36 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
     await userRepository.updateFcmToken(userId, 'token_abc_123', 'web');
 
-    const updatedUser = await userRepository.findById(userId);
-    expect(updatedUser?.fcmToken).toBe('token_abc_123');
-    expect(updatedUser?.fcmPlatform).toBe('web');
+    const insertedTokens = await testDb
+      .select()
+      .from(fcmTokens)
+      .where(eq(fcmTokens.userId, userId));
+
+    expect(insertedTokens).toHaveLength(1);
+    expect(insertedTokens[0].token).toBe('token_abc_123');
+    expect(insertedTokens[0].platform).toBe('web');
   });
 
-  it('should overwrite existing FCM token with new values', async () => {
-    const userId = 'overwrite_user';
-    await testDb.insert(users).values({
-      id: userId,
-      email: 'overwrite@example.com',
-      fcmToken: 'old_token',
-      fcmPlatform: 'ios',
-    });
+  it('should upsert FCM token and update the user/platform if the token already exists', async () => {
+    const userId1 = 'user_one';
+    const userId2 = 'user_two';
 
-    await userRepository.updateFcmToken(userId, 'new_token', 'android');
+    await testDb.insert(users).values([
+      { id: userId1, email: 'user1@example.com' },
+      { id: userId2, email: 'user2@example.com' },
+    ]);
 
-    const updatedUser = await userRepository.findById(userId);
-    expect(updatedUser?.fcmToken).toBe('new_token');
-    expect(updatedUser?.fcmPlatform).toBe('android');
+    await userRepository.updateFcmToken(userId1, 'shared_device_token', 'ios');
+
+    await userRepository.updateFcmToken(userId2, 'shared_device_token', 'android');
+
+    const tokensUser1 = await testDb.select().from(fcmTokens).where(eq(fcmTokens.userId, userId1));
+    const tokensUser2 = await testDb.select().from(fcmTokens).where(eq(fcmTokens.userId, userId2));
+
+    expect(tokensUser1).toHaveLength(0);
+
+    expect(tokensUser2).toHaveLength(1);
+    expect(tokensUser2[0].token).toBe('shared_device_token');
+    expect(tokensUser2[0].platform).toBe('android');
   });
 });

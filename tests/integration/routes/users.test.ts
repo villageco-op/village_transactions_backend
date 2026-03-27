@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
+
 import { authedRequest } from '../../test-utils/auth.js';
 import { createTestDb, closeTestDb, truncateTables } from '../../test-utils/testcontainer-db.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
-import { users } from '../../../src/db/schema.js';
+import { users, fcmTokens } from '../../../src/db/schema.js';
 
 describe('Users API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -121,7 +123,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(await res.json()).toEqual({ success: true });
   });
 
-  it('POST /api/users/fcm-token should store token in DB and return 200', async () => {
+  it('POST /api/users/fcm-token should store token in the fcm_tokens table and return 200', async () => {
     await testDb.insert(users).values({
       id: TEST_USER_ID,
       email: 'fcm@example.com',
@@ -146,9 +148,14 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     const body = await res.json();
     expect(body).toEqual({ success: true });
 
-    const updatedUser = await userRepository.findById(TEST_USER_ID);
-    expect(updatedUser?.fcmToken).toBe(payload.token);
-    expect(updatedUser?.fcmPlatform).toBe(payload.platform);
+    const insertedTokens = await testDb
+      .select()
+      .from(fcmTokens)
+      .where(eq(fcmTokens.userId, TEST_USER_ID));
+
+    expect(insertedTokens).toHaveLength(1);
+    expect(insertedTokens[0].token).toBe(payload.token);
+    expect(insertedTokens[0].platform).toBe(payload.platform);
   });
 
   it('POST /api/users/fcm-token should return 404 if user is not in database', async () => {

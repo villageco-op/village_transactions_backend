@@ -11,8 +11,8 @@ export const UserProfileSchema = z.object({
   deliveryRangeMiles: z.string().nullable(),
   stripeAccountId: z.string().nullable(),
   stripeOnboardingComplete: z.boolean().nullable(),
-  fcmToken: z.string().nullable(),
-  fcmPlatform: z.string().nullable(),
+  createdAt: z.union([z.string(), z.date()]).nullable(),
+  updatedAt: z.union([z.string(), z.date()]).nullable(),
 });
 
 export const UpdateUserSchema = z.object({

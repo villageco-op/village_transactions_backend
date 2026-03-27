@@ -22,6 +22,13 @@
       "when": 1773842211069,
       "tag": "0002_silky_azazel",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773868732965,
+      "tag": "0003_groovy_vargas",
+      "breakpoints": true
     }
   ]
 }
