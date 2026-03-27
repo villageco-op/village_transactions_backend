@@ -1,5 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 
+import type { ScheduleType } from '../db/types.js';
 import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import type { UpdateScheduleRulesPayload, UpdateUserPayload } from '../schemas/user.schema.js';
@@ -83,11 +84,19 @@ export async function updateScheduleRules(id: string, data: UpdateScheduleRulesP
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  const dbRules = data.pickupWindows.map((window) => ({
+  const dbPickupRules = data.pickupWindows.map((window) => ({
     dayOfWeek: window.day,
+    type: 'pickup' as ScheduleType,
     startTime: window.start,
     endTime: window.end,
   }));
 
-  await scheduleRuleRepository.replaceSellerRules(id, dbRules);
+  const dbDeliveryRules = data.deliveryWindows.map((window) => ({
+    dayOfWeek: window.day,
+    type: 'delivery' as ScheduleType,
+    startTime: window.start,
+    endTime: window.end,
+  }));
+
+  await scheduleRuleRepository.replaceSellerRules(id, [...dbPickupRules, ...dbDeliveryRules]);
 }

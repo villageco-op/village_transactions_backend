@@ -194,6 +194,7 @@ describe('UserService - getCurrentUser', () => {
 
       const payload = {
         pickupWindows: [{ day: 'Monday', start: '09:00', end: '17:00' }],
+        deliveryWindows: [], // Added to satisfy new schema
       };
 
       await expect(updateScheduleRules('missing_user_id', payload)).rejects.toThrow(HTTPException);
@@ -211,18 +212,16 @@ describe('UserService - getCurrentUser', () => {
       vi.mocked(scheduleRuleRepository.replaceSellerRules).mockResolvedValueOnce();
 
       const payload = {
-        pickupWindows: [
-          { day: 'Monday', start: '09:00', end: '12:00' },
-          { day: 'Wednesday', start: '13:00', end: '17:00' },
-        ],
+        pickupWindows: [{ day: 'Monday', start: '09:00', end: '12:00' }],
+        deliveryWindows: [{ day: 'Wednesday', start: '13:00', end: '17:00' }],
       };
 
       await updateScheduleRules('seller_123', payload);
 
       expect(userRepository.findById).toHaveBeenCalledWith('seller_123');
       expect(scheduleRuleRepository.replaceSellerRules).toHaveBeenCalledWith('seller_123', [
-        { dayOfWeek: 'Monday', startTime: '09:00', endTime: '12:00' },
-        { dayOfWeek: 'Wednesday', startTime: '13:00', endTime: '17:00' },
+        { dayOfWeek: 'Monday', startTime: '09:00', endTime: '12:00', type: 'pickup' },
+        { dayOfWeek: 'Wednesday', startTime: '13:00', endTime: '17:00', type: 'delivery' },
       ]);
     });
   });

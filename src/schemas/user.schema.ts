@@ -23,14 +23,15 @@ export const UpdateUserSchema = z.object({
   deliveryRangeMiles: z.number().optional(),
 });
 
+export const WindowSchema = z.object({
+  day: z.string(),
+  start: z.string(),
+  end: z.string(),
+});
+
 export const UpdateScheduleRulesSchema = z.object({
-  pickupWindows: z.array(
-    z.object({
-      day: z.string(),
-      start: z.string(),
-      end: z.string(),
-    }),
-  ),
+  pickupWindows: z.array(WindowSchema),
+  deliveryWindows: z.array(WindowSchema),
 });
 
 export type UpdateScheduleRulesPayload = z.infer<typeof UpdateScheduleRulesSchema>;
