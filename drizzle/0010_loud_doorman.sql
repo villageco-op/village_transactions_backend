@@ -1,0 +1,1 @@
+ALTER TABLE "produce" ADD COLUMN "available_by" timestamp DEFAULT now() NOT NULL;

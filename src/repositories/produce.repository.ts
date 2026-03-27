@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
-import { produce } from '../db/schema.js';
+import { produce, users } from '../db/schema.js';
 import type { DbClient } from '../db/types.js';
 import type { CreateProducePayload, UpdateProducePayload } from '../schemas/produce.schema.js';
 
@@ -33,6 +33,7 @@ export const produceRepository = {
         produceType: data.produceType,
         pricePerOz: data.pricePerOz.toString(),
         totalOzInventory: data.totalOzInventory.toString(),
+        availableBy: data.availableBy ?? new Date(),
         harvestFrequencyDays: data.harvestFrequencyDays,
         seasonStart: data.seasonStart,
         seasonEnd: data.seasonEnd,
@@ -98,5 +99,122 @@ export const produceRepository = {
       .returning({ id: produce.id });
 
     return !!deletedProduce;
+  },
+
+  /**
+   * Retrieves a paginated list of active produce, calculating distance using PostGIS.
+   * Joins with the `users` table to fetch seller information and location data.
+   * @param params - The search and pagination parameters.
+   * @param params.lat - Latitude for distance calculation.
+   * @param params.lng - Longitude for distance calculation.
+   * @param params.sortBy - Field to sort by. 'distance' uses spatial calculation; 'price' uses numeric value.
+   * @param params.hasDelivery - If 'true', filters for sellers where distance <= their delivery range.
+   * @param params.limit - Max items per page.
+   * @param params.offset - Starting index for results.
+   * @returns A promise resolving to an array of produce items including a calculated `distance` in miles.
+   */
+  async getList(params: {
+    lat: number;
+    lng: number;
+    sortBy?: 'distance' | 'price';
+    hasDelivery?: 'true' | 'false';
+    limit: number;
+    offset: number;
+  }) {
+    const { lat, lng, sortBy, hasDelivery, limit, offset } = params;
+
+    const userLocation = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
+    const distanceMiles = sql<number>`ST_Distance(${users.location}, ${userLocation}) / 1609.344`;
+
+    const conditions = [eq(produce.status, 'active')];
+
+    if (hasDelivery === 'true') {
+      conditions.push(sql`${users.deliveryRangeMiles} > 0`);
+      conditions.push(sql`${distanceMiles} <= ${users.deliveryRangeMiles}`);
+    }
+
+    let query = this.db
+      .select({
+        id: produce.id,
+        name: produce.title,
+        price: produce.pricePerOz,
+        amount: produce.totalOzInventory,
+        images: produce.images,
+        isSubscribable: produce.isSubscribable,
+        availableBy: produce.availableBy,
+        sellerId: users.id,
+        sellerName: users.name,
+        distance: distanceMiles.as('distance'),
+      })
+      .from(produce)
+      .innerJoin(users, eq(produce.sellerId, users.id))
+      .where(and(...conditions))
+      .$dynamic();
+
+    if (sortBy === 'price') {
+      query = query.orderBy(asc(produce.pricePerOz));
+    } else {
+      query = query.orderBy(asc(distanceMiles));
+    }
+
+    return await query.limit(limit).offset(offset);
+  },
+
+  /**
+   * Retrieves a lightweight list of produce map items using spatial filtering.
+   * Extracts latitude and longitude directly from PostGIS geography by casting to geometry.
+   * @param params - Search parameters for the spatial query.
+   * @param params.lat - The latitude of the search center.
+   * @param params.lng - The longitude of the search center.
+   * @param params.radiusMiles - The radius (in miles) to search within. Defaults to 50.
+   * @param params.produceType - Filter by a specific type of produce (e.g., 'fruit', 'veg').
+   * @param params.hasDelivery - If 'true', limits results to sellers whose delivery range covers the user.
+   * @param params.maxPrice - The maximum allowed price per ounce for the items.
+   * @returns A promise resolving to an array of items containing basic produce info and seller coordinates.
+   */
+  async getMapItems(params: {
+    lat: number;
+    lng: number;
+    radiusMiles?: number;
+    produceType?: string;
+    hasDelivery?: 'true' | 'false';
+    maxPrice?: number;
+  }) {
+    const { lat, lng, radiusMiles = 50, produceType, hasDelivery, maxPrice } = params;
+
+    const userLocation = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
+    const distanceMiles = sql<number>`ST_Distance(${users.location}, ${userLocation}) / 1609.344`;
+
+    const conditions = [
+      eq(produce.status, 'active'),
+      isNotNull(users.location),
+      sql`${distanceMiles} <= ${radiusMiles}`,
+    ];
+
+    if (hasDelivery === 'true') {
+      conditions.push(sql`${users.deliveryRangeMiles} > 0`);
+      conditions.push(sql`${distanceMiles} <= ${users.deliveryRangeMiles}`);
+    }
+
+    if (produceType) {
+      conditions.push(eq(produce.produceType, produceType));
+    }
+
+    if (maxPrice !== undefined) {
+      conditions.push(sql`${produce.pricePerOz} <= ${maxPrice}`);
+    }
+
+    return await this.db
+      .select({
+        id: produce.id,
+        name: produce.title,
+        images: produce.images,
+        sellerId: users.id,
+        lat: sql<number>`ST_Y(${users.location}::geometry)`,
+        lng: sql<number>`ST_X(${users.location}::geometry)`,
+      })
+      .from(produce)
+      .innerJoin(users, eq(produce.sellerId, users.id))
+      .where(and(...conditions));
   },
 };

@@ -92,6 +92,7 @@ export const produce = pgTable('produce', {
   produceType: text('produce_type'),
   pricePerOz: numeric('price_per_oz', { precision: 10, scale: 2 }).notNull(),
   totalOzInventory: numeric('total_oz_inventory', { precision: 10, scale: 2 }).notNull(),
+  availableBy: timestamp('available_by').defaultNow().notNull(),
   harvestFrequencyDays: integer('harvest_frequency_days').notNull(),
   seasonStart: date('season_start').notNull(),
   seasonEnd: date('season_end').notNull(),

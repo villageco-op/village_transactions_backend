@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createProduceListing,
   deleteProduceListing,
+  getProduceList,
+  getProduceMap,
   updateProduceListing,
 } from '../../../src/services/produce.service.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
@@ -12,6 +14,8 @@ vi.mock('../../../src/repositories/produce.repository.js', () => ({
     create: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    getList: vi.fn(),
+    getMapItems: vi.fn(),
   },
 }));
 
@@ -151,5 +155,159 @@ describe('ProduceService - deleteProduceListing', () => {
 
     expect(result).toBe(false);
     expect(produceRepository.softDelete).toHaveBeenCalledWith(mockId, mockSellerId);
+  });
+});
+
+describe('ProduceService - getProduceList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should format repository results, extracting the thumbnail and parsing distance', async () => {
+    const mockDbDate = new Date();
+    const mockRepoResponse = [
+      {
+        id: 'prod_1',
+        name: 'Apples',
+        price: '0.50',
+        amount: '100',
+        images: ['https://example.com/apple1.jpg', 'https://example.com/apple2.jpg'],
+        isSubscribable: true,
+        availableBy: mockDbDate,
+        sellerId: 'user_1',
+        sellerName: 'Farmer Bob',
+        distance: '5.234', // simulated PG string or number return
+      },
+      {
+        id: 'prod_2',
+        name: 'Oranges',
+        price: '0.75',
+        amount: '50',
+        images: [], // No images case
+        isSubscribable: false,
+        availableBy: mockDbDate,
+        sellerId: 'user_2',
+        sellerName: 'Farmer Jane',
+        distance: '10.5',
+      },
+    ];
+
+    vi.mocked(produceRepository.getList).mockResolvedValueOnce(mockRepoResponse as any);
+
+    const result = await getProduceList({
+      lat: 40.0,
+      lng: -70.0,
+      limit: 20,
+      offset: 0,
+    });
+
+    // Check parameters passed to repo
+    expect(produceRepository.getList).toHaveBeenCalledWith({
+      lat: 40.0,
+      lng: -70.0,
+      limit: 20,
+      offset: 0,
+    });
+
+    // Verify first item mapping (has images)
+    expect(result[0]).toEqual({
+      id: 'prod_1',
+      name: 'Apples',
+      price: '0.50',
+      amount: '100',
+      isSubscribable: true,
+      availableBy: mockDbDate,
+      sellerId: 'user_1',
+      sellerName: 'Farmer Bob',
+      distance: 5.234, // Converted to number
+      thumbnail: 'https://example.com/apple1.jpg', // Extracted first image
+    });
+
+    // Verify second item mapping (no images)
+    expect(result[1]).toEqual({
+      id: 'prod_2',
+      name: 'Oranges',
+      price: '0.75',
+      amount: '50',
+      isSubscribable: false,
+      availableBy: mockDbDate,
+      sellerId: 'user_2',
+      sellerName: 'Farmer Jane',
+      distance: 10.5,
+      thumbnail: null, // Null when empty
+    });
+  });
+});
+
+describe('ProduceService - getProduceMap', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should correctly group items by sellerId and construct lightweight produce arrays', async () => {
+    const mockRepoResponse = [
+      {
+        id: 'prod_1',
+        name: 'Apples',
+        images: ['https://example.com/apple1.jpg'],
+        sellerId: 'user_1',
+        lat: 40.0,
+        lng: -70.0,
+      },
+      {
+        id: 'prod_2',
+        name: 'Carrots',
+        images: [],
+        sellerId: 'user_1',
+        lat: 40.0,
+        lng: -70.0,
+      },
+      {
+        id: 'prod_3',
+        name: 'Oranges',
+        images: ['https://example.com/orange.jpg'],
+        sellerId: 'user_2',
+        lat: 41.0,
+        lng: -71.0,
+      },
+    ];
+
+    vi.mocked(produceRepository.getMapItems).mockResolvedValueOnce(mockRepoResponse as any);
+
+    const result = await getProduceMap({
+      lat: 40.0,
+      lng: -70.0,
+      radiusMiles: 50,
+    });
+
+    expect(produceRepository.getMapItems).toHaveBeenCalledWith({
+      lat: 40.0,
+      lng: -70.0,
+      radiusMiles: 50,
+    });
+
+    expect(result).toHaveLength(2);
+
+    const seller1 = result.find((s: { sellerId: string }) => s.sellerId === 'user_1');
+    expect(seller1).toBeDefined();
+    expect(seller1?.lat).toBe(40.0);
+    expect(seller1?.lng).toBe(-70.0);
+    expect(seller1?.produce).toHaveLength(2);
+    expect(seller1?.produce[0]).toEqual({
+      id: 'prod_1',
+      name: 'Apples',
+      thumbnail: 'https://example.com/apple1.jpg',
+    });
+    expect(seller1?.produce[1]).toEqual({
+      id: 'prod_2',
+      name: 'Carrots',
+      thumbnail: null,
+    });
+
+    const seller2 = result.find((s) => s.sellerId === 'user_2');
+    expect(seller2).toBeDefined();
+    expect(seller2?.lat).toBe(41.0);
+    expect(seller2?.lng).toBe(-71.0);
+    expect(seller2?.produce).toHaveLength(1);
   });
 });
