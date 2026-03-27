@@ -117,4 +117,57 @@ export const orderRepository = {
       return newOrder;
     });
   },
+
+  /**
+   * Retrieves an order by its unique identifier.
+   * @param orderId - The UUID of the order to retrieve.
+   * @returns The order object if found, otherwise null.
+   */
+  async getOrderById(orderId: string) {
+    const [order] = await this.db.select().from(orders).where(eq(orders.id, orderId));
+
+    return order || null;
+  },
+
+  /**
+   * Updates an order's status to 'canceled' and safely restocks the associated inventory.
+   * @remarks
+   * This operation runs within a single SQL transaction to guarantee data integrity.
+   * If updating the inventory fails, the order status will not be altered.
+   * @param orderId - The UUID of the order to cancel.
+   * @param reason - The reason provided for cancellation.
+   * @returns The newly canceled order object.
+   */
+  async updateOrderToCanceled(orderId: string, reason: string) {
+    return await this.db.transaction(async (tx) => {
+      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+
+      for (const item of items) {
+        const [product] = await tx
+          .select({ id: produce.id, totalOzInventory: produce.totalOzInventory })
+          .from(produce)
+          .where(eq(produce.id, item.productId));
+
+        if (product) {
+          const newInventory = Number(product.totalOzInventory) + Number(item.quantityOz);
+
+          await tx
+            .update(produce)
+            .set({ totalOzInventory: newInventory.toString() })
+            .where(eq(produce.id, product.id));
+        }
+      }
+
+      const [canceledOrder] = await tx
+        .update(orders)
+        .set({
+          status: 'canceled',
+          cancelReason: reason,
+        })
+        .where(eq(orders.id, orderId))
+        .returning();
+
+      return canceledOrder;
+    });
+  },
 };

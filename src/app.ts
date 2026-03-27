@@ -53,7 +53,7 @@ app.onError((err, c) => {
         );
     }
   }
-  // TODO: log the error
+  console.error(err, c);
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
@@ -69,6 +69,7 @@ app.use('/api/cart/*', verifyAuth());
 app.use('/api/stripe/connect/onboard', verifyAuth());
 app.use('/api/checkout/*', verifyAuth());
 app.use('/api/subscriptions/*', verifyAuth());
+app.use('/api/orders/*', verifyAuth());
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);

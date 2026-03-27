@@ -87,7 +87,7 @@ describe('ProduceService - updateProduceListing', () => {
       title: 'Organic Carrots',
       produceType: 'vegetable',
       pricePerOz: '0.50',
-      totalOzInventory: '50', // updated field
+      totalOzInventory: '50',
       harvestFrequencyDays: 7,
       seasonStart: '2024-05-01',
       seasonEnd: '2024-10-31',

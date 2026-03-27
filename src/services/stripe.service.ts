@@ -9,7 +9,10 @@ import { userRepository } from '../repositories/user.repository.js';
 import { sendPushNotification } from './notification.service.js';
 import { updateInternalStripeAccountId } from './user.service.js';
 
-type StripeClient = Pick<Stripe, 'accounts' | 'accountLinks' | 'checkout' | 'subscriptions'>;
+type StripeClient = Pick<
+  Stripe,
+  'accounts' | 'accountLinks' | 'checkout' | 'subscriptions' | 'refunds'
+>;
 
 let stripe: StripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
@@ -246,9 +249,9 @@ async function handleAccountUpdated(account: Stripe.Account) {
  */
 export async function updateStripeSubscriptionStatus(
   stripeSubscriptionId: string,
-  status: 'active' | 'paused' | 'cancelled',
+  status: 'active' | 'paused' | 'canceled',
 ) {
-  if (status === 'cancelled') {
+  if (status === 'canceled') {
     await stripe.subscriptions.cancel(stripeSubscriptionId);
   } else if (status === 'paused') {
     await stripe.subscriptions.update(stripeSubscriptionId, {
@@ -259,4 +262,20 @@ export async function updateStripeSubscriptionStatus(
       pause_collection: '',
     });
   }
+}
+
+/**
+ * Issues a full refund for a given Checkout Session.
+ * @param stripeSessionId - The ID of the Stripe Checkout Session
+ */
+export async function refundCheckoutSession(stripeSessionId: string) {
+  const session = await stripe.checkout.sessions.retrieve(stripeSessionId);
+
+  if (!session.payment_intent) {
+    throw new HTTPException(400, { message: 'No payment intent found for this session.' });
+  }
+
+  await stripe.refunds.create({
+    payment_intent: session.payment_intent as string,
+  });
 }

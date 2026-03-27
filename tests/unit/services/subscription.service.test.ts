@@ -47,9 +47,9 @@ describe('SubscriptionService - updateSubscriptionStatus', () => {
       stripeSubscriptionId: 'stripe_sub_999',
     } as any);
 
-    await updateSubscriptionStatus('buyer_1', 'sub_123', 'cancelled');
+    await updateSubscriptionStatus('buyer_1', 'sub_123', 'canceled');
 
-    expect(updateStripeSubscriptionStatus).toHaveBeenCalledWith('stripe_sub_999', 'cancelled');
-    expect(subscriptionRepository.updateStatus).toHaveBeenCalledWith('sub_123', 'cancelled');
+    expect(updateStripeSubscriptionStatus).toHaveBeenCalledWith('stripe_sub_999', 'canceled');
+    expect(subscriptionRepository.updateStatus).toHaveBeenCalledWith('sub_123', 'canceled');
   });
 });

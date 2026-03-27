@@ -1,4 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { HTTPException } from 'hono/http-exception';
+
+import {
+  CancelOrderBodySchema,
+  CancelOrderParamsSchema,
+  OrderActionSuccessSchema,
+} from '../schemas/order.schema.js';
+import { cancelOrder } from '../services/order.service.js';
 
 export const ordersRoute = new OpenAPIHono();
 
@@ -11,7 +19,7 @@ ordersRoute.openapi(
     request: {
       query: z.object({
         role: z.enum(['buyer', 'seller']),
-        status: z.enum(['active', 'completed', 'canceled']),
+        status: z.enum(['pending', 'completed', 'canceled']),
       }),
     },
     responses: {
@@ -55,16 +63,45 @@ ordersRoute.openapi(
     operationId: 'cancelOrder',
     description: 'Cancel a one-time order.',
     request: {
-      params: z.object({ id: z.string() }),
-      body: { content: { 'application/json': { schema: z.object({ reason: z.string() }) } } },
+      params: CancelOrderParamsSchema,
+      body: {
+        content: {
+          'application/json': { schema: CancelOrderBodySchema },
+        },
+      },
     },
     responses: {
       200: {
-        description: 'Canceled',
-        content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+        description: 'Order successfully canceled',
+        content: {
+          'application/json': { schema: OrderActionSuccessSchema },
+        },
+      },
+      400: {
+        description: 'Bad Request - e.g., Refund failed or invalid session',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      401: {
+        description: 'Unauthorized - User not logged in',
+        content: {
+          'application/json': { schema: z.object({ error: z.string() }) },
+        },
       },
     },
   }),
-  // TODO: [Service] Get data and call cancel order service.
-  (c) => c.json({ success: true }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      throw new HTTPException(401, { message: 'Unauthorized' });
+    }
+
+    const { id } = c.req.valid('param');
+    const { reason } = c.req.valid('json');
+
+    await cancelOrder(id, reason, userId);
+
+    return c.json({ success: true }, 200);
+  },
 );

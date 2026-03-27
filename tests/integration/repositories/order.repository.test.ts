@@ -13,6 +13,7 @@ import {
   cartReservations,
   orderItems,
   subscriptions,
+  orders,
 } from '../../../src/db/schema.js';
 
 describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
@@ -177,5 +178,98 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       .from(cartReservations)
       .where(eq(cartReservations.id, expiredReservation.id));
     expect(remaining.length).toBe(1);
+  });
+
+  describe('OrderRepository - Cancellation Integration', () => {
+    it('should retrieve an order by its ID', async () => {
+      const buyerId = 'b_fetch_test';
+      const sellerId = 's_fetch_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'b_fetch@test.com' },
+        { id: sellerId, email: 's_fetch@test.com' },
+      ]);
+
+      const [insertedOrder] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '10.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      const fetchedOrder = await orderRepository.getOrderById(insertedOrder.id);
+      expect(fetchedOrder).toBeDefined();
+      expect(fetchedOrder?.id).toBe(insertedOrder.id);
+      expect(fetchedOrder?.totalAmount).toBe('10.00');
+    });
+
+    it('should return null when getting an order by a non-existent ID', async () => {
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
+      const fetchedOrder = await orderRepository.getOrderById(nonExistentId);
+      expect(fetchedOrder).toBeNull();
+    });
+
+    it('should update an order to canceled and restock inventory safely', async () => {
+      const buyerId = 'b_cancel_test';
+      const sellerId = 's_cancel_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'buyer_c@test.com' },
+        { id: sellerId, email: 'seller_c@test.com' },
+      ]);
+
+      const [testProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Apples',
+          pricePerOz: '0.50',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 5,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
+
+      const [order] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '5.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      await testDb.insert(orderItems).values({
+        orderId: order.id,
+        productId: testProduce.id,
+        quantityOz: '10',
+        pricePerOz: '0.50',
+      });
+
+      const canceledOrder = await orderRepository.updateOrderToCanceled(
+        order.id,
+        'No longer needed',
+      );
+
+      expect(canceledOrder.status).toBe('canceled');
+      expect(canceledOrder.cancelReason).toBe('No longer needed');
+
+      const [restockedProduce] = await testDb
+        .select()
+        .from(produce)
+        .where(eq(produce.id, testProduce.id));
+      expect(restockedProduce.totalOzInventory).toBe('60.00');
+    });
   });
 });
