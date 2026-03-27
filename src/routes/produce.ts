@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import {
@@ -94,6 +95,7 @@ produceRoute.openapi(
     path: '/',
     operationId: 'createProduce',
     description: 'Create a new produce listing.',
+    middleware: [verifyAuth()],
     request: {
       body: {
         content: {
@@ -136,8 +138,9 @@ produceRoute.openapi(
     path: '/{id}',
     operationId: 'updateProduce',
     description: 'Update a listing or pause it.',
+    middleware: [verifyAuth()],
     request: {
-      params: z.object({ id: z.string().uuid() }),
+      params: z.object({ id: z.uuid() }),
       body: {
         content: {
           'application/json': {
@@ -194,7 +197,8 @@ produceRoute.openapi(
     path: '/{id}',
     operationId: 'deleteProduce',
     description: 'Remove a listing (soft delete).',
-    request: { params: z.object({ id: z.string().uuid() }) },
+    middleware: [verifyAuth()],
+    request: { params: z.object({ id: z.uuid() }) },
     responses: {
       200: {
         description: 'Listing deleted',
@@ -240,8 +244,9 @@ produceRoute.openapi(
     path: '/{id}/orders',
     operationId: 'getProduceOrders',
     description: 'View paginated orders associated with one specific produce listing.',
+    middleware: [verifyAuth()],
     request: {
-      params: z.object({ id: z.string().uuid() }),
+      params: z.object({ id: z.uuid() }),
       query: ProduceOrdersQuerySchema,
     },
     responses: {
@@ -286,6 +291,7 @@ produceRoute.openapi(
     path: '/me',
     operationId: 'getSellerListings',
     description: "Fetch the authenticated seller's own produce listings with full details.",
+    middleware: [verifyAuth()],
     request: {
       query: SellerProduceQuerySchema,
     },

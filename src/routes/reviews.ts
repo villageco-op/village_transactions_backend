@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import { CreateReviewSchema } from '../schemas/review.schema.js';
@@ -11,6 +12,7 @@ reviewsRoute.openapi(
     path: '/',
     operationId: 'createReview',
     description: 'Leave a star rating and optional comment for a completed order.',
+    middleware: [verifyAuth()],
     request: {
       body: {
         content: {
