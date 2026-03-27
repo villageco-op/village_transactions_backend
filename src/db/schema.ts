@@ -34,4 +34,7 @@ export const users = pgTable('users', {
 
   stripeAccountId: text('stripe_account_id').unique(),
   stripeOnboardingComplete: boolean('stripe_onboarding_complete').default(false),
+
+  fcmToken: text('fcm_token'),
+  fcmPlatform: text('fcm_platform'),
 });

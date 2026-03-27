@@ -92,4 +92,35 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
     expect(fetchedUser?.location).toBeDefined();
     expect(fetchedUser?.location).not.toBeNull();
   });
+
+  it('should update FCM token and platform', async () => {
+    const userId = 'repo_fcm_user';
+    await testDb.insert(users).values({
+      id: userId,
+      email: 'repo-fcm@example.com',
+      name: 'Repo User',
+    });
+
+    await userRepository.updateFcmToken(userId, 'token_abc_123', 'web');
+
+    const updatedUser = await userRepository.findById(userId);
+    expect(updatedUser?.fcmToken).toBe('token_abc_123');
+    expect(updatedUser?.fcmPlatform).toBe('web');
+  });
+
+  it('should overwrite existing FCM token with new values', async () => {
+    const userId = 'overwrite_user';
+    await testDb.insert(users).values({
+      id: userId,
+      email: 'overwrite@example.com',
+      fcmToken: 'old_token',
+      fcmPlatform: 'ios',
+    });
+
+    await userRepository.updateFcmToken(userId, 'new_token', 'android');
+
+    const updatedUser = await userRepository.findById(userId);
+    expect(updatedUser?.fcmToken).toBe('new_token');
+    expect(updatedUser?.fcmPlatform).toBe('android');
+  });
 });
