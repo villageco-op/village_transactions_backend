@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { request } from '../test-utils';
+import { request } from '../../test-utils/request.js';
 
 describe('Checkout API', () => {
   it('POST /api/checkout/stripe/session should return 200', async () => {

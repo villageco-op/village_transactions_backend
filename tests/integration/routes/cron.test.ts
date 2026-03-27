@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { request } from '../test-utils';
+import { request } from '../../test-utils/request.js';
 
 describe('Cron API', () => {
   it('POST /api/cron/release-carts should return 200 with correct auth', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { request } from '../test-utils';
+import { request } from '../../test-utils/request.js';
 
 describe('Cart API', () => {
   it('GET /api/cart should return 200', async () => {

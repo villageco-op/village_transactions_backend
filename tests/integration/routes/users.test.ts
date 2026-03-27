@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { request } from '../test-utils';
+import { authedRequest } from '../../test-utils/auth.js';
 
 describe('Users API', () => {
   it('GET /api/users/me should return 200', async () => {
-    const res = await request('/api/users/me');
+    const res = await authedRequest('/api/users/me');
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveProperty('id');
   });
 
   it('PUT /api/users/me should return 200', async () => {
-    const res = await request('/api/users/me', {
+    const res = await authedRequest('/api/users/me', {
       method: 'PUT',
       body: JSON.stringify({
         name: 'John Doe',
@@ -25,7 +25,7 @@ describe('Users API', () => {
   });
 
   it('POST /api/users/fcm-token should return 200', async () => {
-    const res = await request('/api/users/fcm-token', {
+    const res = await authedRequest('/api/users/fcm-token', {
       method: 'POST',
       body: JSON.stringify({
         token: 'test_token_abc',
@@ -37,7 +37,7 @@ describe('Users API', () => {
   });
 
   it('PUT /api/users/me/schedule-rules should return 200', async () => {
-    const res = await request('/api/users/me/schedule-rules', {
+    const res = await authedRequest('/api/users/me/schedule-rules', {
       method: 'PUT',
       body: JSON.stringify({
         pickupWindows: [{ day: 'Monday', start: '09:00', end: '17:00' }],

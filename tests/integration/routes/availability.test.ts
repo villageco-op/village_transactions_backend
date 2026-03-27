@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { request } from '../test-utils';
+import { request } from '../../test-utils/request.js';
 
 describe('Availability API', () => {
   it('GET /api/availability/:sellerId should return 200', async () => {
