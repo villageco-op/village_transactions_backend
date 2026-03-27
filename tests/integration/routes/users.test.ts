@@ -55,19 +55,59 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(body).toHaveProperty('error', 'User not found');
   });
 
-  it('PUT /api/users/me should return 200', async () => {
-    const res = await authedRequest('/api/users/me', {
-      method: 'PUT',
-      body: JSON.stringify({
-        name: 'John Doe',
-        address: '123 Main St',
-        lat: 45.0,
-        lng: -90.0,
-        deliveryRangeMiles: 10,
-      }),
+  it('PUT /api/users/me should update user in DB and return 200 success', async () => {
+    await testDb.insert(users).values({
+      id: TEST_USER_ID,
+      name: 'Old Api Name',
+      email: 'update.api@example.com',
+      passwordHash: 'secret',
+      address: 'Old Address',
     });
+
+    const res = await authedRequest(
+      '/api/users/me',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: 'John Doe',
+          address: '123 Main St',
+          lat: 45.0,
+          lng: -90.0,
+          deliveryRangeMiles: 10,
+        }),
+      },
+      { id: TEST_USER_ID },
+    );
+
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
+
+    const updatedDbUser = await userRepository.findById(TEST_USER_ID);
+    expect(updatedDbUser?.name).toBe('John Doe');
+    expect(updatedDbUser?.address).toBe('123 Main St');
+    expect(updatedDbUser?.deliveryRangeMiles).toBe('10');
+    expect(updatedDbUser?.location).not.toBeNull();
+  });
+
+  it('PUT /api/users/me should return 404 if the user does not exist in DB', async () => {
+    const res = await authedRequest(
+      '/api/users/me',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: 'Ghost User',
+          address: 'Nowhere',
+          lat: 0,
+          lng: 0,
+          deliveryRangeMiles: 5,
+        }),
+      },
+      { id: 'non_existent_id' },
+    );
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toHaveProperty('error', 'User not found');
   });
 
   it('POST /api/users/fcm-token should return 200', async () => {

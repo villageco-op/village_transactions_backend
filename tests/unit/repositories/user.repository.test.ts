@@ -58,4 +58,33 @@ describe('UserRepository - Automated Migrations', () => {
       email: 'john@example.com',
     });
   });
+
+  it('should update user profile fields using updateById', async () => {
+    const newUser = {
+      id: 'user_update_123',
+      name: 'Old Name',
+      email: 'update@example.com',
+      passwordHash: 'secure_hash',
+      address: 'Old Address',
+      deliveryRangeMiles: '5',
+    };
+
+    await userRepository.db.insert(schema.users).values(newUser);
+
+    const updatedUser = await userRepository.updateById('user_update_123', {
+      name: 'New Name',
+      address: 'New Address',
+      deliveryRangeMiles: 15,
+    });
+
+    expect(updatedUser).toMatchObject({
+      id: 'user_update_123',
+      name: 'New Name',
+      address: 'New Address',
+      deliveryRangeMiles: '15',
+    });
+
+    const verifiedUser = await userRepository.findById('user_update_123');
+    expect(verifiedUser?.name).toBe('New Name');
+  });
 });

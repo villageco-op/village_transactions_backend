@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import { UserProfileSchema } from '../schemas/user.schema.js';
-import { getCurrentUser } from '../services/user.service.js';
+import { UpdateUserSchema } from '../schemas/user.schema.js';
+import { getCurrentUser, updateCurrentUser } from '../services/user.service.js';
 
 export const usersRoute = new OpenAPIHono();
 
@@ -50,13 +51,7 @@ usersRoute.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              name: z.string(),
-              address: z.string(),
-              lat: z.number(),
-              lng: z.number(),
-              deliveryRangeMiles: z.number(),
-            }),
+            schema: UpdateUserSchema,
           },
         },
       },
@@ -66,10 +61,30 @@ usersRoute.openapi(
         description: 'Updated Profile',
         content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
       },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      404: {
+        description: 'User not found',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
     },
   }),
-  // TODO: [Service] Get data and call upate current user service.
-  (c) => c.json({ success: true }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = c.req.valid('json');
+
+    await updateCurrentUser(userId, body);
+
+    return c.json({ success: true }, 200);
+  },
 );
 
 usersRoute.openapi(

@@ -12,3 +12,13 @@ export const UserProfileSchema = z.object({
   stripeAccountId: z.string().nullable(),
   stripeOnboardingComplete: z.boolean().nullable(),
 });
+
+export const UpdateUserSchema = z.object({
+  name: z.string().optional(),
+  address: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  deliveryRangeMiles: z.number().optional(),
+});
+
+export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;
