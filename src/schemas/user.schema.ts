@@ -1,22 +1,17 @@
 import { z } from '@hono/zod-openapi';
+import { createSelectSchema } from 'drizzle-zod';
 
-export const UserProfileSchema = z.object({
-  id: z.string(),
-  name: z.string().nullable(),
-  email: z.string().nullable(),
-  emailVerified: z.union([z.string(), z.date()]).nullable(),
-  image: z.string().nullable(),
-  address: z.string().nullable(),
-  location: z.any().nullable().describe('Geography(Point, 4326) exact lat/lng'),
-  deliveryRangeMiles: z.string().nullable(),
-  stripeAccountId: z.string().nullable(),
-  stripeOnboardingComplete: z.boolean().nullable(),
-  createdAt: z.union([z.string(), z.date()]).nullable(),
-  updatedAt: z.union([z.string(), z.date()]).nullable(),
-});
+import { users } from '../db/schema.js';
+
+export const UserProfileSchema = createSelectSchema(users)
+  .omit({ passwordHash: true })
+  .openapi('User');
 
 export const UpdateUserSchema = z.object({
   name: z.string().optional(),
+  aboutMe: z.string().optional(),
+  specialties: z.array(z.string()).optional(),
+  goal: z.number().optional(),
   address: z.string().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),

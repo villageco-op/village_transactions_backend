@@ -78,6 +78,13 @@
       "when": 1774208897363,
       "tag": "0010_loud_doorman",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1774398933855,
+      "tag": "0011_past_vulture",
+      "breakpoints": true
     }
   ]
 }

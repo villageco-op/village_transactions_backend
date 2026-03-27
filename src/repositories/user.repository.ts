@@ -48,6 +48,15 @@ export const userRepository = {
     const updatePayload: { [K in keyof UpdateSchema]: UpdateSchema[K] | SQL } = {};
 
     if (data.name !== undefined) updatePayload.name = data.name;
+
+    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.aboutMe !== undefined) updatePayload.aboutMe = data.aboutMe;
+    if (data.specialties !== undefined) updatePayload.specialties = data.specialties;
+
+    if (data.goal !== undefined) {
+      updatePayload.goal = data.goal.toString();
+    }
+
     if (data.address !== undefined) updatePayload.address = data.address;
     if (data.deliveryRangeMiles !== undefined) {
       updatePayload.deliveryRangeMiles = data.deliveryRangeMiles.toString();

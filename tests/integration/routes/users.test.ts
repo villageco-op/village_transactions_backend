@@ -36,6 +36,9 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       name: 'Jane Api User',
       email: 'jane.api@example.com',
       passwordHash: 'super_secret_do_not_leak',
+      aboutMe: 'A short bio here.',
+      specialties: ['lettuce', 'kale'],
+      goal: '150.00',
       address: '101 Api Blvd',
       stripeAccountId: 'acct_api_123',
     });
@@ -49,6 +52,9 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(body).toHaveProperty('id', TEST_USER_ID);
     expect(body).toHaveProperty('name', 'Jane Api User');
     expect(body).toHaveProperty('email', 'jane.api@example.com');
+    expect(body).toHaveProperty('aboutMe', 'A short bio here.');
+    expect(body).toHaveProperty('specialties', ['lettuce', 'kale']);
+    expect(body).toHaveProperty('goal', '150.00');
     expect(body).toHaveProperty('address', '101 Api Blvd');
     expect(body).toHaveProperty('stripeAccountId', 'acct_api_123');
 
@@ -78,6 +84,9 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
         method: 'PUT',
         body: JSON.stringify({
           name: 'John Doe',
+          aboutMe: 'Updated bio from API',
+          specialties: ['squash', 'pumpkins'],
+          goal: 2000.5,
           address: '123 Main St',
           lat: 45.0,
           lng: -90.0,
@@ -92,6 +101,9 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
 
     const updatedDbUser = await userRepository.findById(TEST_USER_ID);
     expect(updatedDbUser?.name).toBe('John Doe');
+    expect(updatedDbUser?.aboutMe).toBe('Updated bio from API');
+    expect(updatedDbUser?.specialties).toEqual(['squash', 'pumpkins']);
+    expect(updatedDbUser?.goal).toBe('2000.50');
     expect(updatedDbUser?.address).toBe('123 Main St');
     expect(updatedDbUser?.deliveryRangeMiles).toBe('10');
     expect(updatedDbUser?.location).not.toBeNull();
