@@ -114,6 +114,6 @@ export default [
   },
   {
     files: ['src/app.ts'],
-    rules: { 'no-restricted-imports': 'off' }
-  }
+    rules: { 'no-restricted-imports': 'off' },
+  },
 ];
