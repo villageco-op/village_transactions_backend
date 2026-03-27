@@ -5,8 +5,10 @@ import {
   CancelOrderBodySchema,
   CancelOrderParamsSchema,
   OrderActionSuccessSchema,
+  RescheduleOrderBodySchema,
+  RescheduleOrderParamsSchema,
 } from '../schemas/order.schema.js';
-import { cancelOrder } from '../services/order.service.js';
+import { cancelOrder, rescheduleOrder } from '../services/order.service.js';
 
 export const ordersRoute = new OpenAPIHono();
 
@@ -40,20 +42,45 @@ ordersRoute.openapi(
     operationId: 'rescheduleOrder',
     description: 'Request a change to pickup/delivery time.',
     request: {
-      params: z.object({ id: z.string() }),
+      params: RescheduleOrderParamsSchema,
       body: {
-        content: { 'application/json': { schema: z.object({ newTime: z.string().datetime() }) } },
+        content: { 'application/json': { schema: RescheduleOrderBodySchema } },
       },
     },
     responses: {
       200: {
-        description: 'Rescheduled',
-        content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+        description: 'Order successfully rescheduled',
+        content: { 'application/json': { schema: OrderActionSuccessSchema } },
+      },
+      400: {
+        description: 'Bad Request',
+        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+      },
+      401: {
+        description: 'Unauthorized - User not logged in',
+        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+      },
+      404: {
+        description: 'Not Found',
+        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
       },
     },
   }),
-  // TODO: [Service] Get data and call reschedule order service.
-  (c) => c.json({ success: true }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      throw new HTTPException(401, { message: 'Unauthorized' });
+    }
+
+    const { id } = c.req.valid('param');
+    const { newTime } = c.req.valid('json');
+
+    await rescheduleOrder(id, newTime, userId);
+
+    return c.json({ success: true }, 200);
+  },
 );
 
 ordersRoute.openapi(

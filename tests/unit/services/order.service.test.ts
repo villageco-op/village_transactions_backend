@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
-import { cancelOrder } from '../../../src/services/order.service.js';
+import { cancelOrder, rescheduleOrder } from '../../../src/services/order.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
@@ -10,6 +10,7 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
   orderRepository: {
     getOrderById: vi.fn(),
     updateOrderToCanceled: vi.fn(),
+    updateOrderScheduleTime: vi.fn(),
   },
 }));
 
@@ -100,5 +101,83 @@ describe('OrderService - cancelOrder', () => {
     );
 
     expect(orderRepository.updateOrderToCanceled).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrderService - rescheduleOrder', () => {
+  const mockOrder = {
+    id: 'order_456',
+    buyerId: 'buyer_1',
+    sellerId: 'seller_1',
+    status: 'pending',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should update scheduled time and notify seller if buyer requests', async () => {
+    vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+    const newTime = '2025-12-01T12:00:00.000Z';
+    await rescheduleOrder('order_456', newTime, 'buyer_1');
+
+    expect(orderRepository.updateOrderScheduleTime).toHaveBeenCalledWith(
+      'order_456',
+      new Date(newTime),
+    );
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      'seller_1',
+      'Order Rescheduled 🕒',
+      expect.stringContaining('buyer has requested a new time'),
+    );
+  });
+
+  it('should update scheduled time and notify buyer if seller requests', async () => {
+    vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+    const newTime = '2025-12-01T15:00:00.000Z';
+    await rescheduleOrder('order_456', newTime, 'seller_1');
+
+    expect(orderRepository.updateOrderScheduleTime).toHaveBeenCalledWith(
+      'order_456',
+      new Date(newTime),
+    );
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      'buyer_1',
+      'Order Rescheduled 🕒',
+      expect.stringContaining('seller has requested a new time'),
+    );
+  });
+
+  it('should throw HTTPException 400 if order is not pending', async () => {
+    vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce({
+      ...mockOrder,
+      status: 'completed',
+    } as any);
+
+    await expect(
+      rescheduleOrder('order_456', '2025-12-01T12:00:00.000Z', 'buyer_1'),
+    ).rejects.toThrow(
+      new HTTPException(400, { message: 'Only pending orders can be rescheduled' }),
+    );
+
+    expect(orderRepository.updateOrderScheduleTime).not.toHaveBeenCalled();
+  });
+
+  it('should throw HTTPException 404 if the order does not exist', async () => {
+    vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(null as any);
+
+    await expect(
+      rescheduleOrder('invalid_id', '2025-12-01T12:00:00.000Z', 'buyer_1'),
+    ).rejects.toThrow(new HTTPException(404, { message: 'Order not found' }));
+  });
+
+  it('should throw HTTPException 404 if a user not part of the order attempts to reschedule', async () => {
+    vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+    await expect(
+      rescheduleOrder('order_456', '2025-12-01T12:00:00.000Z', 'random_hacker'),
+    ).rejects.toThrow(new HTTPException(404, { message: 'Unauthorized' }));
   });
 });

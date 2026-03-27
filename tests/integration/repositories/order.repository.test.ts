@@ -272,4 +272,33 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(restockedProduce.totalOzInventory).toBe('60.00');
     });
   });
+  describe('OrderRepository - Reschedule Order Integration', () => {
+    it('should update an order scheduled time', async () => {
+      const buyerId = 'b_sched_test';
+      const sellerId = 's_sched_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'b_sched@test.com' },
+        { id: sellerId, email: 's_sched@test.com' },
+      ]);
+
+      const [order] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '12.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date('2025-01-01T10:00:00Z'),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      const newTime = new Date('2025-12-25T14:30:00Z');
+      const updatedOrder = await orderRepository.updateOrderScheduleTime(order.id, newTime);
+
+      expect(updatedOrder.scheduledTime.toISOString()).toBe(newTime.toISOString());
+    });
+  });
 });

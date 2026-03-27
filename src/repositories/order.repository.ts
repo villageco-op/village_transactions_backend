@@ -170,4 +170,23 @@ export const orderRepository = {
       return canceledOrder;
     });
   },
+
+  /**
+   * Updates an order's scheduled time.
+   * @param orderId - The UUID of the order to update.
+   * @param newTime - The new date and time for fulfillment.
+   * @returns The updated order object.
+   */
+  async updateOrderScheduleTime(orderId: string, newTime: Date) {
+    const [updatedOrder] = await this.db
+      .update(orders)
+      .set({
+        scheduledTime: newTime,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
+  },
 };
