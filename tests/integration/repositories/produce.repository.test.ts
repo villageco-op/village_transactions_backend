@@ -5,7 +5,7 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
-import { users, produce } from '../../../src/db/schema.js';
+import { users, produce, orderItems, orders } from '../../../src/db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 
 describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
@@ -370,6 +370,100 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       // Joe shouldn't be here because his 15mi delivery doesn't reach Chicago
       expect(result).toHaveLength(1);
       expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+    });
+  });
+
+  describe('getProduceOrders', () => {
+    const BUYER_ID = 'buyer_repo_777';
+    let dbProduce: any;
+
+    beforeEach(async () => {
+      await testDb.insert(users).values({
+        id: BUYER_ID,
+        name: 'Bulk Buyer',
+        email: 'bulk@buyer.com',
+      });
+
+      const [newProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: TEST_SELLER_ID,
+          title: 'Giant Pumpkins',
+          produceType: 'vegetable',
+          pricePerOz: '0.05',
+          totalOzInventory: '5000',
+          harvestFrequencyDays: 30,
+          seasonStart: '2024-09-01',
+          seasonEnd: '2024-11-30',
+        })
+        .returning();
+
+      dbProduce = newProduce;
+
+      for (let i = 1; i <= 2; i++) {
+        const [insertedOrder] = await testDb
+          .insert(orders)
+          .values({
+            buyerId: BUYER_ID,
+            sellerId: TEST_SELLER_ID,
+            stripeSessionId: `session_${i}`,
+            paymentMethod: 'card',
+            fulfillmentType: 'delivery',
+            scheduledTime: new Date(),
+            status: i === 1 ? 'completed' : 'pending',
+            totalAmount: `${i * 10}.00`,
+            createdAt: new Date(Date.now() - i * 10000),
+          })
+          .returning();
+
+        await testDb.insert(orderItems).values({
+          orderId: insertedOrder.id,
+          productId: dbProduce.id,
+          quantityOz: `${i * 200}`,
+          pricePerOz: '0.05',
+        });
+      }
+    });
+
+    it('should return orders successfully if the requester is the seller', async () => {
+      const result = await produceRepository.getProduceOrders(dbProduce.id, TEST_SELLER_ID, 10, 0);
+
+      expect(result).toBeDefined();
+      expect(result).toHaveLength(2);
+
+      expect(result![0].id).toBeDefined();
+      expect(result![0].status).toBeDefined();
+      expect(result![0].quantityOz).toBeDefined();
+      expect(result![0].buyer).toBeDefined();
+      expect(result![0].buyer.id).toBe(BUYER_ID);
+      expect(result![0].buyer.name).toBe('Bulk Buyer');
+    });
+
+    it('should return null if the requester is NOT the seller', async () => {
+      const result = await produceRepository.getProduceOrders(dbProduce.id, OTHER_SELLER_ID, 10, 0);
+      expect(result).toBeNull();
+    });
+
+    it('should paginate correctly based on limit and offset', async () => {
+      // Get the first item only
+      const page1 = await produceRepository.getProduceOrders(dbProduce.id, TEST_SELLER_ID, 1, 0);
+      expect(page1).toHaveLength(1);
+
+      // Get the second item
+      const page2 = await produceRepository.getProduceOrders(dbProduce.id, TEST_SELLER_ID, 1, 1);
+      expect(page2).toHaveLength(1);
+
+      // Ensure they are strictly different orders
+      expect(page1![0].id).not.toBe(page2![0].id);
+
+      // Try out-of-bounds offset
+      const pageOutOfBounds = await produceRepository.getProduceOrders(
+        dbProduce.id,
+        TEST_SELLER_ID,
+        10,
+        50,
+      );
+      expect(pageOutOfBounds).toHaveLength(0); // Valid structure, empty results
     });
   });
 });

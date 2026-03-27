@@ -1,7 +1,7 @@
-import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, sql, desc } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
-import { produce, users } from '../db/schema.js';
+import { orderItems, orders, produce, users } from '../db/schema.js';
 import type { DbClient } from '../db/types.js';
 import type { CreateProducePayload, UpdateProducePayload } from '../schemas/produce.schema.js';
 
@@ -216,5 +216,48 @@ export const produceRepository = {
       .from(produce)
       .innerJoin(users, eq(produce.sellerId, users.id))
       .where(and(...conditions));
+  },
+
+  /**
+   * Retrieves a paginated list of orders for a specific produce listing.
+   * Ensures the requesting user is the seller of the produce.
+   * @param produceId - The ID of the produce listing.
+   * @param sellerId - The ID of the seller requesting the data (for authorization).
+   * @param limit - Max items per page.
+   * @param offset - Starting index.
+   * @returns Array of order items or null if unauthorized/not found.
+   */
+  async getProduceOrders(produceId: string, sellerId: string, limit: number, offset: number) {
+    const [ownershipCheck] = await this.db
+      .select({ id: produce.id })
+      .from(produce)
+      .where(and(eq(produce.id, produceId), eq(produce.sellerId, sellerId)));
+
+    if (!ownershipCheck) {
+      return null;
+    }
+
+    return await this.db
+      .select({
+        id: orders.id,
+        status: orders.status,
+        fulfillmentType: orders.fulfillmentType,
+        scheduledTime: orders.scheduledTime,
+        totalAmount: orders.totalAmount,
+        quantityOz: orderItems.quantityOz,
+        createdAt: orders.createdAt,
+        buyer: {
+          id: users.id,
+          name: users.name,
+          image: users.image,
+        },
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(users, eq(orders.buyerId, users.id))
+      .where(eq(orderItems.productId, produceId))
+      .orderBy(desc(orders.createdAt))
+      .limit(limit)
+      .offset(offset);
   },
 };

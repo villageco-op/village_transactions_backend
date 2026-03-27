@@ -279,4 +279,33 @@ export const orderRepository = {
         })),
     }));
   },
+
+  /**
+   * Retrieves the payout history items for a seller since a specific date.
+   * @param sellerId - The unique seller ID
+   * @param startDate - The cutoff date to start fetching records
+   * @returns Array of order items tied to completed checkouts
+   */
+  async getPayoutHistory(sellerId: string, startDate: Date) {
+    return await this.db
+      .select({
+        date: orders.createdAt,
+        buyerName: users.name,
+        productName: produce.title,
+        quantityOz: orderItems.quantityOz,
+        pricePerOz: orderItems.pricePerOz,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(users, eq(orders.buyerId, users.id))
+      .innerJoin(produce, eq(orderItems.productId, produce.id))
+      .where(
+        and(
+          eq(orders.sellerId, sellerId),
+          gte(orders.createdAt, startDate),
+          eq(orders.status, 'completed'),
+        ),
+      )
+      .orderBy(desc(orders.createdAt));
+  },
 };

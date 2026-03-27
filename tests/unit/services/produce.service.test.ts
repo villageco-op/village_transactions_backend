@@ -5,6 +5,7 @@ import {
   deleteProduceListing,
   getProduceList,
   getProduceMap,
+  getProduceOrders,
   updateProduceListing,
 } from '../../../src/services/produce.service.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
@@ -16,6 +17,7 @@ vi.mock('../../../src/repositories/produce.repository.js', () => ({
     softDelete: vi.fn(),
     getList: vi.fn(),
     getMapItems: vi.fn(),
+    getProduceOrders: vi.fn(),
   },
 }));
 
@@ -309,5 +311,69 @@ describe('ProduceService - getProduceMap', () => {
     expect(seller2?.lat).toBe(41.0);
     expect(seller2?.lng).toBe(-71.0);
     expect(seller2?.produce).toHaveLength(1);
+  });
+});
+
+describe('ProduceService - getProduceOrders', () => {
+  const mockProduceId = 'prod_123';
+  const mockSellerId = 'seller_123';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully retrieve paginated orders for a produce listing', async () => {
+    const mockDbOrders = [
+      {
+        id: 'order_1',
+        status: 'pending',
+        fulfillmentType: 'pickup',
+        scheduledTime: new Date(),
+        totalAmount: '10.50',
+        quantityOz: '50',
+        createdAt: new Date(),
+        buyer: {
+          id: 'buyer_1',
+          name: 'John Doe',
+          image: 'https://example.com/john.jpg',
+        },
+      },
+    ];
+
+    vi.mocked(produceRepository.getProduceOrders).mockResolvedValueOnce(mockDbOrders as any);
+
+    const result = await getProduceOrders(mockProduceId, mockSellerId, 10, 0);
+
+    expect(result).toEqual(mockDbOrders);
+    expect(produceRepository.getProduceOrders).toHaveBeenCalledWith(
+      mockProduceId,
+      mockSellerId,
+      10,
+      0,
+    );
+  });
+
+  it('should return null if the user is unauthorized or the listing does not exist', async () => {
+    vi.mocked(produceRepository.getProduceOrders).mockResolvedValueOnce(null);
+
+    const result = await getProduceOrders(mockProduceId, mockSellerId, 10, 0);
+
+    expect(result).toBeNull();
+    expect(produceRepository.getProduceOrders).toHaveBeenCalledWith(
+      mockProduceId,
+      mockSellerId,
+      10,
+      0,
+    );
+  });
+
+  it('should propagate repository errors upward', async () => {
+    vi.mocked(produceRepository.getProduceOrders).mockRejectedValueOnce(
+      new Error('Database Timeout'),
+    );
+
+    await expect(getProduceOrders(mockProduceId, mockSellerId, 10, 0)).rejects.toThrow(
+      'Database Timeout',
+    );
   });
 });

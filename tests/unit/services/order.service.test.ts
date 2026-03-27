@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
-import { cancelOrder, getOrders, rescheduleOrder } from '../../../src/services/order.service.js';
+import {
+  cancelOrder,
+  getOrders,
+  getSellerPayouts,
+  rescheduleOrder,
+} from '../../../src/services/order.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
@@ -12,6 +17,7 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
     updateOrderToCanceled: vi.fn(),
     updateOrderScheduleTime: vi.fn(),
     getOrders: vi.fn(),
+    getPayoutHistory: vi.fn(),
   },
 }));
 
@@ -225,5 +231,61 @@ describe('OrderService - getOrders', () => {
       status: undefined,
       timeframeDays: undefined,
     });
+  });
+});
+
+describe('OrderService - getSellerPayouts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should correctly parse timeframe, fetch data, and map payout items', async () => {
+    const mockDate = new Date('2025-01-01T12:00:00Z');
+
+    vi.mocked(orderRepository.getPayoutHistory).mockResolvedValueOnce([
+      {
+        date: mockDate,
+        buyerName: 'Alice Buyer',
+        productName: 'Organic Carrots',
+        quantityOz: '32',
+        pricePerOz: '1.50',
+      },
+    ] as any);
+
+    const result = await getSellerPayouts('seller_123', '30days');
+
+    expect(orderRepository.getPayoutHistory).toHaveBeenCalledWith('seller_123', expect.any(Date));
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      date: '2025-01-01T12:00:00.000Z',
+      buyerName: 'Alice Buyer',
+      productName: 'Organic Carrots',
+      quantityLbs: 2,
+      amountDollars: 48,
+    });
+  });
+
+  it('should fallback to 90 days if timeframe is invalid or omitted, and handle null fields gracefully', async () => {
+    vi.mocked(orderRepository.getPayoutHistory).mockResolvedValueOnce([
+      {
+        date: null,
+        buyerName: null,
+        productName: null,
+        quantityOz: '16',
+        pricePerOz: '2.00',
+      },
+    ] as any);
+
+    const result = await getSellerPayouts('seller_123', 'invalid_frame');
+
+    expect(orderRepository.getPayoutHistory).toHaveBeenCalledWith('seller_123', expect.any(Date));
+
+    expect(result).toHaveLength(1);
+    expect(result[0].buyerName).toBe('Unknown');
+    expect(result[0].productName).toBe('Unknown');
+    expect(result[0].quantityLbs).toBe(1);
+    expect(result[0].amountDollars).toBe(32);
+    expect(result[0].date).toBeDefined();
   });
 });

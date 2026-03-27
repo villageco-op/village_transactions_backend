@@ -7,6 +7,8 @@ import {
   ProduceListItemSchema,
   ProduceMapQuerySchema,
   SellerMapGroupSchema,
+  ProduceOrdersQuerySchema,
+  ProduceOrderListItemSchema,
 } from '../schemas/produce.schema.js';
 import {
   createProduceListing,
@@ -14,6 +16,7 @@ import {
   updateProduceListing,
   getProduceList,
   getProduceMap,
+  getProduceOrders,
 } from '../services/produce.service.js';
 
 export const produceRoute = new OpenAPIHono();
@@ -225,5 +228,51 @@ produceRoute.openapi(
     }
 
     return c.json({ success: true }, 200);
+  },
+);
+
+produceRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}/orders',
+    operationId: 'getProduceOrders',
+    description: 'View paginated orders associated with one specific produce listing.',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      query: ProduceOrdersQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'List of orders for the produce listing',
+        content: { 'application/json': { schema: z.array(ProduceOrderListItemSchema) } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      404: {
+        description: 'Not Found / Unauthorized Listing Ownership',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id } = c.req.valid('param');
+    const query = c.req.valid('query');
+
+    const orders = await getProduceOrders(id, userId, query.limit, query.offset);
+
+    if (!orders) {
+      return c.json({ error: 'Listing not found or unauthorized' }, 404);
+    }
+
+    return c.json(orders, 200);
   },
 );

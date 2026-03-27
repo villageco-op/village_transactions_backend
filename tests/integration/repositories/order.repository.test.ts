@@ -463,4 +463,97 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(recentOrders[0].totalAmount).toBe('10.00');
     });
   });
+
+  describe('OrderRepository - getPayoutHistory Integration', () => {
+    it('should correctly fetch completed order items for the given timeframe', async () => {
+      const sellerId = 'seller_payout_test';
+      const buyerId = 'buyer_payout_test';
+
+      await testDb.insert(users).values([
+        { id: sellerId, name: 'Farmer John', email: 'john@farm.com' },
+        { id: buyerId, name: 'Customer Bob', email: 'bob@city.com' },
+      ]);
+
+      const [produceItem] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Farm Fresh Milk',
+          pricePerOz: '0.10',
+          totalOzInventory: '1000',
+          harvestFrequencyDays: 1,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
+
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - 60);
+
+      const recentDate = new Date();
+      recentDate.setDate(recentDate.getDate() - 10);
+
+      const [oldOrder, recentOrder, pendingOrder] = await testDb
+        .insert(orders)
+        .values([
+          {
+            buyerId,
+            sellerId,
+            status: 'completed',
+            totalAmount: '5.00',
+            fulfillmentType: 'pickup',
+            scheduledTime: oldDate,
+            createdAt: oldDate,
+            paymentMethod: 'card',
+          },
+          {
+            buyerId,
+            sellerId,
+            status: 'completed',
+            totalAmount: '5.00',
+            fulfillmentType: 'pickup',
+            scheduledTime: recentDate,
+            createdAt: recentDate,
+            paymentMethod: 'card',
+          },
+          {
+            buyerId,
+            sellerId,
+            status: 'pending',
+            totalAmount: '5.00',
+            fulfillmentType: 'pickup',
+            scheduledTime: recentDate,
+            createdAt: recentDate,
+            paymentMethod: 'card',
+          },
+        ])
+        .returning();
+
+      await testDb.insert(orderItems).values([
+        { orderId: oldOrder.id, productId: produceItem.id, quantityOz: '50', pricePerOz: '0.10' },
+        {
+          orderId: recentOrder.id,
+          productId: produceItem.id,
+          quantityOz: '50',
+          pricePerOz: '0.10',
+        },
+        {
+          orderId: pendingOrder.id,
+          productId: produceItem.id,
+          quantityOz: '50',
+          pricePerOz: '0.10',
+        },
+      ]);
+
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+
+      const payoutHistory = await orderRepository.getPayoutHistory(sellerId, startDate);
+
+      expect(payoutHistory).toHaveLength(1);
+      expect(payoutHistory[0].buyerName).toBe('Customer Bob');
+      expect(payoutHistory[0].productName).toBe('Farm Fresh Milk');
+      expect(payoutHistory[0].quantityOz).toBe('50.00');
+    });
+  });
 });
