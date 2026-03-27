@@ -3,8 +3,10 @@ import Stripe from 'stripe';
 import type { Mocked } from 'vitest';
 
 import { cartRepository } from '../repositories/cart.repository.js';
+import { orderRepository } from '../repositories/order.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
+import { sendPushNotification } from './notification.service.js';
 import { updateInternalStripeAccountId } from './user.service.js';
 
 type StripeClient = Pick<Stripe, 'accounts' | 'accountLinks' | 'checkout'>;
@@ -153,4 +155,82 @@ export async function createCheckoutSession(
   }
 
   return session.url;
+}
+
+/**
+ * Handles incoming webhooks securely verified by Stripe.
+ * @param event - The verified Stripe Event object
+ */
+export async function processStripeWebhookEvent(event: Stripe.Event) {
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session;
+      await handleCheckoutCompleted(session);
+      break;
+    }
+    case 'account.updated': {
+      const account = event.data.object as Stripe.Account;
+      await handleAccountUpdated(account);
+      break;
+    }
+    default:
+      console.log(`Unhandled Stripe event type: ${event.type}`);
+  }
+}
+
+/**
+ * Processes a successful Stripe Checkout session by fulfilling the order in the database.
+ * This handler extracts metadata (buyer, seller, reservations), creates the internal
+ * order record, and notifies the seller of the new purchase.
+ * @param session - The completed Stripe Checkout Session object containing metadata and payment totals.
+ * @returns A promise that resolves when the order fulfillment and notification process is complete.
+ */
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  const metadata = session.metadata;
+  if (!metadata) return;
+
+  const { buyerId, sellerId, reservationIds, fulfillmentType, scheduledTime } = metadata;
+  const rIds = reservationIds?.split(',') || [];
+
+  if (!buyerId || !sellerId || rIds.length === 0) {
+    console.error('Checkout Session missing required metadata.', session.id);
+    return;
+  }
+
+  const totalAmount = session.amount_total ? session.amount_total / 100 : 0;
+
+  try {
+    await orderRepository.fulfillCheckoutSession({
+      buyerId,
+      sellerId,
+      stripeSessionId: session.id,
+      totalAmount,
+      fulfillmentType: fulfillmentType as 'pickup' | 'delivery',
+      scheduledTime: new Date(scheduledTime),
+      reservationIds: rIds,
+    });
+
+    const buyer = await userRepository.findById(buyerId);
+    const buyerName = buyer?.name ? buyer.name.split(' ')[0] : 'a customer';
+
+    await sendPushNotification(
+      sellerId,
+      'New Order Received! 🥬',
+      `New order from ${buyerName}! Open the app to view details.`,
+    );
+  } catch (error) {
+    console.error(`Error fulfilling checkout session ${session.id}:`, error);
+  }
+}
+
+/**
+ * Updates a user's local onboarding status based on changes to their Stripe Express account.
+ * This ensures the application knows when a seller is eligible to receive payments
+ * based on Stripe's `details_submitted` and `charges_enabled` requirements.
+ * @param account - The Stripe Account object containing updated verification and capability status.
+ * @returns A promise that resolves once the local user record has been updated.
+ */
+async function handleAccountUpdated(account: Stripe.Account) {
+  const isComplete = account.details_submitted && account.charges_enabled;
+  await userRepository.updateStripeOnboardingStatus(account.id, isComplete);
 }

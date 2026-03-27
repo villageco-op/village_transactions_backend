@@ -8,6 +8,9 @@ import {
 } from '../../../src/services/stripe.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { updateInternalStripeAccountId } from '../../../src/services/user.service.js';
+import { processStripeWebhookEvent } from '../../../src/services/stripe.service.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { sendPushNotification } from '../../../src/services/notification.service.js';
 
 const mockStripe = {
   accounts: {
@@ -26,6 +29,16 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
 
 vi.mock('../../../src/services/user.service.js', () => ({
   updateInternalStripeAccountId: vi.fn(),
+}));
+
+vi.mock('../../../src/repositories/order.repository.js', () => ({
+  orderRepository: {
+    fulfillCheckoutSession: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/services/notification.service.js', () => ({
+  sendPushNotification: vi.fn(),
 }));
 
 describe('StripeService - generateStripeOnboardLink', () => {
@@ -98,5 +111,91 @@ describe('StripeService - generateStripeOnboardLink', () => {
     });
 
     expect(url).toBe('https://connect.stripe.com/resume-onboard');
+  });
+});
+
+describe('StripeService - processStripeWebhookEvent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should process account.updated event and update onboarding status', async () => {
+    userRepository.updateStripeOnboardingStatus = vi.fn().mockResolvedValue(undefined);
+
+    const event = {
+      type: 'account.updated',
+      data: {
+        object: {
+          id: 'acct_123',
+          details_submitted: true,
+          charges_enabled: true,
+        },
+      },
+    } as unknown as Stripe.Event;
+
+    await processStripeWebhookEvent(event);
+
+    expect(userRepository.updateStripeOnboardingStatus).toHaveBeenCalledWith('acct_123', true);
+  });
+
+  it('should process checkout.session.completed event and fulfill order', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'buyer_1',
+      name: 'Alice Smith',
+    } as any);
+
+    const event = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_test_123',
+          amount_total: 1500, // $15.00
+          metadata: {
+            buyerId: 'buyer_1',
+            sellerId: 'seller_1',
+            reservationIds: 'res_1,res_2',
+            fulfillmentType: 'pickup',
+            scheduledTime: '2026-05-15T12:00:00Z',
+          },
+        },
+      },
+    } as unknown as Stripe.Event;
+
+    await processStripeWebhookEvent(event);
+
+    expect(orderRepository.fulfillCheckoutSession).toHaveBeenCalledWith({
+      buyerId: 'buyer_1',
+      sellerId: 'seller_1',
+      stripeSessionId: 'cs_test_123',
+      totalAmount: 15,
+      fulfillmentType: 'pickup',
+      scheduledTime: new Date('2026-05-15T12:00:00Z'),
+      reservationIds: ['res_1', 'res_2'],
+    });
+
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      'seller_1',
+      'New Order Received! 🥬',
+      'New order from Alice! Open the app to view details.',
+    );
+  });
+
+  it('should skip checkout.session.completed if missing essential metadata', async () => {
+    const event = {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_test_missing_meta',
+          metadata: {
+            buyerId: 'buyer_1', // Missing sellerId and reservationIds
+          },
+        },
+      },
+    } as unknown as Stripe.Event;
+
+    await processStripeWebhookEvent(event);
+
+    expect(orderRepository.fulfillCheckoutSession).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
   });
 });
