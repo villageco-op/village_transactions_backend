@@ -1,7 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
-import { GetSellerPayoutsQuerySchema, PayoutHistorySchema } from '../schemas/seller.schema.js';
+import {
+  GetSellerPayoutsQuerySchema,
+  PayoutHistorySchema,
+  SellerEarningsResponseSchema,
+} from '../schemas/seller.schema.js';
 import { getSellerPayouts } from '../services/order.service.js';
+import { getSellerEarningsMetrics } from '../services/seller.service.js';
 
 export const sellerRoute = new OpenAPIHono();
 
@@ -76,5 +81,36 @@ sellerRoute.openapi(
     const payouts = await getSellerPayouts(userId, timeframe);
 
     return c.json(payouts, 200);
+  },
+);
+
+sellerRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/earnings',
+    operationId: 'getSellerEarnings',
+    description: 'Deep dive into financial metrics for the earnings page.',
+    responses: {
+      200: {
+        description: 'Seller earnings metrics and statistics',
+        content: { 'application/json': { schema: SellerEarningsResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized - User not logged in',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const metrics = await getSellerEarningsMetrics(userId);
+
+    return c.json(metrics, 200);
   },
 );
