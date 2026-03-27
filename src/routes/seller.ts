@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import {
@@ -17,6 +18,7 @@ sellerRoute.openapi(
     path: '/customers',
     operationId: 'getSellerCustomers',
     description: 'View everyone who has bought before.',
+    middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'Customers list',
@@ -34,6 +36,7 @@ sellerRoute.openapi(
     path: '/analytics',
     operationId: 'getSellerAnalytics',
     description: 'View past sales totals and metrics.',
+    middleware: [verifyAuth()],
     request: { query: z.object({ timeframe: z.string() }) },
     responses: {
       200: {
@@ -52,6 +55,7 @@ sellerRoute.openapi(
     path: '/payouts',
     operationId: 'getSellerPayouts',
     description: 'Fetch payout history (last 3 months) tied to Stripe transfers.',
+    middleware: [verifyAuth()],
     request: {
       query: GetSellerPayoutsQuerySchema,
     },
@@ -91,6 +95,7 @@ sellerRoute.openapi(
     path: '/earnings',
     operationId: 'getSellerEarnings',
     description: 'Deep dive into financial metrics for the earnings page.',
+    middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'Seller earnings metrics and statistics',
@@ -122,6 +127,7 @@ sellerRoute.openapi(
     path: '/dashboard',
     operationId: 'getSellerDashboard',
     description: "Fetches high-level metrics and urgent tasks for the seller's main view.",
+    middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'Seller dashboard metrics',

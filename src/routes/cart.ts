@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import { AddToCartSchema, GetCartResponseSchema } from '../schemas/cart.schema.js';
@@ -12,6 +13,7 @@ cartRoute.openapi(
     operationId: 'getCart',
     description:
       "Fetch user's active cart, grouped by seller. Drops expired reservations automatically.",
+    middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'Cart Object',
@@ -42,6 +44,7 @@ cartRoute.openapi(
     path: '/add',
     operationId: 'addToCart',
     description: 'Add item to cart and create a soft reservation.',
+    middleware: [verifyAuth()],
     request: {
       body: {
         content: {
@@ -91,12 +94,10 @@ cartRoute.openapi(
     path: '/remove/{reservationId}',
     operationId: 'removeFromCart',
     description: 'Explicitly remove an item and release the reservation early.',
+    middleware: [verifyAuth()],
     request: {
       params: z.object({
-        reservationId: z
-          .string()
-          .uuid()
-          .openapi({ example: '123e4567-e89b-12d3-a456-426614174000' }),
+        reservationId: z.uuid().openapi({ example: '123e4567-e89b-12d3-a456-426614174000' }),
       }),
     },
     responses: {

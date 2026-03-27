@@ -1,4 +1,4 @@
-import { authHandler, initAuthConfig, verifyAuth } from '@hono/auth-js';
+import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
@@ -65,17 +65,6 @@ app.use('*', initAuthConfig(getAuthConfig));
 app.use('/api/auth/*', authHandler());
 
 app.get('/health', (c) => c.json({ status: 'ok' }));
-
-app.use('/api/produce/*', verifyAuth());
-app.use('/api/cart/*', verifyAuth());
-app.use('/api/stripe/connect/onboard', verifyAuth());
-app.use('/api/checkout/*', verifyAuth());
-app.use('/api/subscriptions/*', verifyAuth());
-app.use('/api/orders/*', verifyAuth());
-app.use('/api/availability/*', verifyAuth());
-app.use('/api/seller/*', verifyAuth());
-app.use('/api/buyer/*', verifyAuth());
-app.use('/api/reviews/*', verifyAuth());
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);

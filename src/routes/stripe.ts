@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 
@@ -63,6 +64,7 @@ stripeRoute.openapi(
     path: '/connect/onboard',
     operationId: 'generateStripeOnboardingLink',
     description: 'Generate onboarding link for sellers to link their bank accounts.',
+    middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'Link created',

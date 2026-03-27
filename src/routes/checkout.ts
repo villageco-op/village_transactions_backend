@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import {
@@ -14,6 +15,7 @@ checkoutRoute.openapi(
     path: '/stripe/session',
     operationId: 'createStripeSession',
     description: 'Create a Stripe Checkout session for a specific seller.',
+    middleware: [verifyAuth()],
     request: {
       body: {
         content: {
@@ -60,6 +62,7 @@ checkoutRoute.openapi(
     path: '/snap/initiate',
     operationId: 'initiateSnapCheckout',
     description: 'Alternate checkout route for USDA EBT/SNAP.',
+    middleware: [verifyAuth()],
     request: {
       body: {
         content: {

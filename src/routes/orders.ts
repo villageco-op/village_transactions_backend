@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 
@@ -20,6 +21,7 @@ ordersRoute.openapi(
     path: '/',
     operationId: 'getOrders',
     description: 'Get historical or active orders.',
+    middleware: [verifyAuth()],
     request: {
       query: GetOrdersQuerySchema,
     },
@@ -56,6 +58,7 @@ ordersRoute.openapi(
     path: '/{id}/schedule',
     operationId: 'rescheduleOrder',
     description: 'Request a change to pickup/delivery time.',
+    middleware: [verifyAuth()],
     request: {
       params: RescheduleOrderParamsSchema,
       body: {
@@ -104,6 +107,7 @@ ordersRoute.openapi(
     path: '/{id}/cancel',
     operationId: 'cancelOrder',
     description: 'Cancel a one-time order.',
+    middleware: [verifyAuth()],
     request: {
       params: CancelOrderParamsSchema,
       body: {

@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 
@@ -22,6 +23,7 @@ buyerRoute.openapi(
     operationId: 'getBuyerGrowers',
     description:
       'Get list of sellers that the user bought from in the past, aggregated with stats.',
+    middleware: [verifyAuth()],
     request: {
       query: GetGrowersQuerySchema,
     },
@@ -58,6 +60,7 @@ buyerRoute.openapi(
     path: '/billing-summary',
     operationId: 'getBuyerBillingSummary',
     description: 'Get aggregate summary values for the buyer invoice history.',
+    middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'Aggregate billing summary for the buyer',
@@ -89,6 +92,7 @@ buyerRoute.openapi(
     path: '/dashboard',
     operationId: 'getBuyerDashboard',
     description: 'Fetches all summary metrics required for the buyer main dashboard view.',
+    middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'Dashboard metrics',

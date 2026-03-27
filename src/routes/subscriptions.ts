@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import {
@@ -15,6 +16,7 @@ subscriptionsRoute.openapi(
     operationId: 'updateSubscriptionStatus',
     description:
       'Manage recurring scheduled purchases. Integrates natively with Stripe to pause or cancel collections.',
+    middleware: [verifyAuth()],
     request: {
       params: z.object({ id: z.string() }),
       body: {

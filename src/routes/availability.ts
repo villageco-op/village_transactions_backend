@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
 import {
@@ -15,6 +16,7 @@ availabilityRoute.openapi(
     path: '/{sellerId}',
     operationId: 'getAvailability',
     description: 'Fetch available pickup/delivery slots for a seller.',
+    middleware: [verifyAuth()],
     request: {
       params: GetAvailabilityParamsSchema,
       query: GetAvailabilityQuerySchema,
