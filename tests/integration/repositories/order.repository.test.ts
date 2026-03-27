@@ -301,4 +301,166 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(updatedOrder.scheduledTime.toISOString()).toBe(newTime.toISOString());
     });
   });
+
+  describe('OrderRepository - getOrders Integration', () => {
+    it('should retrieve a list of orders mapped correctly with items and counterparty', async () => {
+      const buyerId = 'b_list_1';
+      const sellerId = 's_list_1';
+
+      await testDb.insert(users).values([
+        { id: buyerId, name: 'List Buyer', email: 'blist@test.com' },
+        { id: sellerId, name: 'List Seller', email: 'slist@test.com' },
+      ]);
+
+      const [testProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Heirloom Tomatoes',
+          pricePerOz: '2.00',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 7,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
+
+      const [order] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '20.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      await testDb.insert(orderItems).values({
+        orderId: order.id,
+        productId: testProduce.id,
+        quantityOz: '10',
+        pricePerOz: '2.00',
+      });
+
+      const buyerOrders = await orderRepository.getOrders({
+        userId: buyerId,
+        role: 'buyer',
+      });
+
+      expect(buyerOrders).toHaveLength(1);
+      expect(buyerOrders[0].id).toBe(order.id);
+      expect(buyerOrders[0].counterparty?.id).toBe(sellerId);
+      expect(buyerOrders[0].counterparty?.name).toBe('List Seller');
+      expect(buyerOrders[0].items).toHaveLength(1);
+      expect(buyerOrders[0].items[0].product.title).toBe('Heirloom Tomatoes');
+
+      const sellerOrders = await orderRepository.getOrders({
+        userId: sellerId,
+        role: 'seller',
+      });
+
+      expect(sellerOrders).toHaveLength(1);
+      expect(sellerOrders[0].id).toBe(order.id);
+      expect(sellerOrders[0].counterparty?.id).toBe(buyerId);
+      expect(sellerOrders[0].counterparty?.name).toBe('List Buyer');
+    });
+
+    it('should correctly filter orders by status', async () => {
+      const buyerId = 'b_list_status';
+      const sellerId = 's_list_status';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'bstat@test.com' },
+        { id: sellerId, email: 'sstat@test.com' },
+      ]);
+
+      await testDb.insert(orders).values([
+        {
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '10.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        },
+        {
+          buyerId,
+          sellerId,
+          status: 'completed',
+          totalAmount: '15.00',
+          fulfillmentType: 'delivery',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        },
+      ]);
+
+      const pendingOrders = await orderRepository.getOrders({
+        userId: buyerId,
+        role: 'buyer',
+        status: 'pending',
+      });
+
+      expect(pendingOrders).toHaveLength(1);
+      expect(pendingOrders[0].status).toBe('pending');
+
+      const completedOrders = await orderRepository.getOrders({
+        userId: buyerId,
+        role: 'buyer',
+        status: 'completed',
+      });
+
+      expect(completedOrders).toHaveLength(1);
+      expect(completedOrders[0].status).toBe('completed');
+    });
+
+    it('should correctly filter orders by timeframeDays', async () => {
+      const buyerId = 'b_list_time';
+      const sellerId = 's_list_time';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'btime@test.com' },
+        { id: sellerId, email: 'stime@test.com' },
+      ]);
+
+      const now = new Date();
+      const oldDate = new Date();
+      oldDate.setDate(now.getDate() - 40);
+
+      await testDb.insert(orders).values([
+        {
+          buyerId,
+          sellerId,
+          status: 'completed',
+          totalAmount: '10.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: now,
+          createdAt: now,
+          paymentMethod: 'card',
+        },
+        {
+          buyerId,
+          sellerId,
+          status: 'completed',
+          totalAmount: '15.00',
+          fulfillmentType: 'delivery',
+          scheduledTime: oldDate,
+          createdAt: oldDate,
+          paymentMethod: 'card',
+        },
+      ]);
+
+      const recentOrders = await orderRepository.getOrders({
+        userId: buyerId,
+        role: 'buyer',
+        timeframeDays: 30,
+      });
+
+      expect(recentOrders).toHaveLength(1);
+      expect(recentOrders[0].totalAmount).toBe('10.00');
+    });
+  });
 });

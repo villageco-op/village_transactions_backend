@@ -21,4 +21,12 @@ describe('Order API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/orders should not return a 500 error when role is provided', async () => {
+    const res = await authedRequest('/api/orders?role=buyer', {
+      method: 'GET',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });
