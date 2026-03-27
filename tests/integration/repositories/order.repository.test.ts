@@ -556,4 +556,93 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(payoutHistory[0].quantityOz).toBe('50.00');
     });
   });
+
+  describe('OrderRepository - getActiveBuyerCount Integration', () => {
+    const SELLER_ID = 'active_seller_test';
+    const BUYER_1 = 'active_buyer_1';
+    const BUYER_2 = 'active_buyer_2';
+    const BUYER_3 = 'active_buyer_3';
+
+    beforeEach(async () => {
+      await truncateTables(testDb);
+
+      await testDb.insert(users).values([
+        { id: SELLER_ID, email: 'active.seller@test.com' },
+        { id: BUYER_1, email: 'active.b1@test.com' },
+        { id: BUYER_2, email: 'active.b2@test.com' },
+        { id: BUYER_3, email: 'active.b3@test.com' },
+      ]);
+
+      const now = new Date();
+      const lastMonth = new Date();
+      lastMonth.setMonth(now.getMonth() - 1);
+
+      await testDb.insert(orders).values([
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          buyerId: BUYER_1,
+          sellerId: SELLER_ID,
+          status: 'completed',
+          totalAmount: '10.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: now,
+          createdAt: now,
+          paymentMethod: 'card',
+        },
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          buyerId: BUYER_1,
+          sellerId: SELLER_ID,
+          status: 'completed',
+          totalAmount: '15.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: now,
+          createdAt: now,
+          paymentMethod: 'card',
+        },
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          buyerId: BUYER_2,
+          sellerId: SELLER_ID,
+          status: 'completed',
+          totalAmount: '20.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: now,
+          createdAt: now,
+          paymentMethod: 'card',
+        },
+        {
+          id: '44444444-4444-4444-4444-444444444444',
+          buyerId: BUYER_3,
+          sellerId: SELLER_ID,
+          status: 'completed',
+          totalAmount: '5.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: lastMonth,
+          createdAt: lastMonth,
+          paymentMethod: 'card',
+        },
+      ]);
+    });
+
+    it('should count distinct buyers that placed an order since a specific date', async () => {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const count = await orderRepository.getActiveBuyerCount(SELLER_ID, startOfMonth);
+
+      // Should be 2 (Buyer 1 and Buyer 2). Buyer 3 ordered last month.
+      // Buyer 1 should only be counted once despite having 2 orders.
+      expect(count).toBe(2);
+    });
+
+    it('should return 0 if no buyers are found since the provided date', async () => {
+      const futureDate = new Date();
+      futureDate.setFullYear(futureDate.getFullYear() + 1);
+
+      const count = await orderRepository.getActiveBuyerCount(SELLER_ID, futureDate);
+
+      expect(count).toBe(0);
+    });
+  });
 });

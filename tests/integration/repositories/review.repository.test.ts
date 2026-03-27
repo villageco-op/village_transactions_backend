@@ -188,4 +188,90 @@ describe('ReviewRepository - Integration', { timeout: 60_000 }, () => {
       expect(page2[0].rating).toBe(5);
     });
   });
+
+  describe('getReviewStatsBySellerId', () => {
+    const STATS_SELLER_ID = 'stats_seller';
+    const STATS_BUYER_1 = 'stats_buyer_1';
+    const STATS_BUYER_2 = 'stats_buyer_2';
+
+    beforeEach(async () => {
+      await truncateTables(testDb);
+
+      await testDb.insert(users).values([
+        { id: STATS_SELLER_ID, email: 'stats.seller@example.com' },
+        { id: STATS_BUYER_1, email: 'stats.b1@example.com' },
+        { id: STATS_BUYER_2, email: 'stats.b2@example.com' },
+      ]);
+
+      await testDb.insert(orders).values([
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          buyerId: STATS_BUYER_1,
+          sellerId: STATS_SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '10',
+        },
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          buyerId: STATS_BUYER_2,
+          sellerId: STATS_SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '10',
+        },
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          buyerId: STATS_BUYER_1,
+          sellerId: STATS_SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '10',
+        },
+      ]);
+
+      await reviewRepository.create({
+        buyerId: STATS_BUYER_1,
+        sellerId: STATS_SELLER_ID,
+        orderId: '11111111-1111-1111-1111-111111111111',
+        rating: 5,
+        comment: 'Great',
+      });
+      await reviewRepository.create({
+        buyerId: STATS_BUYER_2,
+        sellerId: STATS_SELLER_ID,
+        orderId: '22222222-2222-2222-2222-222222222222',
+        rating: 5,
+        comment: 'Awesome',
+      });
+      await reviewRepository.create({
+        buyerId: STATS_BUYER_1,
+        sellerId: STATS_SELLER_ID,
+        orderId: '33333333-3333-3333-3333-333333333333',
+        rating: 3,
+        comment: 'Okay',
+      });
+    });
+
+    it('should aggregate review counts grouped by rating', async () => {
+      const stats = await reviewRepository.getReviewStatsBySellerId(STATS_SELLER_ID);
+
+      // Should have two groups: 5-star (count 2) and 3-star (count 1)
+      expect(stats).toHaveLength(2);
+
+      const fiveStar = stats.find((s) => s.rating === 5);
+      const threeStar = stats.find((s) => s.rating === 3);
+
+      expect(fiveStar?.count).toBe(2);
+      expect(threeStar?.count).toBe(1);
+    });
+
+    it('should return an empty array if a seller has no reviews', async () => {
+      const stats = await reviewRepository.getReviewStatsBySellerId('ghost_seller');
+      expect(stats).toEqual([]);
+    });
+  });
 });

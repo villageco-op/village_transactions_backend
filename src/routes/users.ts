@@ -1,3 +1,4 @@
+import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import {
@@ -8,6 +9,7 @@ import {
   UpdateScheduleRulesSchema,
   UserProfileSchema,
   UpdateUserSchema,
+  PublicUserProfileSchema,
 } from '../schemas/user.schema.js';
 import { getSellerReviews } from '../services/review.service.js';
 import {
@@ -15,6 +17,7 @@ import {
   registerFcmToken,
   updateCurrentUser,
   updateScheduleRules,
+  getPublicUserProfile,
 } from '../services/user.service.js';
 
 export const usersRoute = new OpenAPIHono();
@@ -25,6 +28,7 @@ usersRoute.openapi(
     path: '/me',
     operationId: 'getCurrentUser',
     description: 'Fetch profile, settings, and active seller status.',
+    middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'User Profile Details',
@@ -60,6 +64,7 @@ usersRoute.openapi(
     path: '/me',
     operationId: 'updateCurrentUser',
     description: 'Update profile (name, address, delivery range, etc.)',
+    middleware: [verifyAuth()],
     request: {
       body: {
         content: {
@@ -106,6 +111,7 @@ usersRoute.openapi(
     path: '/fcm-token',
     operationId: 'registerFcmToken',
     description: "Store the user's Firebase Cloud Messaging token for push notifications.",
+    middleware: [verifyAuth()],
     request: {
       body: {
         content: {
@@ -150,6 +156,7 @@ usersRoute.openapi(
     path: '/me/schedule-rules',
     operationId: 'updateScheduleRules',
     description: 'Seller defines their base availability.',
+    middleware: [verifyAuth()],
     request: {
       body: {
         content: {
@@ -216,5 +223,37 @@ usersRoute.openapi(
     const result = await getSellerReviews(id, query);
 
     return c.json(result, 200);
+  },
+);
+
+usersRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}',
+    operationId: 'getPublicUserProfile',
+    description:
+      'Get public seller profile including rating/review stats. Excludes sensitive info.',
+    request: {
+      params: z.object({
+        id: z.string().openapi({ description: 'User ID of the seller' }),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'Public User Profile Details',
+        content: { 'application/json': { schema: PublicUserProfileSchema } },
+      },
+      404: {
+        description: 'User not found',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+
+    const profile = await getPublicUserProfile(id);
+
+    return c.json(profile, 200);
   },
 );

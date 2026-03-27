@@ -1,9 +1,15 @@
 import { HTTPException } from 'hono/http-exception';
 
 import type { ScheduleType } from '../db/types.js';
+import { orderRepository } from '../repositories/order.repository.js';
+import { reviewRepository } from '../repositories/review.repository.js';
 import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
-import type { UpdateScheduleRulesPayload, UpdateUserPayload } from '../schemas/user.schema.js';
+import type {
+  ReviewBreakdown,
+  UpdateScheduleRulesPayload,
+  UpdateUserPayload,
+} from '../schemas/user.schema.js';
 
 /**
  * Retrieves the current user profile, handles missing users, and sanitizes data.
@@ -99,4 +105,59 @@ export async function updateScheduleRules(id: string, data: UpdateScheduleRulesP
   }));
 
   await scheduleRuleRepository.replaceSellerRules(id, [...dbPickupRules, ...dbDeliveryRules]);
+}
+
+/**
+ * Retrieves a sanitized public user profile, calculating review stats and active buyer metrics.
+ * @param id - The requested user's ID
+ * @returns Publicly viewable seller details and stats
+ */
+export async function getPublicUserProfile(id: string) {
+  const user = await userRepository.findById(id);
+
+  if (!user) {
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  const reviewStats = await reviewRepository.getReviewStatsBySellerId(id);
+
+  let totalReviews = 0;
+  let totalStars = 0;
+  const reviewBreakdown: ReviewBreakdown = {
+    '1': 0,
+    '2': 0,
+    '3': 0,
+    '4': 0,
+    '5': 0,
+  };
+
+  for (const stat of reviewStats) {
+    const ratingStr = String(stat.rating);
+    if (ratingStr in reviewBreakdown) {
+      const key = ratingStr as keyof ReviewBreakdown;
+      reviewBreakdown[key] = stat.count;
+    }
+    totalReviews += stat.count;
+    totalStars += stat.rating * stat.count;
+  }
+
+  const starRating = totalReviews > 0 ? Number((totalStars / totalReviews).toFixed(1)) : 0;
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const activeBuyerCount = await orderRepository.getActiveBuyerCount(id, startOfMonth);
+
+  return {
+    id: user.id,
+    name: user.name,
+    image: user.image,
+    aboutMe: user.aboutMe,
+    specialties: user.specialties,
+    city: user.city,
+    joinedAt: user.createdAt,
+    starRating,
+    totalReviews,
+    reviewBreakdown,
+    activeBuyerCount,
+  };
 }

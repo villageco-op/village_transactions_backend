@@ -30,5 +30,29 @@ export const UpdateScheduleRulesSchema = z.object({
   deliveryWindows: z.array(WindowSchema),
 });
 
+export const PublicUserProfileSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable(),
+    image: z.string().nullable(),
+    aboutMe: z.string().nullable(),
+    specialties: z.array(z.string()).nullable(),
+    city: z.string().nullable(),
+    joinedAt: z.union([z.string(), z.date()]).nullable(),
+    starRating: z.number(),
+    totalReviews: z.number(),
+    reviewBreakdown: z.object({
+      '1': z.number(),
+      '2': z.number(),
+      '3': z.number(),
+      '4': z.number(),
+      '5': z.number(),
+    }),
+    activeBuyerCount: z.number(),
+  })
+  .openapi('PublicUserProfile');
+
 export type UpdateScheduleRulesPayload = z.infer<typeof UpdateScheduleRulesSchema>;
 export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;
+export type PublicUserProfile = z.infer<typeof PublicUserProfileSchema>;
+export type ReviewBreakdown = PublicUserProfile['reviewBreakdown'];

@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import {
   getCurrentUser,
+  getPublicUserProfile,
   registerFcmToken,
   updateCurrentUser,
   updateInternalStripeAccountId,
@@ -10,6 +11,8 @@ import {
 } from '../../../src/services/user.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { reviewRepository } from '../../../src/repositories/review.repository.js';
 
 vi.mock('../../../src/repositories/user.repository.js', () => ({
   userRepository: {
@@ -23,6 +26,18 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
 vi.mock('../../../src/repositories/schedule-rule.repository.js', () => ({
   scheduleRuleRepository: {
     replaceSellerRules: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/review.repository.js', () => ({
+  reviewRepository: {
+    getReviewStatsBySellerId: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/order.repository.js', () => ({
+  orderRepository: {
+    getActiveBuyerCount: vi.fn(),
   },
 }));
 
@@ -223,6 +238,66 @@ describe('UserService - getCurrentUser', () => {
         { dayOfWeek: 'Monday', startTime: '09:00', endTime: '12:00', type: 'pickup' },
         { dayOfWeek: 'Wednesday', startTime: '13:00', endTime: '17:00', type: 'delivery' },
       ]);
+    });
+  });
+
+  describe('getPublicUserProfile', () => {
+    it('should throw a 404 HTTPException if the user is not found', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+      await expect(getPublicUserProfile('missing_user_id')).rejects.toThrow(HTTPException);
+      expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
+    });
+
+    it('should return default zeroed stats if user has no reviews or buyers', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: 'user_123',
+        name: 'Alice',
+        passwordHash: 'secret',
+      } as any);
+      vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([]);
+      vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(0);
+
+      const result = await getPublicUserProfile('user_123');
+
+      expect(result).toMatchObject({
+        id: 'user_123',
+        name: 'Alice',
+        starRating: 0,
+        totalReviews: 0,
+        reviewBreakdown: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
+        activeBuyerCount: 0,
+      });
+      expect(result).not.toHaveProperty('passwordHash');
+    });
+
+    it('should correctly calculate star rating, total reviews, and map breakdown', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: 'user_123',
+        name: 'Alice',
+        city: 'Seattle',
+      } as any);
+
+      // 10 total reviews: (5 * 4 stars = 20) + (3 * 5 stars = 15) + (2 * 1 star = 2) = 37 total stars
+      // Average: 37 / 10 = 3.7
+      vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([
+        { rating: 4, count: 5 },
+        { rating: 5, count: 3 },
+        { rating: 1, count: 2 },
+      ]);
+      vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(12);
+
+      const result = await getPublicUserProfile('user_123');
+
+      expect(result).toMatchObject({
+        id: 'user_123',
+        name: 'Alice',
+        city: 'Seattle',
+        starRating: 3.7,
+        totalReviews: 10,
+        reviewBreakdown: { '1': 2, '2': 0, '3': 0, '4': 5, '5': 3 },
+        activeBuyerCount: 12,
+      });
     });
   });
 });
