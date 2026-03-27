@@ -56,13 +56,30 @@ export const userRepository = {
     if (data.goal !== undefined) {
       updatePayload.goal = data.goal.toString();
     }
-
-    if (data.address !== undefined) updatePayload.address = data.address;
     if (data.deliveryRangeMiles !== undefined) {
       updatePayload.deliveryRangeMiles = data.deliveryRangeMiles.toString();
     }
 
-    if (data.lat !== undefined && data.lng !== undefined) {
+    const isUpdatingLocation =
+      data.address !== undefined ||
+      data.city !== undefined ||
+      data.lat !== undefined ||
+      data.lng !== undefined;
+
+    if (isUpdatingLocation) {
+      if (
+        data.address === undefined ||
+        data.city === undefined ||
+        data.lat === undefined ||
+        data.lng === undefined
+      ) {
+        throw new Error(
+          'Address, city, lat, and lng must all be provided together to update location.',
+        );
+      }
+
+      updatePayload.address = data.address;
+      updatePayload.city = data.city;
       updatePayload.location = sql`ST_SetSRID(ST_MakePoint(${data.lng}, ${data.lat}), 4326)`;
     }
 

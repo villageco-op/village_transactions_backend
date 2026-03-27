@@ -88,6 +88,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
           specialties: ['squash', 'pumpkins'],
           goal: 2000.5,
           address: '123 Main St',
+          city: 'Timbuktu',
           lat: 45.0,
           lng: -90.0,
           deliveryRangeMiles: 10,
@@ -117,6 +118,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
         body: JSON.stringify({
           name: 'Ghost User',
           address: 'Nowhere',
+          city: 'Townville',
           lat: 0,
           lng: 0,
           deliveryRangeMiles: 5,

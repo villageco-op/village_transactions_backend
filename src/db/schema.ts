@@ -1,6 +1,5 @@
 import {
   pgTable,
-  serial,
   text,
   customType,
   timestamp,
@@ -33,12 +32,6 @@ const geography = customType<{ data: string }>({
   },
 });
 
-export const locations = pgTable('locations', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  coordinates: geography('coordinates').notNull(),
-});
-
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
   name: text('name'),
@@ -52,6 +45,7 @@ export const users = pgTable('users', {
   goal: numeric('goal', { precision: 10, scale: 2 }),
 
   address: text('address'),
+  city: text('city'),
   location: geography('location'),
   deliveryRangeMiles: numeric('delivery_range_miles').default('0'),
 

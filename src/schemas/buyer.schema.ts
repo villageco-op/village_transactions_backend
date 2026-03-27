@@ -36,6 +36,25 @@ export const BillingSummaryResponseSchema = z.object({
     .openapi({ example: 75.0, description: 'Percentage of orders from sellers in the same city' }),
 });
 
+export const ActiveSubscriptionSchema = z.object({
+  id: z.string().openapi({ example: 'sub-123' }),
+  produceName: z.string().openapi({ example: 'Organic Apples' }),
+  amount: z.number().openapi({ example: 10.5, description: 'Subscription amount in Lbs' }),
+});
+
+export const BuyerDashboardResponseSchema = z.object({
+  onOrderThisWeekLbs: z.number().openapi({ example: 25.4 }),
+  percentChangeFromLastWeek: z.number().openapi({ example: 12.5 }),
+  totalSpendThisMonth: z.number().openapi({ example: 340.5 }),
+  totalSpendLastMonth: z.number().openapi({ example: 290.0 }),
+  activeSubscriptions: z.array(ActiveSubscriptionSchema),
+  localGrowersSupplying: z.number().openapi({ example: 3 }),
+  furthestGrowerDistanceMiles: z.number().openapi({ example: 45.2 }),
+  avgGrowerDistanceMiles: z.number().openapi({ example: 18.4 }),
+});
+
 export type GetGrowersQuery = z.infer<typeof GetGrowersQuerySchema>;
 export type GrowerResponse = z.infer<typeof GrowerSchema>;
 export type BillingSummaryResponse = z.infer<typeof BillingSummaryResponseSchema>;
+export type ActiveSubscriptionResponse = z.infer<typeof ActiveSubscriptionSchema>;
+export type BuyerDashboardResponse = z.infer<typeof BuyerDashboardResponseSchema>;

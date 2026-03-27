@@ -33,18 +33,21 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
         email: 'buyer@example.com',
         name: 'Hungry Buyer',
         address: '123 House Ave, Ruraltown, CA 90000',
+        city: 'Ruraltown',
       },
       {
         id: SELLER_1_ID,
         email: 'seller1@example.com',
         name: 'Farm One',
         address: '456 Dirt Rd, Ruraltown, CA 90000',
+        city: 'Ruraltown',
       },
       {
         id: SELLER_2_ID,
         email: 'seller2@example.com',
         name: 'Farm Two',
         address: '789 Apple Ave, Faraway, CA 90001',
+        city: 'Faraway',
       },
     ]);
 

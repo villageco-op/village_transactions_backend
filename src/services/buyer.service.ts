@@ -1,5 +1,10 @@
 import { buyerRepository } from '../repositories/buyer.repository.js';
-import type { BillingSummaryResponse, GrowerResponse } from '../schemas/buyer.schema.js';
+import { subscriptionRepository } from '../repositories/subscription.repository.js';
+import type {
+  BillingSummaryResponse,
+  BuyerDashboardResponse,
+  GrowerResponse,
+} from '../schemas/buyer.schema.js';
 
 /**
  * Gets a list of growers a buyer has previously bought from with aggregated purchase stats.
@@ -35,41 +40,23 @@ export async function getGrowersForBuyer(
 }
 
 /**
- * Extracts the city from a standard address string (e.g., "123 Main St, Springfield, IL 62701").
- * @param address - Address as a string (Street, City, State) or (City, State).
- * @returns The city name.
- */
-function parseCity(address: string | null): string | null {
-  if (!address) return null;
-  const parts = address.split(',');
-  if (parts.length >= 3) return parts[1].trim().toLowerCase(); // Format: "Street, City, State"
-  if (parts.length === 2) return parts[0].trim().toLowerCase(); // Format: "City, State"
-  return address.trim().toLowerCase(); // Format: "City" or unknown fallback
-}
-
-/**
  * Calculates lifetime billing and sourcing statistics for a buyer.
  * @param buyerId - The buyers ID
  * @returns A billing summary including totalSpent, totalProduceLbs, avgCostPerLb, and localSourcingPercentage
  */
 export async function getBillingSummary(buyerId: string): Promise<BillingSummaryResponse> {
-  const { buyerAddress, orders } = await buyerRepository.getBuyerWithOrdersForSummary(buyerId);
+  const { orders } = await buyerRepository.getBuyerWithOrdersForSummary(buyerId);
 
   let totalSpent = 0;
   let totalProduceOz = 0;
   let localOrdersCount = 0;
 
-  const buyerCity = parseCity(buyerAddress);
-
   for (const order of orders) {
     totalSpent += Number(order.totalAmount || 0);
     totalProduceOz += Number(order.totalOz || 0);
 
-    if (buyerCity) {
-      const sellerCity = parseCity(order.sellerAddress);
-      if (sellerCity === buyerCity) {
-        localOrdersCount++;
-      }
+    if (order.isLocal) {
+      localOrdersCount++;
     }
   }
 
@@ -82,5 +69,70 @@ export async function getBillingSummary(buyerId: string): Promise<BillingSummary
     totalProduceLbs: Number(totalProduceLbs.toFixed(2)),
     avgCostPerLb: Number(avgCostPerLb.toFixed(2)),
     localSourcingPercentage: Number(localSourcingPercentage.toFixed(2)),
+  };
+}
+
+/**
+ * Calculates dashboard metrics and returns the structured dashboard view.
+ * @param buyerId - The ID of the buyer
+ * @returns Dashboard metrics structure
+ */
+export async function getBuyerDashboardMetrics(buyerId: string): Promise<BuyerDashboardResponse> {
+  const [data, activeSubsRaw] = await Promise.all([
+    buyerRepository.getDashboardMetrics(buyerId),
+    subscriptionRepository.getActiveSubscriptionsForBuyer(buyerId),
+  ]);
+
+  const ozThisWeek = Number(data.weightAgg?.ozThisWeek || 0);
+  const ozLastWeek = Number(data.weightAgg?.ozLastWeek || 0);
+  const spendThisMonth = Number(data.spendAgg?.spendThisMonth || 0);
+  const spendLastMonth = Number(data.spendAgg?.spendLastMonth || 0);
+
+  const onOrderThisWeekLbs = ozThisWeek / 16;
+  const onOrderLastWeekLbs = ozLastWeek / 16;
+
+  let percentChangeFromLastWeek = 0;
+  if (onOrderLastWeekLbs === 0) {
+    percentChangeFromLastWeek = onOrderThisWeekLbs > 0 ? 100 : 0;
+  } else {
+    percentChangeFromLastWeek =
+      ((onOrderThisWeekLbs - onOrderLastWeekLbs) / onOrderLastWeekLbs) * 100;
+  }
+
+  const activeSubscriptions = activeSubsRaw.map((s) => ({
+    id: s.id,
+    produceName: s.produceName,
+    amount: Number((Number(s.amount) / 16).toFixed(2)),
+  }));
+
+  let localGrowersSupplying = 0;
+  let maxDist = 0;
+  let sumDist = 0;
+  let validDistCount = 0;
+
+  for (const g of data.growers) {
+    if (g.isLocal) {
+      localGrowersSupplying++;
+    }
+
+    if (g.distance !== null) {
+      const dist = Number(g.distance);
+      if (dist > maxDist) maxDist = dist;
+      sumDist += dist;
+      validDistCount++;
+    }
+  }
+
+  const avgGrowerDistanceMiles = validDistCount > 0 ? sumDist / validDistCount : 0;
+
+  return {
+    onOrderThisWeekLbs: Number(onOrderThisWeekLbs.toFixed(2)),
+    percentChangeFromLastWeek: Number(percentChangeFromLastWeek.toFixed(2)),
+    totalSpendThisMonth: Number(spendThisMonth.toFixed(2)),
+    totalSpendLastMonth: Number(spendLastMonth.toFixed(2)),
+    activeSubscriptions,
+    localGrowersSupplying,
+    furthestGrowerDistanceMiles: Number(maxDist.toFixed(2)),
+    avgGrowerDistanceMiles: Number(avgGrowerDistanceMiles.toFixed(2)),
   };
 }

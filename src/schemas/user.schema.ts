@@ -13,6 +13,7 @@ export const UpdateUserSchema = z.object({
   specialties: z.array(z.string()).optional(),
   goal: z.number().optional(),
   address: z.string().optional(),
+  city: z.string().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   deliveryRangeMiles: z.number().optional(),
