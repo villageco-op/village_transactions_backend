@@ -79,4 +79,24 @@ export const produceRepository = {
 
     return updatedProduce;
   },
+
+  /**
+   * Soft deletes a produce listing by marking its status as deleted and clearing its images.
+   * @param id - The ID of the produce listing
+   * @param sellerId - The ID of the user deleting the listing (for authorization)
+   * @returns A boolean indicating whether the record was successfully found and deleted
+   */
+  async softDelete(id: string, sellerId: string): Promise<boolean> {
+    const [deletedProduce] = await this.db
+      .update(produce)
+      .set({
+        status: 'deleted',
+        images: [],
+        updatedAt: new Date(),
+      })
+      .where(and(eq(produce.id, id), eq(produce.sellerId, sellerId)))
+      .returning({ id: produce.id });
+
+    return !!deletedProduce;
+  },
 };

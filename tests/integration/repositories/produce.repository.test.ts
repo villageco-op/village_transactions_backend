@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createTestDb, closeTestDb, truncateTables } from '../../test-utils/testcontainer-db.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
-import { users } from '../../../src/db/schema.js';
+import { users, produce } from '../../../src/db/schema.js';
+import { eq } from 'drizzle-orm';
 
 describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -143,5 +144,56 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     const updated = await produceRepository.update(created.id, OTHER_SELLER_ID, updatePayload);
 
     expect(updated).toBeUndefined();
+  });
+
+  it('should soft delete an existing produce listing successfully', async () => {
+    const createPayload = {
+      title: 'Peaches',
+      produceType: 'fruit',
+      pricePerOz: 0.2,
+      totalOzInventory: 300,
+      harvestFrequencyDays: 5,
+      seasonStart: '2024-06-01',
+      seasonEnd: '2024-08-31',
+      images: ['https://example.com/peach1.jpg', 'https://example.com/peach2.jpg'],
+      isSubscribable: false,
+    };
+
+    const created = await produceRepository.create(TEST_SELLER_ID, createPayload);
+
+    const success = await produceRepository.softDelete(created.id, TEST_SELLER_ID);
+    expect(success).toBe(true);
+
+    const [dbProduce] = await testDb.select().from(produce).where(eq(produce.id, created.id));
+
+    expect(dbProduce).toBeDefined();
+    expect(dbProduce.status).toBe('deleted'); // Status updated
+    expect(dbProduce.images).toEqual([]); // Images cleared
+  });
+
+  it('should return false when trying to soft delete a listing owned by another seller', async () => {
+    const createPayload = {
+      title: 'Onions',
+      produceType: 'vegetable',
+      pricePerOz: 0.08,
+      totalOzInventory: 1000,
+      harvestFrequencyDays: 30,
+      seasonStart: '2024-05-01',
+      seasonEnd: '2024-10-31',
+      images: ['https://example.com/onion.jpg'],
+      isSubscribable: false,
+    };
+
+    const created = await produceRepository.create(TEST_SELLER_ID, createPayload);
+
+    // Attempt to soft delete with a different seller ID
+    const success = await produceRepository.softDelete(created.id, OTHER_SELLER_ID);
+
+    expect(success).toBe(false);
+
+    // Verify the record is untouched
+    const [dbProduce] = await testDb.select().from(produce).where(eq(produce.id, created.id));
+    expect(dbProduce.status).toBe('active');
+    expect(dbProduce.images).toEqual(['https://example.com/onion.jpg']);
   });
 });

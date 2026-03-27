@@ -138,19 +138,6 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     expect(body).toHaveProperty('error', 'Listing not found or unauthorized');
   });
 
-  it('DELETE /api/produce/:id should return 200', async () => {
-    const validDummyId = '123e4567-e89b-12d3-a456-426614174000';
-    const res = await authedRequest(
-      `/api/produce/${validDummyId}`,
-      {
-        method: 'DELETE',
-      },
-      { id: TEST_USER_ID },
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ success: true });
-  });
-
   it('POST /api/produce should return 201 and insert the listing into the DB', async () => {
     const payload = {
       title: 'Organic Honeycrisp Apples',
@@ -259,5 +246,68 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
 
     const body = await res.json();
     expect(body).toHaveProperty('error', 'Unauthorized');
+  });
+
+  it('DELETE /api/produce/:id should return 200 and soft delete the DB listing', async () => {
+    const [dbProduce] = await testDb
+      .insert(produce)
+      .values({
+        sellerId: TEST_USER_ID,
+        title: 'Cherries',
+        produceType: 'fruit',
+        pricePerOz: '0.60',
+        totalOzInventory: '150',
+        harvestFrequencyDays: 1,
+        seasonStart: '2024-06-01',
+        seasonEnd: '2024-07-31',
+        images: ['https://example.com/cherry.jpg'],
+        status: 'active',
+      })
+      .returning();
+
+    const res = await authedRequest(
+      `/api/produce/${dbProduce.id}`,
+      {
+        method: 'DELETE',
+      },
+      { id: TEST_USER_ID },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ success: true });
+
+    const [updatedDbProduce] = await testDb
+      .select()
+      .from(produce)
+      .where(eq(produce.id, dbProduce.id));
+    expect(updatedDbProduce.status).toBe('deleted');
+    expect(updatedDbProduce.images).toEqual([]);
+  });
+
+  it('DELETE /api/produce/:id should return 400 for an invalid UUID format', async () => {
+    const res = await authedRequest(
+      '/api/produce/invalid_id_format',
+      {
+        method: 'DELETE',
+      },
+      { id: TEST_USER_ID },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('DELETE /api/produce/:id should return 404 for a non-existent or unauthorized listing', async () => {
+    const randomValidId = crypto.randomUUID();
+    const res = await authedRequest(
+      `/api/produce/${randomValidId}`,
+      {
+        method: 'DELETE',
+      },
+      { id: TEST_USER_ID },
+    );
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toHaveProperty('error', 'Listing not found or unauthorized');
   });
 });
