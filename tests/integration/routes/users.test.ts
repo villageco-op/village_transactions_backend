@@ -1,12 +1,58 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { authedRequest } from '../../test-utils/auth.js';
+import { createTestDb, closeTestDb, truncateTables } from '../../test-utils/testcontainer-db.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
+import { users } from '../../../src/db/schema.js';
 
-describe('Users API', () => {
-  it('GET /api/users/me should return 200', async () => {
-    const res = await authedRequest('/api/users/me');
+describe('Users API Integration', { timeout: 60_000 }, () => {
+  let testDb: any;
+
+  const TEST_USER_ID = 'test_auth_user_123';
+
+  beforeAll(async () => {
+    testDb = await createTestDb();
+    userRepository.setDb(testDb);
+  }, 60_000);
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await truncateTables(testDb);
+  });
+
+  it('GET /api/users/me should return 200 and sanitized profile data', async () => {
+    await testDb.insert(users).values({
+      id: TEST_USER_ID,
+      name: 'Jane Api User',
+      email: 'jane.api@example.com',
+      passwordHash: 'super_secret_do_not_leak',
+      address: '101 Api Blvd',
+      stripeAccountId: 'acct_api_123',
+    });
+
+    const res = await authedRequest('/api/users/me', {}, { id: TEST_USER_ID });
+
     expect(res.status).toBe(200);
+
     const body = await res.json();
-    expect(body).toHaveProperty('id');
+
+    expect(body).toHaveProperty('id', TEST_USER_ID);
+    expect(body).toHaveProperty('name', 'Jane Api User');
+    expect(body).toHaveProperty('email', 'jane.api@example.com');
+    expect(body).toHaveProperty('address', '101 Api Blvd');
+    expect(body).toHaveProperty('stripeAccountId', 'acct_api_123');
+
+    expect(body).not.toHaveProperty('passwordHash');
+  });
+
+  it('GET /api/users/me should return 404 if the authenticated user does not exist in DB', async () => {
+    const res = await authedRequest('/api/users/me');
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toHaveProperty('error', 'User not found');
   });
 
   it('PUT /api/users/me should return 200', async () => {

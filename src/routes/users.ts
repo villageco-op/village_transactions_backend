@@ -1,5 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
+import { UserProfileSchema } from '../schemas/user.schema.js';
+import { getCurrentUser } from '../services/user.service.js';
+
 export const usersRoute = new OpenAPIHono();
 
 usersRoute.openapi(
@@ -10,13 +13,31 @@ usersRoute.openapi(
     description: 'Fetch profile, settings, and active seller status.',
     responses: {
       200: {
-        description: 'User Profile',
-        content: { 'application/json': { schema: z.object({ id: z.string() }).passthrough() } },
+        description: 'User Profile Details',
+        content: { 'application/json': { schema: UserProfileSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      404: {
+        description: 'User not found',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
       },
     },
   }),
-  // TODO: [Service] Get data and call get current user service.
-  (c) => c.json({ id: 'user_123' }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser.session.user.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const userProfile = await getCurrentUser(userId);
+
+    return c.json(userProfile, 200);
+  },
 );
 
 usersRoute.openapi(
