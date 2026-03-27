@@ -1,5 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
+import { generateStripeOnboardLink } from '../services/stripe.service.js';
+
 export const stripeRoute = new OpenAPIHono();
 
 stripeRoute.openapi(
@@ -31,8 +33,22 @@ stripeRoute.openapi(
         description: 'Link created',
         content: { 'application/json': { schema: z.object({ url: z.string() }) } },
       },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
     },
   }),
-  // TODO: [Service] Call Stripe Connect onboard service.
-  (c) => c.json({ url: 'https://connect.stripe.com/...' }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const url = await generateStripeOnboardLink(userId);
+
+    return c.json({ url }, 200);
+  },
 );

@@ -53,3 +53,19 @@ export async function registerFcmToken(id: string, token: string, platform: stri
 
   await userRepository.updateFcmToken(id, token, platform);
 }
+
+/**
+ * INTERNAL USE ONLY: Updates the user's Stripe Account ID.
+ * @param id - User's unique ID
+ * @param stripeAccountId - The generated Stripe Account ID
+ * @returns The updated user object
+ */
+export async function updateInternalStripeAccountId(id: string, stripeAccountId: string) {
+  const updatedUser = await userRepository.updateStripeAccountId(id, stripeAccountId);
+
+  if (!updatedUser) {
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  return updatedUser;
+}

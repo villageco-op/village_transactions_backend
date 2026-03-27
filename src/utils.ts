@@ -8,3 +8,14 @@ import type { DatabaseError } from './interfaces/error.interface.js';
 export function isDatabaseError(err: unknown): err is DatabaseError {
   return err instanceof Error && ('code' in err || 'cause' in err);
 }
+
+/**
+ * Utility type for deep mocking.
+ */
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends (infer U)[]
+    ? DeepPartial<U>[]
+    : T[P] extends object
+      ? DeepPartial<T[P]>
+      : T[P];
+};

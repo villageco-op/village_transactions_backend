@@ -87,4 +87,23 @@ export const userRepository = {
         set: { userId: id, platform }, // Reassigns user if account switches on same device
       });
   },
+
+  /**
+   * Updates a user's internal Stripe Account ID.
+   * @param id - The unique user ID
+   * @param stripeAccountId - The generated Stripe Account ID
+   * @returns The updated user object if found, otherwise null
+   */
+  async updateStripeAccountId(id: string, stripeAccountId: string): Promise<User | null> {
+    const [updatedUser] = await this.db
+      .update(users)
+      .set({
+        stripeAccountId,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(users.id, id))
+      .returning();
+
+    return updatedUser ?? null;
+  },
 };

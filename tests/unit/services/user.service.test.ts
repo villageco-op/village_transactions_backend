@@ -5,6 +5,7 @@ import {
   getCurrentUser,
   registerFcmToken,
   updateCurrentUser,
+  updateInternalStripeAccountId,
 } from '../../../src/services/user.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 
@@ -13,6 +14,7 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
     findById: vi.fn(),
     updateById: vi.fn(),
     updateFcmToken: vi.fn(),
+    updateStripeAccountId: vi.fn(),
   },
 }));
 
@@ -139,6 +141,42 @@ describe('UserService - getCurrentUser', () => {
         'test_fcm_token_999',
         'android',
       );
+    });
+  });
+
+  describe('updateInternalStripeAccountId', () => {
+    it('should throw a 404 HTTPException if the user is not found during update', async () => {
+      vi.mocked(userRepository.updateStripeAccountId).mockResolvedValueOnce(null);
+
+      await expect(updateInternalStripeAccountId('missing_user_id', 'acct_123')).rejects.toThrow(
+        HTTPException,
+      );
+      await expect(
+        updateInternalStripeAccountId('missing_user_id', 'acct_123'),
+      ).rejects.toMatchObject({
+        status: 404,
+      });
+
+      expect(userRepository.updateStripeAccountId).toHaveBeenCalledWith(
+        'missing_user_id',
+        'acct_123',
+      );
+    });
+
+    it('should update the user internal stripe account ID and return the user', async () => {
+      const mockDbUpdatedUser = {
+        id: 'user_123',
+        stripeAccountId: 'acct_123',
+      };
+
+      vi.mocked(userRepository.updateStripeAccountId).mockResolvedValueOnce(
+        mockDbUpdatedUser as any,
+      );
+
+      const result = await updateInternalStripeAccountId('user_123', 'acct_123');
+
+      expect(result).toEqual(mockDbUpdatedUser);
+      expect(userRepository.updateStripeAccountId).toHaveBeenCalledWith('user_123', 'acct_123');
     });
   });
 });
