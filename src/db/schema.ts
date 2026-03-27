@@ -136,6 +136,7 @@ export const subscriptions = pgTable('subscriptions', {
   productId: uuid('product_id')
     .notNull()
     .references(() => produce.id),
+  stripeSubscriptionId: text('stripe_subscription_id'),
   quantityOz: numeric('quantity_oz', { precision: 10, scale: 2 }).notNull(),
   status: subscriptionStatusEnum('status').default('active'),
   fulfillmentType: fulfillmentTypeEnum('fulfillment_type').notNull(),
