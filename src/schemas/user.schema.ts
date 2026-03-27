@@ -23,4 +23,15 @@ export const UpdateUserSchema = z.object({
   deliveryRangeMiles: z.number().optional(),
 });
 
+export const UpdateScheduleRulesSchema = z.object({
+  pickupWindows: z.array(
+    z.object({
+      day: z.string(),
+      start: z.string(),
+      end: z.string(),
+    }),
+  ),
+});
+
+export type UpdateScheduleRulesPayload = z.infer<typeof UpdateScheduleRulesSchema>;
 export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;

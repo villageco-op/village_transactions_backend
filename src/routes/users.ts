@@ -1,8 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
-import { UserProfileSchema } from '../schemas/user.schema.js';
+import { UpdateScheduleRulesSchema, UserProfileSchema } from '../schemas/user.schema.js';
 import { UpdateUserSchema } from '../schemas/user.schema.js';
-import { getCurrentUser, registerFcmToken, updateCurrentUser } from '../services/user.service.js';
+import {
+  getCurrentUser,
+  registerFcmToken,
+  updateCurrentUser,
+  updateScheduleRules,
+} from '../services/user.service.js';
 
 export const usersRoute = new OpenAPIHono();
 
@@ -141,11 +146,7 @@ usersRoute.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({
-              pickupWindows: z.array(
-                z.object({ day: z.string(), start: z.string(), end: z.string() }),
-              ),
-            }),
+            schema: UpdateScheduleRulesSchema,
           },
         },
       },
@@ -155,8 +156,28 @@ usersRoute.openapi(
         description: 'Schedule updated',
         content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
       },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      404: {
+        description: 'User not found',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
     },
   }),
-  // TODO: [Service] Get data and call update schedule routes service.
-  (c) => c.json({ success: true }, 200),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = c.req.valid('json');
+
+    await updateScheduleRules(userId, body);
+
+    return c.json({ success: true }, 200);
+  },
 );

@@ -11,6 +11,9 @@ import {
   jsonb,
   pgEnum,
   uuid,
+  varchar,
+  unique,
+  time,
 } from 'drizzle-orm/pg-core';
 
 const geography = customType<{ data: string }>({
@@ -53,6 +56,20 @@ export const fcmTokens = pgTable('fcm_tokens', {
   platform: text('platform').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const scheduleRules = pgTable(
+  'schedule_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sellerId: text('seller_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    dayOfWeek: varchar('day_of_week', { length: 10 }).notNull(),
+    startTime: time('start_time').notNull(),
+    endTime: time('end_time').notNull(),
+  },
+  (t) => [unique().on(t.sellerId, t.dayOfWeek, t.startTime, t.endTime)],
+);
 
 export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
 export const paymentMethodEnum = pgEnum('payment_method', ['card', 'snap']);

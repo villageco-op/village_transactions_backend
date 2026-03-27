@@ -1,7 +1,8 @@
 import { HTTPException } from 'hono/http-exception';
 
+import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
-import type { UpdateUserPayload } from '../schemas/user.schema.js';
+import type { UpdateScheduleRulesPayload, UpdateUserPayload } from '../schemas/user.schema.js';
 
 /**
  * Retrieves the current user profile, handles missing users, and sanitizes data.
@@ -68,4 +69,25 @@ export async function updateInternalStripeAccountId(id: string, stripeAccountId:
   }
 
   return updatedUser;
+}
+
+/**
+ * Updates a seller's weekly base schedule rules.
+ * @param id - User's (Seller's) unique ID
+ * @param data - The new schedule array payload
+ */
+export async function updateScheduleRules(id: string, data: UpdateScheduleRulesPayload) {
+  const user = await userRepository.findById(id);
+
+  if (!user) {
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  const dbRules = data.pickupWindows.map((window) => ({
+    dayOfWeek: window.day,
+    startTime: window.start,
+    endTime: window.end,
+  }));
+
+  await scheduleRuleRepository.replaceSellerRules(id, dbRules);
 }

@@ -8,7 +8,8 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
-import { users, fcmTokens } from '../../../src/db/schema.js';
+import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
+import { users, fcmTokens, scheduleRules } from '../../../src/db/schema.js';
 
 describe('Users API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -18,6 +19,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     userRepository.setDb(testDb);
+    scheduleRuleRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -116,15 +118,74 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(body).toHaveProperty('error', 'User not found');
   });
 
-  it('PUT /api/users/me/schedule-rules should return 200', async () => {
-    const res = await authedRequest('/api/users/me/schedule-rules', {
-      method: 'PUT',
-      body: JSON.stringify({
-        pickupWindows: [{ day: 'Monday', start: '09:00', end: '17:00' }],
-      }),
-    });
+  it('PUT /api/users/me/schedule-rules should save to DB and return 200', async () => {
+    await testDb.insert(users).values({ id: TEST_USER_ID, email: 'scheduler@example.com' });
+
+    const payload = {
+      pickupWindows: [
+        { day: 'Monday', start: '09:00', end: '17:00' },
+        { day: 'Wednesday', start: '10:00', end: '14:00' },
+      ],
+    };
+
+    const res = await authedRequest(
+      '/api/users/me/schedule-rules',
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+      { id: TEST_USER_ID },
+    );
+
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
+
+    const dbRules = await testDb
+      .select()
+      .from(scheduleRules)
+      .where(eq(scheduleRules.sellerId, TEST_USER_ID));
+
+    expect(dbRules).toHaveLength(2);
+    expect(
+      dbRules.some(
+        (r: { dayOfWeek: string; startTime: string }) =>
+          r.dayOfWeek === 'Monday' && r.startTime === '09:00:00',
+      ),
+    ).toBe(true);
+  });
+
+  it('PUT /api/users/me/schedule-rules should return 400 Bad Request for invalid payload', async () => {
+    await testDb.insert(users).values({ id: TEST_USER_ID, email: 'badreq@example.com' });
+
+    const res = await authedRequest(
+      '/api/users/me/schedule-rules',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          pickupWindows: [{ day: 'Monday' /* missing start/end */ }],
+        }),
+      },
+      { id: TEST_USER_ID },
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it('PUT /api/users/me/schedule-rules should return 404 if user not in DB', async () => {
+    const res = await authedRequest(
+      '/api/users/me/schedule-rules',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          pickupWindows: [],
+        }),
+      },
+      { id: 'non_existent_user' },
+    );
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toHaveProperty('error', 'User not found');
   });
 
   it('POST /api/users/fcm-token should store token in the fcm_tokens table and return 200', async () => {
