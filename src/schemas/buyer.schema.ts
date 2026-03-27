@@ -23,5 +23,19 @@ export const GrowerSchema = z.object({
 
 export const GrowersResponseSchema = z.array(GrowerSchema);
 
+export const BillingSummaryResponseSchema = z.object({
+  totalSpent: z.number().openapi({ example: 450.75, description: 'Lifetime total spent' }),
+  totalProduceLbs: z
+    .number()
+    .openapi({ example: 60.5, description: 'Lifetime total produce ordered in pounds' }),
+  avgCostPerLb: z
+    .number()
+    .openapi({ example: 7.45, description: 'Average cost per pound across all orders' }),
+  localSourcingPercentage: z
+    .number()
+    .openapi({ example: 75.0, description: 'Percentage of orders from sellers in the same city' }),
+});
+
 export type GetGrowersQuery = z.infer<typeof GetGrowersQuerySchema>;
 export type GrowerResponse = z.infer<typeof GrowerSchema>;
+export type BillingSummaryResponse = z.infer<typeof BillingSummaryResponseSchema>;
