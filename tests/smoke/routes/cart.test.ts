@@ -14,4 +14,12 @@ describe('Cart API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/cart should not return a 500 error', async () => {
+    const res = await authedRequest('/api/cart', {
+      method: 'GET',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });

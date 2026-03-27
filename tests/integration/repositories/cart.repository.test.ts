@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import {
   truncateTables,
   getTestDb,
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { cartRepository } from '../../../src/repositories/cart.repository.js';
-import { users, produce } from '../../../src/db/schema.js';
+import { users, produce, cartReservations } from '../../../src/db/schema.js';
 
 describe('CartRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -26,8 +27,8 @@ describe('CartRepository - Integration', { timeout: 60_000 }, () => {
     await truncateTables(testDb);
 
     await testDb.insert(users).values([
-      { id: BUYER_ID, email: 'buyer@test.com' },
-      { id: SELLER_ID, email: 'seller@test.com' },
+      { id: BUYER_ID, email: 'buyer@test.com', name: 'Test Buyer' },
+      { id: SELLER_ID, email: 'seller@test.com', name: 'Test Seller' },
     ]);
 
     const [newProduce] = await testDb
@@ -64,5 +65,42 @@ describe('CartRepository - Integration', { timeout: 60_000 }, () => {
     const diffMins = (reservation.expiresAt.getTime() - now.getTime()) / (1000 * 60);
     expect(diffMins).toBeGreaterThan(14);
     expect(diffMins).toBeLessThan(16);
+  });
+
+  it('should drop expired reservations and fetch active ones joined with seller and product info', async () => {
+    const now = new Date();
+    const pastDate = new Date(now.getTime() - 1000 * 60 * 5);
+    const futureDate = new Date(now.getTime() + 1000 * 60 * 15);
+
+    await testDb.insert(cartReservations).values([
+      {
+        buyerId: BUYER_ID,
+        productId: product_id,
+        quantityOz: '5',
+        expiresAt: pastDate,
+      },
+      {
+        buyerId: BUYER_ID,
+        productId: product_id,
+        quantityOz: '10',
+        expiresAt: futureDate,
+      },
+    ]);
+
+    const activeItems = await cartRepository.getActiveCart(BUYER_ID);
+
+    expect(activeItems).toHaveLength(1);
+
+    const item = activeItems[0];
+    expect(item.reservation.quantityOz).toBe('10.00');
+    expect(item.product.title).toBe('Test Kale');
+    expect(item.seller.name).toBe('Test Seller');
+
+    const allReservations = await testDb
+      .select()
+      .from(cartReservations)
+      .where(eq(cartReservations.buyerId, BUYER_ID));
+    expect(allReservations).toHaveLength(1);
+    expect(allReservations[0].quantityOz).toBe('10.00');
   });
 });

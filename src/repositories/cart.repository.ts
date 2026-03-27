@@ -1,5 +1,7 @@
+import { eq, lt, and, gte } from 'drizzle-orm';
+
 import { db as defaultDb } from '../db/index.js';
-import { cartReservations } from '../db/schema.js';
+import { cartReservations, produce, users } from '../db/schema.js';
 import type { DbClient } from '../db/types.js';
 import type { AddToCartPayload } from '../schemas/cart.schema.js';
 
@@ -39,5 +41,33 @@ export const cartRepository = {
       .returning();
 
     return reservation;
+  },
+
+  /**
+   * Drops expired reservations automatically, then gets active cart
+   * reservations for a buyer, joining produce and seller details.
+   * @param buyerId - The ID of the user buying the produce
+   * @returns The non expired cart reservations grouped by seller id
+   */
+  async getActiveCart(buyerId: string) {
+    const now = new Date();
+
+    await this.db
+      .delete(cartReservations)
+      .where(and(eq(cartReservations.buyerId, buyerId), lt(cartReservations.expiresAt, now)));
+
+    return await this.db
+      .select({
+        reservation: cartReservations,
+        product: produce,
+        seller: {
+          id: users.id,
+          name: users.name,
+        },
+      })
+      .from(cartReservations)
+      .innerJoin(produce, eq(cartReservations.productId, produce.id))
+      .innerJoin(users, eq(produce.sellerId, users.id))
+      .where(and(eq(cartReservations.buyerId, buyerId), gte(cartReservations.expiresAt, now)));
   },
 };
