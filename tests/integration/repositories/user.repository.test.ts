@@ -8,6 +8,7 @@ import {
 } from '../../test-utils/testcontainer-db.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { users, fcmTokens } from '../../../src/db/schema.js';
+import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
 
 describe('UserRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -15,6 +16,7 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     userRepository.setDb(testDb);
+    fcmRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -119,7 +121,7 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       name: 'Repo User',
     });
 
-    await userRepository.updateFcmToken(userId, 'token_abc_123', 'web');
+    await fcmRepository.upsertToken(userId, 'token_abc_123', 'web');
 
     const insertedTokens = await testDb
       .select()
@@ -140,9 +142,9 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       { id: userId2, email: 'user2@example.com' },
     ]);
 
-    await userRepository.updateFcmToken(userId1, 'shared_device_token', 'ios');
+    await fcmRepository.upsertToken(userId1, 'shared_device_token', 'ios');
 
-    await userRepository.updateFcmToken(userId2, 'shared_device_token', 'android');
+    await fcmRepository.upsertToken(userId2, 'shared_device_token', 'android');
 
     const tokensUser1 = await testDb.select().from(fcmTokens).where(eq(fcmTokens.userId, userId1));
     const tokensUser2 = await testDb.select().from(fcmTokens).where(eq(fcmTokens.userId, userId2));
