@@ -33,4 +33,9 @@ describe('Seller API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/seller/dashboard should not return a 500 error', async () => {
+    const res = await authedRequest('/api/seller/dashboard', { method: 'GET' });
+    expect(res.status).not.toBe(500);
+  });
 });

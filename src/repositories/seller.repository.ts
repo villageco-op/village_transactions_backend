@@ -76,4 +76,73 @@ export const sellerRepository = {
       produceSalesThisMonth,
     };
   },
+
+  /**
+   * Fetches high-level metrics required for the seller dashboard.
+   * @param sellerId - The seller's user ID
+   * @returns Aggregated metrics for high-level main view
+   */
+  async getDashboardMetrics(sellerId: string) {
+    const [seller] = await this.db
+      .select({
+        goal: users.goal,
+        address: users.address,
+        lat: sql<number | null>`ST_Y(${users.location}::geometry)`,
+        lng: sql<number | null>`ST_X(${users.location}::geometry)`,
+      })
+      .from(users)
+      .where(eq(users.id, sellerId));
+
+    const [aggregates] = await this.db
+      .select({
+        earnedThisMonth: sql<
+          number | string | null
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE) THEN ${orders.totalAmount} ELSE 0 END)`,
+        earnedLastMonth: sql<
+          number | string | null
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
+      })
+      .from(orders)
+      .where(and(eq(orders.sellerId, sellerId), eq(orders.status, 'completed')));
+
+    const [weeklySales] = await this.db
+      .select({
+        soldThisWeekOz: sql<number | string | null>`SUM(${orderItems.quantityOz})`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(
+        and(
+          eq(orders.sellerId, sellerId),
+          eq(orders.status, 'completed'),
+          sql`date_trunc('week', ${orders.createdAt}) = date_trunc('week', CURRENT_DATE)`,
+        ),
+      );
+
+    const produceSalesThisMonth = await this.db
+      .select({
+        produceName: produce.title,
+        earned: sql<
+          number | string | null
+        >`SUM(${orderItems.quantityOz} * ${orderItems.pricePerOz})`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(produce, eq(orderItems.productId, produce.id))
+      .where(
+        and(
+          eq(orders.sellerId, sellerId),
+          eq(orders.status, 'completed'),
+          sql`date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE)`,
+        ),
+      )
+      .groupBy(produce.title);
+
+    return {
+      seller,
+      aggregates,
+      weeklySales,
+      produceSalesThisMonth,
+    };
+  },
 };

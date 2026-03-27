@@ -3,10 +3,11 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import {
   GetSellerPayoutsQuerySchema,
   PayoutHistorySchema,
+  SellerDashboardResponseSchema,
   SellerEarningsResponseSchema,
 } from '../schemas/seller.schema.js';
 import { getSellerPayouts } from '../services/order.service.js';
-import { getSellerEarningsMetrics } from '../services/seller.service.js';
+import { getSellerDashboard, getSellerEarningsMetrics } from '../services/seller.service.js';
 
 export const sellerRoute = new OpenAPIHono();
 
@@ -112,5 +113,36 @@ sellerRoute.openapi(
     const metrics = await getSellerEarningsMetrics(userId);
 
     return c.json(metrics, 200);
+  },
+);
+
+sellerRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/dashboard',
+    operationId: 'getSellerDashboard',
+    description: "Fetches high-level metrics and urgent tasks for the seller's main view.",
+    responses: {
+      200: {
+        description: 'Seller dashboard metrics',
+        content: { 'application/json': { schema: SellerDashboardResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized - User not logged in',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const dashboardData = await getSellerDashboard(userId);
+
+    return c.json(dashboardData, 200);
   },
 );

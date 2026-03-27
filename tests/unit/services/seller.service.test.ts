@@ -1,16 +1,33 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getSellerEarningsMetrics } from '../../../src/services/seller.service.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  getSellerDashboard,
+  getSellerEarningsMetrics,
+} from '../../../src/services/seller.service.js';
 import { sellerRepository } from '../../../src/repositories/seller.repository.js';
+import { produceRepository } from '../../../src/repositories/produce.repository.js';
 
 vi.mock('../../../src/repositories/seller.repository.js', () => ({
   sellerRepository: {
     getEarningsMetrics: vi.fn(),
+    getDashboardMetrics: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/produce.repository.js', () => ({
+  produceRepository: {
+    getActiveListingsBySeller: vi.fn(),
   },
 }));
 
 describe('SellerService - Unit Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2024-04-15T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('getSellerEarningsMetrics', () => {
@@ -68,6 +85,51 @@ describe('SellerService - Unit Tests', () => {
       expect(result.avgPerLbSold).toBe(0); // Should not divide by 0
       expect(result.totalEarnedYTD).toBe(0);
       expect(result.amountSoldDollarsPerProduceThisMonth).toEqual([]);
+    });
+  });
+
+  describe('getSellerDashboard', () => {
+    it('should format dashboard metrics and compute onTrackWithGoal correctly (On Track)', async () => {
+      vi.mocked(sellerRepository.getDashboardMetrics).mockResolvedValueOnce({
+        seller: { goal: '1000.00', address: '123 Farm St', lat: 35.1, lng: -120.5 },
+        aggregates: { earnedThisMonth: '600.00', earnedLastMonth: '800.00' },
+        weeklySales: { soldThisWeekOz: '320' },
+        produceSalesThisMonth: [{ produceName: 'Corn', earned: '600.00' }],
+      });
+
+      vi.mocked(produceRepository.getActiveListingsBySeller).mockResolvedValueOnce([
+        { title: 'Corn' },
+        { title: 'Tomatoes' },
+      ]);
+
+      const result = await getSellerDashboard('seller_123');
+
+      expect(result.earnedThisMonth).toBe(600);
+      expect(result.monthlyGoal).toBe(1000);
+      expect(result.onTrackWithGoal).toBe(true);
+      expect(result.soldThisWeekLbs).toBe(20);
+      expect(result.activeListingsCount).toBe(2);
+      expect(result.activeListingsNames).toEqual(['Corn', 'Tomatoes']);
+      expect(result.sellerLocation).toEqual({ lat: 35.1, lng: -120.5, address: '123 Farm St' });
+      expect(result.earningsByProduceThisMonth).toEqual([{ produceName: 'Corn', earned: 600 }]);
+    });
+
+    it('should compute onTrackWithGoal correctly when falling behind (Off Track)', async () => {
+      vi.mocked(sellerRepository.getDashboardMetrics).mockResolvedValueOnce({
+        seller: { goal: '1000.00', address: null, lat: null, lng: null },
+        aggregates: { earnedThisMonth: '400.00', earnedLastMonth: '300.00' },
+        weeklySales: { soldThisWeekOz: '160' },
+        produceSalesThisMonth: [],
+      });
+
+      vi.mocked(produceRepository.getActiveListingsBySeller).mockResolvedValueOnce([]);
+
+      const result = await getSellerDashboard('seller_123');
+
+      expect(result.earnedThisMonth).toBe(400);
+      expect(result.onTrackWithGoal).toBe(false);
+      expect(result.activeListingsCount).toBe(0);
+      expect(result.sellerLocation).toEqual({ lat: null, lng: null, address: null });
     });
   });
 });

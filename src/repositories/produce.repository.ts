@@ -292,4 +292,17 @@ export const produceRepository = {
       .limit(limit)
       .offset(offset);
   },
+
+  /**
+   * Retrieves all active produce listings for a specific seller.
+   * Useful for dashboard summaries without pagination overhead.
+   * @param sellerId - The ID of the seller
+   * @returns Array of active produce objects containing only the necessary fields
+   */
+  async getActiveListingsBySeller(sellerId: string) {
+    return await this.db
+      .select({ title: produce.title })
+      .from(produce)
+      .where(and(eq(produce.sellerId, sellerId), eq(produce.status, 'active')));
+  },
 };

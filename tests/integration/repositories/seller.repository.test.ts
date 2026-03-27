@@ -7,6 +7,7 @@ import {
 } from '../../test-utils/testcontainer-db.js';
 import { sellerRepository } from '../../../src/repositories/seller.repository.js';
 import { users, produce, orders, orderItems } from '../../../src/db/schema.js';
+import { sql } from 'drizzle-orm';
 
 describe('SellerRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -27,7 +28,13 @@ describe('SellerRepository - Integration', { timeout: 60_000 }, () => {
 
     await testDb.insert(users).values([
       { id: BUYER_ID, name: 'Consumer' },
-      { id: SELLER_ID, name: 'Farmer Bob', goal: '1500' },
+      {
+        id: SELLER_ID,
+        name: 'Farmer Bob',
+        goal: '1500',
+        address: '123 Berry Ln',
+        location: sql`ST_SetSRID(ST_MakePoint(-122.4194, 37.7749), 4326)::geography`,
+      },
     ]);
 
     const [produceCorn, produceBeans] = await testDb
@@ -125,6 +132,24 @@ describe('SellerRepository - Integration', { timeout: 60_000 }, () => {
 
       expect(Number(cornSales?.amount)).toBe(50);
       expect(Number(beanSales?.amount)).toBe(50);
+    });
+  });
+
+  describe('getDashboardMetrics', () => {
+    it('should fetch profile data and current month aggregates', async () => {
+      const data = await sellerRepository.getDashboardMetrics(SELLER_ID);
+
+      expect(data.seller?.address).toBe('123 Berry Ln');
+      expect(data.seller?.lat).toBeCloseTo(37.7749);
+      expect(data.seller?.lng).toBeCloseTo(-122.4194);
+
+      expect(Number(data.aggregates?.earnedThisMonth)).toBe(100);
+      expect(Number(data.aggregates?.earnedLastMonth)).toBe(200);
+
+      expect(Number(data.weeklySales?.soldThisWeekOz)).toBe(150);
+
+      const corn = data.produceSalesThisMonth.find((p) => p.produceName === 'Corn');
+      expect(Number(corn?.earned)).toBe(50);
     });
   });
 });
