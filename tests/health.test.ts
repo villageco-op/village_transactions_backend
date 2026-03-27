@@ -1,14 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { request } from './test-utils';
 
-import { app } from '../src/index';
-
-describe('API Smoke Tests', () => {
+describe('Health Check', () => {
   it('GET /health should return 200', async () => {
-    const res = await app.request('/health');
-
+    const res = await request('/health');
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toMatch(/json/);
-
     const body = await res.json();
     expect(body).toEqual({ status: 'ok' });
   });

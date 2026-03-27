@@ -9,10 +9,6 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "declaration": true,
