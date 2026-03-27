@@ -6,6 +6,7 @@ import { users } from '../../../src/db/schema.js';
 describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
   const TEST_SELLER_ID = 'seller_repo_123';
+  const OTHER_SELLER_ID = 'seller_repo_999';
 
   beforeAll(async () => {
     testDb = await createTestDb();
@@ -20,12 +21,20 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     await truncateTables(testDb);
 
     // Insert a dummy user to satisfy the seller_id foreign key constraint on the produce table
-    await testDb.insert(users).values({
-      id: TEST_SELLER_ID,
-      name: 'Farmer Joe',
-      email: 'joe@farm.com',
-      passwordHash: 'hashed_pw',
-    });
+    await testDb.insert(users).values([
+      {
+        id: TEST_SELLER_ID,
+        name: 'Farmer Joe',
+        email: 'joe@farm.com',
+        passwordHash: 'hashed_pw',
+      },
+      {
+        id: OTHER_SELLER_ID,
+        name: 'Farmer Jane',
+        email: 'jane@farm.com',
+        passwordHash: 'hashed_pw_2',
+      },
+    ]);
   });
 
   it('should create and retrieve a produce listing successfully', async () => {
@@ -77,5 +86,62 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     };
 
     await expect(produceRepository.create('missing_seller_999', payload)).rejects.toThrow();
+  });
+
+  it('should update an existing produce listing successfully', async () => {
+    const createPayload = {
+      title: 'Watermelons',
+      produceType: 'fruit',
+      pricePerOz: 0.1,
+      totalOzInventory: 1000,
+      harvestFrequencyDays: 14,
+      seasonStart: '2024-07-01',
+      seasonEnd: '2024-09-30',
+      images: [],
+      isSubscribable: false,
+    };
+
+    const created = await produceRepository.create(TEST_SELLER_ID, createPayload);
+
+    const updatePayload = {
+      status: 'paused' as const,
+      pricePerOz: 0.15,
+      totalOzInventory: 800,
+    };
+
+    const updated = await produceRepository.update(created.id, TEST_SELLER_ID, updatePayload);
+
+    expect(updated).toBeDefined();
+    expect(updated?.id).toBe(created.id);
+    expect(updated?.status).toBe('paused');
+    expect(updated?.pricePerOz).toBe('0.15');
+    expect(updated?.totalOzInventory).toBe('800.00');
+    // Ensure unchanged properties remain intact
+    expect(updated?.title).toBe('Watermelons');
+  });
+
+  it('should return undefined when trying to update a listing owned by another seller', async () => {
+    const createPayload = {
+      title: 'Golden Potatoes',
+      produceType: 'vegetable',
+      pricePerOz: 0.05,
+      totalOzInventory: 2000,
+      harvestFrequencyDays: 30,
+      seasonStart: '2024-08-01',
+      seasonEnd: '2024-11-30',
+      images: [],
+      isSubscribable: false,
+    };
+
+    const created = await produceRepository.create(TEST_SELLER_ID, createPayload);
+
+    const updatePayload = {
+      status: 'deleted' as const,
+    };
+
+    // Try to update with a different seller ID
+    const updated = await produceRepository.update(created.id, OTHER_SELLER_ID, updatePayload);
+
+    expect(updated).toBeUndefined();
   });
 });

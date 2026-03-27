@@ -1,7 +1,9 @@
+import { and, eq } from 'drizzle-orm';
+
 import { db as defaultDb } from '../db/index.js';
 import { produce } from '../db/schema.js';
 import type { DbClient } from '../db/types.js';
-import type { CreateProducePayload } from '../schemas/produce.schema.js';
+import type { CreateProducePayload, UpdateProducePayload } from '../schemas/produce.schema.js';
 
 type Produce = typeof produce.$inferSelect;
 
@@ -40,5 +42,41 @@ export const produceRepository = {
       .returning();
 
     return newProduce;
+  },
+
+  /**
+   * Updates an existing produce listing.
+   * @param id - The ID of the produce listing
+   * @param sellerId - The ID of the user updating the listing (for authorization)
+   * @param data - The parsed payload containing fields to update
+   * @returns The updated produce record, or undefined if not found/unauthorized
+   */
+  async update(
+    id: string,
+    sellerId: string,
+    data: UpdateProducePayload,
+  ): Promise<Produce | undefined> {
+    const { pricePerOz, totalOzInventory, ...remainingData } = data;
+
+    const updateValues: Partial<typeof produce.$inferInsert> = {
+      ...remainingData,
+      updatedAt: new Date(),
+    };
+
+    if (pricePerOz !== undefined) {
+      updateValues.pricePerOz = pricePerOz.toString();
+    }
+
+    if (totalOzInventory !== undefined) {
+      updateValues.totalOzInventory = totalOzInventory.toString();
+    }
+
+    const [updatedProduce] = await this.db
+      .update(produce)
+      .set(updateValues)
+      .where(and(eq(produce.id, id), eq(produce.sellerId, sellerId)))
+      .returning();
+
+    return updatedProduce;
   },
 };
