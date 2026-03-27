@@ -11,10 +11,10 @@ import {
   UpdateUserSchema,
   PublicUserProfileSchema,
 } from '../schemas/user.schema.js';
+import { registerFcmToken } from '../services/notification.service.js';
 import { getSellerReviews } from '../services/review.service.js';
 import {
   getCurrentUser,
-  registerFcmToken,
   updateCurrentUser,
   updateScheduleRules,
   getPublicUserProfile,

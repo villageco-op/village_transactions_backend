@@ -13,6 +13,7 @@ import { users, fcmTokens, scheduleRules, orders, reviews } from '../../../src/d
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
 import { request } from '../../test-utils/request.js';
+import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
 
 describe('Users API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -25,6 +26,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     scheduleRuleRepository.setDb(testDb);
     orderRepository.setDb(testDb);
     reviewRepository.setDb(testDb);
+    fcmRepository.setDb(testDb);
   });
 
   afterAll(async () => {

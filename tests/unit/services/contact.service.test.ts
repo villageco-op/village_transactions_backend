@@ -2,6 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
 import { processContactForm } from '../../../src/services/contact.service.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
+import { registerFcmToken } from '../../../src/services/notification.service.js';
+import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
+
+vi.mock('../../../src/repositories/user.repository.js', () => ({
+  userRepository: {
+    findById: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/fcm.repository.js', () => ({
+  fcmRepository: {
+    upsertToken: vi.fn(),
+    getTokensByUserId: vi.fn(),
+    deleteTokens: vi.fn(),
+  },
+}));
 
 describe('ContactService - processContactForm', () => {
   let mockResend: any;
@@ -73,5 +90,39 @@ describe('ContactService - processContactForm', () => {
     };
 
     await expect(processContactForm(mockResend, payload)).resolves.toBeUndefined();
+  });
+});
+
+describe('registerFcmToken', () => {
+  it('should throw a 404 HTTPException if the user is not found', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+    await expect(registerFcmToken('missing_user_id', 'token123', 'ios')).rejects.toThrow(
+      HTTPException,
+    );
+    await expect(registerFcmToken('missing_user_id', 'token123', 'ios')).rejects.toMatchObject({
+      status: 404,
+    });
+
+    expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
+  });
+
+  it('should update the FCM token and platform when the user is found', async () => {
+    const mockDbUser = {
+      id: 'user_123',
+      email: 'alice@example.com',
+    };
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockDbUser as any);
+    vi.mocked(fcmRepository.upsertToken).mockResolvedValueOnce();
+
+    await registerFcmToken('user_123', 'test_fcm_token_999', 'android');
+
+    expect(userRepository.findById).toHaveBeenCalledWith('user_123');
+    expect(fcmRepository.upsertToken).toHaveBeenCalledWith(
+      'user_123',
+      'test_fcm_token_999',
+      'android',
+    );
   });
 });

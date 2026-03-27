@@ -47,22 +47,6 @@ export async function updateCurrentUser(id: string, data: UpdateUserPayload) {
 }
 
 /**
- * Registers a Firebase Cloud Messaging token for the user's current device.
- * @param id - User's unique ID
- * @param token - FCM token
- * @param platform - Device platform identifier (e.g. 'ios', 'android', 'web')
- */
-export async function registerFcmToken(id: string, token: string, platform: string) {
-  const user = await userRepository.findById(id);
-
-  if (!user) {
-    throw new HTTPException(404, { message: 'User not found' });
-  }
-
-  await userRepository.updateFcmToken(id, token, platform);
-}
-
-/**
  * INTERNAL USE ONLY: Updates the user's Stripe Account ID.
  * @param id - User's unique ID
  * @param stripeAccountId - The generated Stripe Account ID
