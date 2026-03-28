@@ -52,10 +52,11 @@ jobs:
 
   update-openapi:
     needs: backend-ci
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -73,14 +74,32 @@ jobs:
       
       - name: Generate OpenAPI JSON
         run: pnpm run generate:openapi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          POSTGRES_IMAGE: ${{ secrets.POSTGRES_IMAGE }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --exit-code openapi.json; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected in openapi.json"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in openapi.json"
+          fi
       
       - name: Push to Frontend Repo
-        uses: dmnemec/copy-file-to-another-repo@main
+        if: steps.check_changes.outputs.changed == 'true'
+        uses: dmnemec/copy_file_to_another_repo_action@main
         env:
           API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB_API_SPECS }}
         with:
           source_file: 'openapi.json'
-          destination_repo: 'villageco-op/api-spec'
+          destination_repo: 'villageco-op/api-specs'
           destination_folder: '.'
           user_email: 'bot@villageco-op.com'
           user_name: 'OpenAPI Bot'
