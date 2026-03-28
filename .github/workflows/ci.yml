@@ -74,6 +74,10 @@ jobs:
       
       - name: Generate OpenAPI JSON
         run: pnpm run generate:openapi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          POSTGRES_IMAGE: ${{ secrets.POSTGRES_IMAGE }}
 
       - name: Check for changes
         id: check_changes
@@ -91,9 +95,6 @@ jobs:
         uses: dmnemec/copy_file_to_another_repo_action@main
         env:
           API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB_API_SPECS }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          POSTGRES_IMAGE: ${{ secrets.POSTGRES_IMAGE }}
         with:
           source_file: 'openapi.json'
           destination_repo: 'villageco-op/api-specs'
