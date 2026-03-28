@@ -9,54 +9,30 @@ import {
 
 export const stripeRoute = new OpenAPIHono();
 
-stripeRoute.openapi(
-  createRoute({
-    method: 'post',
-    path: '/webhook',
-    operationId: 'handleStripeWebhook',
-    description: 'Secure server-to-server listener for Stripe events.',
-    'application/json': {
-      schema: z.string().openapi({
-        type: 'string',
-        description: 'Raw binary webhook payload',
-      }),
-    },
-    responses: {
-      200: {
-        description: 'Received',
-        content: { 'application/json': { schema: z.object({ received: z.boolean() }) } },
-      },
-      400: {
-        description: 'Webhook Signature Error',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
-      },
-    },
-  }),
-  async (c) => {
-    const signature = c.req.header('stripe-signature');
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+stripeRoute.post('/webhook', async (c) => {
+  const signature = c.req.header('stripe-signature');
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    if (!signature || !webhookSecret) {
-      return c.json({ error: 'Missing stripe signature or secret' }, 400);
-    }
+  if (!signature || !webhookSecret) {
+    return c.json({ error: 'Missing stripe signature or secret' }, 400);
+  }
 
-    const rawBody = await c.req.text();
-    let event: Stripe.Event;
+  const rawBody = await c.req.text();
+  let event: Stripe.Event;
 
-    try {
-      const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
-      event = stripeClient.webhooks.constructEvent(rawBody, signature, webhookSecret);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error(`Webhook signature verification failed: ${errorMessage}`);
-      return c.json({ error: 'Webhook signature verification failed' }, 400);
-    }
+  try {
+    const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+    event = stripeClient.webhooks.constructEvent(rawBody, signature, webhookSecret);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`Webhook signature verification failed: ${errorMessage}`);
+    return c.json({ error: 'Webhook signature verification failed' }, 400);
+  }
 
-    await processStripeWebhookEvent(event);
+  await processStripeWebhookEvent(event);
 
-    return c.json({ received: true }, 200);
-  },
-);
+  return c.json({ received: true }, 200);
+});
 
 stripeRoute.openapi(
   createRoute({
