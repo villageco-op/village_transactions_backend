@@ -22,6 +22,7 @@ export async function sendPushNotification(userId: string, title: string, body: 
   };
 
   try {
+    if (!messaging) throw new Error('FCM failed to load. Skipping push notification...');
     const response = await messaging.sendEachForMulticast(message);
 
     if (response.failureCount > 0) {
