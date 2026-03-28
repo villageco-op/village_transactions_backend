@@ -88,7 +88,7 @@ jobs:
       
       - name: Push to Frontend Repo
         if: steps.check_changes.outputs.changed == 'true'
-        uses: dmnemec/copy-file-to-another-repo@main
+        uses: dmnemec/copy_file_to_another_repo_action@main
         env:
           API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB_API_SPECS }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
