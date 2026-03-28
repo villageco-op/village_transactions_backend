@@ -96,7 +96,7 @@ jobs:
           POSTGRES_IMAGE: ${{ secrets.POSTGRES_IMAGE }}
         with:
           source_file: 'openapi.json'
-          destination_repo: 'villageco-op/api-spec'
+          destination_repo: 'villageco-op/api-specs'
           destination_folder: '.'
           user_email: 'bot@villageco-op.com'
           user_name: 'OpenAPI Bot'
