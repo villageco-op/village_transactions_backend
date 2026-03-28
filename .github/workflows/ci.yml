@@ -78,6 +78,9 @@ jobs:
         uses: dmnemec/copy-file-to-another-repo@main
         env:
           API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB_API_SPECS }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          POSTGRES_IMAGE: ${{ secrets.POSTGRES_IMAGE }}
         with:
           source_file: 'openapi.json'
           destination_repo: 'villageco-op/api-spec'
