@@ -52,10 +52,11 @@ jobs:
 
   update-openapi:
     needs: backend-ci
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -73,8 +74,20 @@ jobs:
       
       - name: Generate OpenAPI JSON
         run: pnpm run generate:openapi
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --exit-code openapi.json; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected in openapi.json"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in openapi.json"
+          fi
       
       - name: Push to Frontend Repo
+        if: steps.check_changes.outputs.changed == 'true'
         uses: dmnemec/copy-file-to-another-repo@main
         env:
           API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB_API_SPECS }}
