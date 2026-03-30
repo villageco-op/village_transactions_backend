@@ -1,48 +1,25 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { Hono } from 'hono';
 
 import { releaseExpiredCarts } from '../services/cart.service.js';
 
-export const cronRoute = new OpenAPIHono();
+export const cronRoute = new Hono();
 
-cronRoute.openapi(
-  createRoute({
-    method: 'post',
-    path: '/release-carts',
-    operationId: 'cronReleaseCarts',
-    description: 'Cleanup routine triggered by Vercel Cron every 5 minutes.',
-    request: {
-      headers: z.object({ authorization: z.string().openapi({ example: 'Bearer <CRON_SECRET>' }) }),
-    },
-    responses: {
-      200: {
-        description: 'Carts released',
-        content: {
-          'application/json': { schema: z.object({ success: z.boolean(), count: z.number() }) },
-        },
-      },
-      401: {
-        description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
-      },
-    },
-  }),
-  async (c) => {
-    const { authorization } = c.req.valid('header');
-    const expectedSecret = process.env.CRON_SECRET;
+cronRoute.post('/release-carts', async (c) => {
+  const authHeader = c.req.header('Authorization');
+  const expectedSecret = process.env.CRON_SECRET;
 
-    if (!expectedSecret) {
-      console.warn('CRON_SECRET environment variable is not set');
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+  if (!expectedSecret) {
+    console.warn('CRON_SECRET environment variable is not set');
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
 
-    const token = authorization.replace(/^Bearer\s+/i, '').trim();
+  const token = authHeader?.replace(/^Bearer\s+/i, '').trim();
 
-    if (token !== expectedSecret) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+  if (token !== expectedSecret) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
 
-    const count = await releaseExpiredCarts();
+  const count = await releaseExpiredCarts();
 
-    return c.json({ success: true, count }, 200);
-  },
-);
+  return c.json({ success: true, count }, 200);
+});

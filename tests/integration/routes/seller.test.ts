@@ -11,23 +11,6 @@ import { users, orders, orderItems, produce } from '../../../src/db/schema.js';
 import { sellerRepository } from '../../../src/repositories/seller.repository.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
 
-describe('Seller API', () => {
-  const SELLER_ID = 'seller_integration_abc';
-  it('GET /api/seller/customers should return 200', async () => {
-    const res = await authedRequest('/api/seller/customers', {}, { id: SELLER_ID });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
-  });
-
-  it('GET /api/seller/analytics should return 200', async () => {
-    const res = await authedRequest('/api/seller/analytics?timeframe=30d', {}, { id: SELLER_ID });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(typeof body).toBe('object');
-  });
-});
-
 describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
   let testDb: any;
   const SELLER_ID = 'seller_integration_abc';

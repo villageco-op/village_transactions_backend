@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 
 import {
   truncateTables,
@@ -17,13 +17,18 @@ describe('SellerRepository - Integration', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     sellerRepository.setDb(testDb);
+    vi.useFakeTimers();
   });
 
   afterAll(async () => {
+    vi.useRealTimers();
     await closeTestDbConnection();
   });
 
   beforeEach(async () => {
+    const mockDate = new Date('2024-05-15T12:00:00Z');
+    vi.setSystemTime(mockDate);
+
     await truncateTables(testDb);
 
     await testDb.insert(users).values([

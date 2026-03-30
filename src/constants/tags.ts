@@ -1,0 +1,16 @@
+export const TAGS = {
+  USERS: 'Users',
+  PRODUCE: 'Produce',
+  ORDERS: 'Orders',
+  SUBSCRIPTIONS: 'Subscriptions',
+  AUTH: 'Authentication',
+  SELLERS: 'Sellers',
+  BUYERS: 'Buyers',
+  CHECKOUT: 'Checkout',
+  MESSAGING: 'Messaging',
+  AVAILABILITY: 'Availability',
+  STRIPE: 'Stripe',
+  CART: 'Cart',
+  CONTACT: 'Contact',
+  REVIEWS: 'Reviews',
+} as const;

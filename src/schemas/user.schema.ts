@@ -113,6 +113,20 @@ export const PublicUserProfileSchema = z
   })
   .openapi('PublicUserProfile');
 
+export const RegisterFcmTokenSchema = z
+  .object({
+    token: z.string().openapi({
+      example: 'bk3RNwTe3H0:CI2k_HHwgIpoDKCIZjt4Z6...',
+      description: 'The unique Firebase Cloud Messaging token for the device',
+    }),
+    platform: z.enum(['ios', 'android', 'web']).openapi({
+      example: 'ios',
+      description: 'The operating system of the device registering the token',
+    }),
+  })
+  .openapi('RegisterFcmTokenPayload');
+
+export type RegisterFcmTokenPayload = z.infer<typeof RegisterFcmTokenSchema>;
 export type UpdateScheduleRulesPayload = z.infer<typeof UpdateScheduleRulesSchema>;
 export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;
 export type PublicUserProfile = z.infer<typeof PublicUserProfileSchema>;

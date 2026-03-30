@@ -1,13 +1,15 @@
 import { verifyAuth } from '@hono/auth-js';
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 
+import { TAGS } from '../constants/tags.js';
 import {
   BillingSummaryResponseSchema,
   BuyerDashboardResponseSchema,
   GetGrowersQuerySchema,
   GrowersResponseSchema,
 } from '../schemas/buyer.schema.js';
+import { ErrorResponseSchema } from '../schemas/common.schema.js';
 import {
   getBillingSummary,
   getBuyerDashboardMetrics,
@@ -23,6 +25,7 @@ buyerRoute.openapi(
     operationId: 'getBuyerGrowers',
     description:
       'Get list of sellers that the user bought from in the past, aggregated with stats.',
+    tags: [TAGS.BUYERS],
     middleware: [verifyAuth()],
     request: {
       query: GetGrowersQuerySchema,
@@ -34,7 +37,7 @@ buyerRoute.openapi(
       },
       401: {
         description: 'Unauthorized - User not logged in',
-        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -60,6 +63,7 @@ buyerRoute.openapi(
     path: '/billing-summary',
     operationId: 'getBuyerBillingSummary',
     description: 'Get aggregate summary values for the buyer invoice history.',
+    tags: [TAGS.BUYERS],
     middleware: [verifyAuth()],
     responses: {
       200: {
@@ -68,7 +72,7 @@ buyerRoute.openapi(
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -92,6 +96,7 @@ buyerRoute.openapi(
     path: '/dashboard',
     operationId: 'getBuyerDashboard',
     description: 'Fetches all summary metrics required for the buyer main dashboard view.',
+    tags: [TAGS.BUYERS],
     middleware: [verifyAuth()],
     responses: {
       200: {
@@ -100,7 +105,7 @@ buyerRoute.openapi(
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),

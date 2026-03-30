@@ -1,7 +1,10 @@
 import { verifyAuth } from '@hono/auth-js';
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 
+import { TAGS } from '../constants/tags.js';
+import { ErrorResponseSchema } from '../schemas/common.schema.js';
+import { StripeOnboardingResponseSchema } from '../schemas/stripe.schema.js';
 import {
   generateStripeOnboardLink,
   processStripeWebhookEvent,
@@ -40,15 +43,16 @@ stripeRoute.openapi(
     path: '/connect/onboard',
     operationId: 'generateStripeOnboardingLink',
     description: 'Generate onboarding link for sellers to link their bank accounts.',
+    tags: [TAGS.STRIPE],
     middleware: [verifyAuth()],
     responses: {
       200: {
         description: 'Link created',
-        content: { 'application/json': { schema: z.object({ url: z.string() }) } },
+        content: { 'application/json': { schema: StripeOnboardingResponseSchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),

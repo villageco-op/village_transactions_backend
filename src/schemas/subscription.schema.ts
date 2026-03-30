@@ -7,7 +7,3 @@ export const UpdateSubscriptionStatusSchema = z.object({
 });
 
 export type UpdateSubscriptionStatusBody = z.infer<typeof UpdateSubscriptionStatusSchema>;
-
-export const SuccessResponseSchema = z.object({
-  success: z.boolean(),
-});
