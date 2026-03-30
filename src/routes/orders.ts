@@ -1,13 +1,15 @@
 import { verifyAuth } from '@hono/auth-js';
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 
+import { TAGS } from '../constants/tags.js';
+import { ErrorResponseSchema } from '../schemas/common.schema.js';
 import {
   CancelOrderBodySchema,
   CancelOrderParamsSchema,
   GetOrdersQuerySchema,
   OrderActionSuccessSchema,
-  OrderSchema,
+  OrdersListSchema,
   RescheduleOrderBodySchema,
   RescheduleOrderParamsSchema,
 } from '../schemas/order.schema.js';
@@ -21,6 +23,7 @@ ordersRoute.openapi(
     path: '/',
     operationId: 'getOrders',
     description: 'Get historical or active orders.',
+    tags: [TAGS.ORDERS],
     middleware: [verifyAuth()],
     request: {
       query: GetOrdersQuerySchema,
@@ -28,11 +31,11 @@ ordersRoute.openapi(
     responses: {
       200: {
         description: 'Orders list',
-        content: { 'application/json': { schema: z.array(OrderSchema) } },
+        content: { 'application/json': { schema: OrdersListSchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -58,6 +61,7 @@ ordersRoute.openapi(
     path: '/{id}/schedule',
     operationId: 'rescheduleOrder',
     description: 'Request a change to pickup/delivery time.',
+    tags: [TAGS.ORDERS],
     middleware: [verifyAuth()],
     request: {
       params: RescheduleOrderParamsSchema,
@@ -72,15 +76,15 @@ ordersRoute.openapi(
       },
       400: {
         description: 'Bad Request',
-        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       401: {
         description: 'Unauthorized - User not logged in',
-        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       404: {
         description: 'Not Found',
-        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -107,6 +111,7 @@ ordersRoute.openapi(
     path: '/{id}/cancel',
     operationId: 'cancelOrder',
     description: 'Cancel a one-time order.',
+    tags: [TAGS.ORDERS],
     middleware: [verifyAuth()],
     request: {
       params: CancelOrderParamsSchema,
@@ -125,12 +130,12 @@ ordersRoute.openapi(
       },
       400: {
         description: 'Bad Request - e.g., Refund failed or invalid session',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       401: {
         description: 'Unauthorized - User not logged in',
         content: {
-          'application/json': { schema: z.object({ error: z.string() }) },
+          'application/json': { schema: ErrorResponseSchema },
         },
       },
     },

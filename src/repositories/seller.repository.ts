@@ -21,6 +21,8 @@ export const sellerRepository = {
    * @returns Aggregated metrics for earnings, volumes, and produce-specific sales
    */
   async getEarningsMetrics(sellerId: string) {
+    const now = new Date();
+
     const [seller] = await this.db
       .select({ goal: users.goal })
       .from(users)
@@ -30,13 +32,13 @@ export const sellerRepository = {
       .select({
         earnedThisMonth: sql<
           number | string | null
-        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE) THEN ${orders.totalAmount} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp) THEN ${orders.totalAmount} ELSE 0 END)`,
         earnedLastMonth: sql<
           number | string | null
-        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
         totalEarnedYTD: sql<
           number | string | null
-        >`SUM(CASE WHEN date_trunc('year', ${orders.createdAt}) = date_trunc('year', CURRENT_DATE) THEN ${orders.totalAmount} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('year', ${orders.createdAt}) = date_trunc('year', ${now}::timestamp) THEN ${orders.totalAmount} ELSE 0 END)`,
         totalEarnedLifetime: sql<number | string | null>`SUM(${orders.totalAmount})`,
       })
       .from(orders)
@@ -64,7 +66,7 @@ export const sellerRepository = {
         and(
           eq(orders.sellerId, sellerId),
           eq(orders.status, 'completed'),
-          sql`date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE)`,
+          sql`date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp)`,
         ),
       )
       .groupBy(produce.title);
@@ -83,6 +85,8 @@ export const sellerRepository = {
    * @returns Aggregated metrics for high-level main view
    */
   async getDashboardMetrics(sellerId: string) {
+    const now = new Date();
+
     const [seller] = await this.db
       .select({
         goal: users.goal,
@@ -97,10 +101,10 @@ export const sellerRepository = {
       .select({
         earnedThisMonth: sql<
           number | string | null
-        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE) THEN ${orders.totalAmount} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp) THEN ${orders.totalAmount} ELSE 0 END)`,
         earnedLastMonth: sql<
           number | string | null
-        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
       })
       .from(orders)
       .where(and(eq(orders.sellerId, sellerId), eq(orders.status, 'completed')));
@@ -115,7 +119,7 @@ export const sellerRepository = {
         and(
           eq(orders.sellerId, sellerId),
           eq(orders.status, 'completed'),
-          sql`date_trunc('week', ${orders.createdAt}) = date_trunc('week', CURRENT_DATE)`,
+          sql`date_trunc('week', ${orders.createdAt}) = date_trunc('week', ${now}::timestamp)`,
         ),
       );
 
@@ -133,7 +137,7 @@ export const sellerRepository = {
         and(
           eq(orders.sellerId, sellerId),
           eq(orders.status, 'completed'),
-          sql`date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE)`,
+          sql`date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp)`,
         ),
       )
       .groupBy(produce.title);

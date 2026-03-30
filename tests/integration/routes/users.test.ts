@@ -255,7 +255,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       '/api/users/fcm-token',
       {
         method: 'POST',
-        body: JSON.stringify({ token: 't', platform: 'p' }),
+        body: JSON.stringify({ token: 't', platform: 'ios' }),
       },
       { id: 'non_existent_id' },
     );

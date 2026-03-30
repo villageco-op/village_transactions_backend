@@ -1,6 +1,8 @@
 import { verifyAuth } from '@hono/auth-js';
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import { TAGS } from '../constants/tags.js';
+import { ErrorResponseSchema, SuccessWithEntitySchema } from '../schemas/common.schema.js';
 import { CreateReviewSchema } from '../schemas/review.schema.js';
 import { createReview } from '../services/review.service.js';
 
@@ -12,6 +14,7 @@ reviewsRoute.openapi(
     path: '/',
     operationId: 'createReview',
     description: 'Leave a star rating and optional comment for a completed order.',
+    tags: [TAGS.REVIEWS],
     middleware: [verifyAuth()],
     request: {
       body: {
@@ -27,17 +30,17 @@ reviewsRoute.openapi(
         description: 'Review successfully created',
         content: {
           'application/json': {
-            schema: z.object({ success: z.boolean(), reviewId: z.string() }),
+            schema: SuccessWithEntitySchema,
           },
         },
       },
       400: {
         description: 'Bad Request (e.g., review already exists)',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -52,6 +55,6 @@ reviewsRoute.openapi(
     const body = c.req.valid('json');
 
     const review = await createReview(userId, body);
-    return c.json({ success: true, reviewId: review.id }, 201);
+    return c.json({ success: true, entityId: review.id }, 201);
   },
 );

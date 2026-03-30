@@ -76,6 +76,10 @@ export const ProduceListItemSchema = z.object({
   isSubscribable: z.boolean().nullable(),
 });
 
+export const ProduceListResponseSchema = z
+  .array(ProduceListItemSchema)
+  .openapi('ProduceListResponse');
+
 export const ProduceQuerySchema = z.object({
   lat: LatitudeSchema,
   lng: LongitudeSchema,
@@ -120,6 +124,8 @@ export const SellerMapGroupSchema = z.object({
   }),
 });
 
+export const SellerMapGroupListSchema = z.array(SellerMapGroupSchema).openapi('SellerMapGroupList');
+
 export const ProduceOrdersQuerySchema = z.object({
   limit: z.coerce.number().default(10),
   offset: z.coerce.number().default(0),
@@ -142,6 +148,10 @@ export const ProduceOrderListItemSchema = z.object({
   buyer: ProduceOrderBuyerSchema,
 });
 
+export const ProduceOrderListResponseSchema = z
+  .array(ProduceOrderListItemSchema)
+  .openapi('ProduceOrderListResponse');
+
 export const SellerProduceQuerySchema = z.object({
   limit: z.coerce.number().default(20),
   offset: z.coerce.number().default(0),
@@ -149,6 +159,8 @@ export const SellerProduceQuerySchema = z.object({
 });
 
 export const ProduceSchema = createSelectSchema(produce).openapi('Produce');
+
+export const ProduceResponseSchema = z.array(ProduceSchema).openapi('ProduceResponse');
 
 export type CreateProducePayload = z.infer<typeof CreateProduceSchema>;
 export type UpdateProducePayload = z.infer<typeof UpdateProduceSchema>;

@@ -1,17 +1,24 @@
 import { verifyAuth } from '@hono/auth-js';
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import { TAGS } from '../constants/tags.js';
+import {
+  EntityParamSchema,
+  ErrorResponseSchema,
+  SuccessResponseSchema,
+  SuccessWithEntitySchema,
+} from '../schemas/common.schema.js';
 import {
   CreateProduceSchema,
   ProduceQuerySchema,
   UpdateProduceSchema,
-  ProduceListItemSchema,
   ProduceMapQuerySchema,
-  SellerMapGroupSchema,
   ProduceOrdersQuerySchema,
-  ProduceOrderListItemSchema,
-  ProduceSchema,
   SellerProduceQuerySchema,
+  SellerMapGroupListSchema,
+  ProduceListResponseSchema,
+  ProduceOrderListResponseSchema,
+  ProduceResponseSchema,
 } from '../schemas/produce.schema.js';
 import {
   createProduceListing,
@@ -31,13 +38,14 @@ produceRoute.openapi(
     path: '/map',
     operationId: 'getProduceMap',
     description: 'See sellers on a map.',
+    tags: [TAGS.PRODUCE],
     request: {
       query: ProduceMapQuerySchema,
     },
     responses: {
       200: {
         description: 'Map items',
-        content: { 'application/json': { schema: z.array(SellerMapGroupSchema) } },
+        content: { 'application/json': { schema: SellerMapGroupListSchema } },
       },
     },
   }),
@@ -63,13 +71,14 @@ produceRoute.openapi(
     path: '/list',
     operationId: 'getProduceList',
     description: 'See list of produce/sellers.',
+    tags: [TAGS.PRODUCE],
     request: {
       query: ProduceQuerySchema,
     },
     responses: {
       200: {
         description: 'List of produce',
-        content: { 'application/json': { schema: z.array(ProduceListItemSchema) } },
+        content: { 'application/json': { schema: ProduceListResponseSchema } },
       },
     },
   }),
@@ -95,6 +104,7 @@ produceRoute.openapi(
     path: '/',
     operationId: 'createProduce',
     description: 'Create a new produce listing.',
+    tags: [TAGS.PRODUCE],
     middleware: [verifyAuth()],
     request: {
       body: {
@@ -108,11 +118,11 @@ produceRoute.openapi(
     responses: {
       201: {
         description: 'Listing created',
-        content: { 'application/json': { schema: z.object({ id: z.string() }) } },
+        content: { 'application/json': { schema: SuccessWithEntitySchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -128,7 +138,7 @@ produceRoute.openapi(
 
     const newProduce = await createProduceListing(userId, body);
 
-    return c.json({ id: newProduce.id }, 201);
+    return c.json({ success: true, entityId: newProduce.id }, 201);
   },
 );
 
@@ -138,9 +148,10 @@ produceRoute.openapi(
     path: '/{id}',
     operationId: 'updateProduce',
     description: 'Update a listing or pause it.',
+    tags: [TAGS.PRODUCE],
     middleware: [verifyAuth()],
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: EntityParamSchema,
       body: {
         content: {
           'application/json': {
@@ -153,20 +164,20 @@ produceRoute.openapi(
       200: {
         description: 'Listing updated',
         content: {
-          'application/json': { schema: z.object({ success: z.boolean(), id: z.string() }) },
+          'application/json': { schema: SuccessWithEntitySchema },
         },
       },
       400: {
         description: 'Bad Request',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       404: {
         description: 'Not Found / Unauthorized Listing Ownership',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -187,7 +198,7 @@ produceRoute.openapi(
       return c.json({ error: 'Listing not found or unauthorized' }, 404);
     }
 
-    return c.json({ success: true, id: updatedProduce.id }, 200);
+    return c.json({ success: true, entityId: updatedProduce.id }, 200);
   },
 );
 
@@ -197,24 +208,25 @@ produceRoute.openapi(
     path: '/{id}',
     operationId: 'deleteProduce',
     description: 'Remove a listing (soft delete).',
+    tags: [TAGS.PRODUCE],
     middleware: [verifyAuth()],
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: EntityParamSchema },
     responses: {
       200: {
         description: 'Listing deleted',
-        content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+        content: { 'application/json': { schema: SuccessResponseSchema } },
       },
       400: {
         description: 'Bad Request',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       404: {
         description: 'Not Found / Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -244,23 +256,24 @@ produceRoute.openapi(
     path: '/{id}/orders',
     operationId: 'getProduceOrders',
     description: 'View paginated orders associated with one specific produce listing.',
+    tags: [TAGS.PRODUCE],
     middleware: [verifyAuth()],
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: EntityParamSchema,
       query: ProduceOrdersQuerySchema,
     },
     responses: {
       200: {
         description: 'List of orders for the produce listing',
-        content: { 'application/json': { schema: z.array(ProduceOrderListItemSchema) } },
+        content: { 'application/json': { schema: ProduceOrderListResponseSchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       404: {
         description: 'Not Found / Unauthorized Listing Ownership',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -291,6 +304,7 @@ produceRoute.openapi(
     path: '/me',
     operationId: 'getSellerListings',
     description: "Fetch the authenticated seller's own produce listings with full details.",
+    tags: [TAGS.PRODUCE],
     middleware: [verifyAuth()],
     request: {
       query: SellerProduceQuerySchema,
@@ -298,11 +312,11 @@ produceRoute.openapi(
     responses: {
       200: {
         description: "List of the seller's produce",
-        content: { 'application/json': { schema: z.array(ProduceSchema) } },
+        content: { 'application/json': { schema: ProduceResponseSchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),

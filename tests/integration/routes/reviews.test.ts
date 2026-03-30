@@ -66,7 +66,7 @@ describe('Reviews API Integration', { timeout: 60_000 }, () => {
 
     const body = await res.json();
     expect(body).toHaveProperty('success', true);
-    expect(body).toHaveProperty('reviewId');
+    expect(body).toHaveProperty('entityId');
 
     const dbReviews = await testDb.select().from(reviews).where(eq(reviews.orderId, TEST_ORDER_ID));
 

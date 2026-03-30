@@ -1,7 +1,14 @@
 import { verifyAuth } from '@hono/auth-js';
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import { TAGS } from '../constants/tags.js';
 import { AddToCartSchema, GetCartResponseSchema } from '../schemas/cart.schema.js';
+import {
+  EntityParamSchema,
+  ErrorResponseSchema,
+  SuccessResponseSchema,
+  SuccessWithEntitySchema,
+} from '../schemas/common.schema.js';
 import { addToCart, getCart, removeFromCart } from '../services/cart.service.js';
 
 export const cartRoute = new OpenAPIHono();
@@ -13,6 +20,7 @@ cartRoute.openapi(
     operationId: 'getCart',
     description:
       "Fetch user's active cart, grouped by seller. Drops expired reservations automatically.",
+    tags: [TAGS.CART],
     middleware: [verifyAuth()],
     responses: {
       200: {
@@ -21,7 +29,7 @@ cartRoute.openapi(
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -44,6 +52,7 @@ cartRoute.openapi(
     path: '/add',
     operationId: 'addToCart',
     description: 'Add item to cart and create a soft reservation.',
+    tags: [TAGS.CART],
     middleware: [verifyAuth()],
     request: {
       body: {
@@ -59,16 +68,13 @@ cartRoute.openapi(
         description: 'Added to cart',
         content: {
           'application/json': {
-            schema: z.object({
-              success: z.boolean(),
-              reservationId: z.uuid(),
-            }),
+            schema: SuccessWithEntitySchema,
           },
         },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -84,30 +90,29 @@ cartRoute.openapi(
 
     const reservation = await addToCart(userId, body);
 
-    return c.json({ success: true, reservationId: reservation.id }, 200);
+    return c.json({ success: true, entityId: reservation.id }, 200);
   },
 );
 
 cartRoute.openapi(
   createRoute({
     method: 'delete',
-    path: '/remove/{reservationId}',
+    path: '/remove/{id}',
     operationId: 'removeFromCart',
     description: 'Explicitly remove an item and release the reservation early.',
+    tags: [TAGS.CART],
     middleware: [verifyAuth()],
     request: {
-      params: z.object({
-        reservationId: z.uuid().openapi({ example: '123e4567-e89b-12d3-a456-426614174000' }),
-      }),
+      params: EntityParamSchema,
     },
     responses: {
       200: {
         description: 'Removed',
-        content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+        content: { 'application/json': { schema: SuccessResponseSchema } },
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),
@@ -119,9 +124,9 @@ cartRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { reservationId } = c.req.valid('param');
+    const { id } = c.req.valid('param');
 
-    const success = await removeFromCart(userId, reservationId);
+    const success = await removeFromCart(userId, id);
 
     return c.json({ success }, 200);
   },

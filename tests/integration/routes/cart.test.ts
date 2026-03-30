@@ -79,7 +79,7 @@ describe('Cart API Integration', { timeout: 60_000 }, () => {
       const [dbRes] = await testDb
         .select()
         .from(cartReservations)
-        .where(eq(cartReservations.id, body.reservationId));
+        .where(eq(cartReservations.id, body.entityId));
 
       expect(dbRes).toBeDefined();
       expect(dbRes.buyerId).toBe(TEST_BUYER_ID);
@@ -176,7 +176,7 @@ describe('Cart API Integration', { timeout: 60_000 }, () => {
     });
   });
 
-  describe('DELETE /api/cart/remove/:reservationId', () => {
+  describe('DELETE /api/cart/remove/:id', () => {
     let testReservationId: string;
 
     beforeEach(async () => {

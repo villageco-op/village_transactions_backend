@@ -16,3 +16,10 @@ export const CheckoutSessionResponseSchema = z.object({
     description: 'The URL to redirect the user to for Stripe Checkout.',
   }),
 });
+
+export const InitiateSnapCheckoutSchema = z
+  .object({
+    sellerId: UserIdSchema,
+    fulfillmentType: FulfillmentTypeSchema,
+  })
+  .openapi('InitiateSnapCheckoutPayload');

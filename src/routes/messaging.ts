@@ -1,4 +1,13 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+
+import { TAGS } from '../constants/tags.js';
+import { SuccessResponseSchema } from '../schemas/common.schema.js';
+import {
+  ConversationsResponseSchema,
+  GetMessagesQuerySchema,
+  MessagesResponseSchema,
+  SendMessageBodySchema,
+} from '../schemas/messaging.schema.js';
 
 export const messagingRoute = {
   conversationsRoute: new OpenAPIHono(),
@@ -11,10 +20,11 @@ messagingRoute.conversationsRoute.openapi(
     path: '/',
     operationId: 'getConversations',
     description: 'List all active chat threads for the user.',
+    tags: [TAGS.MESSAGING],
     responses: {
       200: {
-        description: 'Conversations list',
-        content: { 'application/json': { schema: z.array(z.any()) } },
+        description: 'Successful retrieval of conversations',
+        content: { 'application/json': { schema: ConversationsResponseSchema } },
       },
     },
   }),
@@ -28,13 +38,14 @@ messagingRoute.messagesRoute.openapi(
     path: '/',
     operationId: 'getMessages',
     description: 'Short-polling endpoint for the active chat screen.',
+    tags: [TAGS.MESSAGING],
     request: {
-      query: z.object({ conversationId: z.string(), since: z.iso.datetime() }),
+      query: GetMessagesQuerySchema,
     },
     responses: {
       200: {
-        description: 'Messages list',
-        content: { 'application/json': { schema: z.array(z.any()) } },
+        description: 'Successful retrieval of messages',
+        content: { 'application/json': { schema: MessagesResponseSchema } },
       },
     },
   }),
@@ -48,19 +59,16 @@ messagingRoute.messagesRoute.openapi(
     path: '/',
     operationId: 'sendMessage',
     description: 'Send a message.',
+    tags: [TAGS.MESSAGING],
     request: {
       body: {
-        content: {
-          'application/json': {
-            schema: z.object({ conversationId: z.string(), text: z.string() }),
-          },
-        },
+        content: { 'application/json': { schema: SendMessageBodySchema } },
       },
     },
     responses: {
       200: {
         description: 'Message sent',
-        content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+        content: { 'application/json': { schema: SuccessResponseSchema } },
       },
     },
   }),

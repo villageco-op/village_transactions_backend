@@ -79,7 +79,29 @@ export const IsoDateTimeSchema = z.string().datetime().openapi({
 });
 
 export const IsoDateSchema = z.string().date().openapi({
-  format: 'date', // Explicitly tells Swagger this is just a date (no time)
+  format: 'date',
   example: '2026-03-27',
   description: 'ISO 8601 calendar date (YYYY-MM-DD)',
+});
+
+export const ErrorResponseSchema = z.object({ error: z.string() });
+
+export const SuccessResponseSchema = z.object({
+  success: z.boolean(),
+});
+
+export const EntityIdField = z.string().uuid().openapi({
+  example: '123e4567-e89b-12d3-a456-426614174000',
+});
+
+export const EntityParamSchema = z.object({
+  id: EntityIdField,
+});
+
+export const SuccessWithEntitySchema = SuccessResponseSchema.extend({
+  entityId: EntityIdField,
+});
+
+export const UserParamSchema = z.object({
+  id: UserIdSchema,
 });

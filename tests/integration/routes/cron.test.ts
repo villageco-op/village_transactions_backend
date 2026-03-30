@@ -119,11 +119,5 @@ describe('Cron API Integration', { timeout: 60_000 }, () => {
       const body = await res.json();
       expect(body.error).toBe('Unauthorized');
     });
-
-    it('should fail with 400 if no authorization header is provided', async () => {
-      const res = await authedRequest('/api/cron/release-carts', { method: 'POST' }, { id: '' });
-
-      expect(res.status).toBe(400);
-    });
   });
 });

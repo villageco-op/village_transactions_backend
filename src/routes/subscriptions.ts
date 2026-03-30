@@ -1,10 +1,13 @@
 import { verifyAuth } from '@hono/auth-js';
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import { TAGS } from '../constants/tags.js';
 import {
+  EntityParamSchema,
+  ErrorResponseSchema,
   SuccessResponseSchema,
-  UpdateSubscriptionStatusSchema,
-} from '../schemas/subscription.schema.js';
+} from '../schemas/common.schema.js';
+import { UpdateSubscriptionStatusSchema } from '../schemas/subscription.schema.js';
 import { updateSubscriptionStatus } from '../services/subscription.service.js';
 
 export const subscriptionsRoute = new OpenAPIHono();
@@ -16,9 +19,10 @@ subscriptionsRoute.openapi(
     operationId: 'updateSubscriptionStatus',
     description:
       'Manage recurring scheduled purchases. Integrates natively with Stripe to pause or cancel collections.',
+    tags: [TAGS.SUBSCRIPTIONS],
     middleware: [verifyAuth()],
     request: {
-      params: z.object({ id: z.string() }),
+      params: EntityParamSchema,
       body: {
         content: {
           'application/json': { schema: UpdateSubscriptionStatusSchema },
@@ -32,11 +36,11 @@ subscriptionsRoute.openapi(
       },
       401: {
         description: 'Unauthorized',
-        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
       404: {
         description: 'Not found',
-        content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+        content: { 'application/json': { schema: ErrorResponseSchema } },
       },
     },
   }),

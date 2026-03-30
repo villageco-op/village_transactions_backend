@@ -47,6 +47,8 @@ export const OrderSchema = createSelectSchema(orders)
   .omit({ stripeSessionId: true })
   .openapi('Order');
 
+export const OrdersListSchema = z.array(OrderSchema).openapi('OrdersList');
+
 export type GetOrdersQuery = z.infer<typeof GetOrdersQuerySchema>;
 export type Order = z.infer<typeof OrderSchema>;
 export type CancelOrderParams = z.infer<typeof CancelOrderParamsSchema>;
@@ -54,3 +56,4 @@ export type CancelOrderBody = z.infer<typeof CancelOrderBodySchema>;
 export type RescheduleOrderParams = z.infer<typeof RescheduleOrderParamsSchema>;
 export type RescheduleOrderBody = z.infer<typeof RescheduleOrderBodySchema>;
 export type OrderActionSuccess = z.infer<typeof OrderActionSuccessSchema>;
+export type OrdersList = z.infer<typeof OrdersListSchema>;

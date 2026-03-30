@@ -88,7 +88,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ success: true, id: dbProduce.id });
+    expect(body).toEqual({ success: true, entityId: dbProduce.id });
 
     const [updatedDbProduce] = await testDb
       .select()
@@ -165,10 +165,10 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     expect(res.status).toBe(201);
 
     const body = await res.json();
-    expect(body).toHaveProperty('id');
-    expect(typeof body.id).toBe('string');
+    expect(body).toHaveProperty('entityId');
+    expect(typeof body.entityId).toBe('string');
 
-    const [dbProduce] = await testDb.select().from(produce).where(eq(produce.id, body.id));
+    const [dbProduce] = await testDb.select().from(produce).where(eq(produce.id, body.entityId));
 
     expect(dbProduce).toBeDefined();
     expect(dbProduce.title).toBe('Organic Honeycrisp Apples');
