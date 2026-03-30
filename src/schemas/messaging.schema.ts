@@ -16,13 +16,10 @@ export const GetMessagesQuerySchema = z.object({
   conversationId: z
     .string()
     .openapi({ example: 'conv_123', description: 'The unique ID of the chat thread' }),
-  since: z
-    .string()
-    .datetime()
-    .openapi({
-      example: '2026-03-29T00:00:00Z',
-      description: 'Filter messages updated after this timestamp',
-    }),
+  since: z.string().datetime().openapi({
+    example: '2026-03-29T00:00:00Z',
+    description: 'Filter messages updated after this timestamp',
+  }),
 });
 
 export const MessageSchema = z

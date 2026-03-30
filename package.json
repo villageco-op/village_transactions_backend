@@ -44,11 +44,11 @@
     "vitest": "^4.1.0"
   },
   "lint-staged": {
-    "*.ts": [
+    "**/*.ts": [
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{json,md}": [
+    "**/*.{json,md}": [
       "prettier --write"
     ]
   },
