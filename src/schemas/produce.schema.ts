@@ -63,18 +63,22 @@ export const UpdateProduceSchema = ProduceFields.partial()
   })
   .openapi('UpdateProducePayload');
 
-export const ProduceListItemSchema = z.object({
-  id: ResourceIdSchema,
-  thumbnail: ImageUrlSchema.nullable(),
-  name: z.string().openapi({ example: 'Honeycrisp Apples' }),
-  sellerName: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
-  sellerId: UserIdSchema,
-  price: z.string().openapi({ example: '4.50', description: 'Formatted price string' }),
-  amount: z.string().openapi({ example: '16oz', description: 'Formatted weight/quantity string' }),
-  availableBy: z.date(),
-  distance: z.number().openapi({ example: 5.2, description: 'Distance in miles from the user' }),
-  isSubscribable: z.boolean().nullable(),
-});
+export const ProduceListItemSchema = z
+  .object({
+    id: ResourceIdSchema,
+    thumbnail: ImageUrlSchema.nullable(),
+    name: z.string().openapi({ example: 'Honeycrisp Apples' }),
+    sellerName: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
+    sellerId: UserIdSchema,
+    price: z.string().openapi({ example: '4.50', description: 'Formatted price string' }),
+    amount: z
+      .string()
+      .openapi({ example: '16oz', description: 'Formatted weight/quantity string' }),
+    availableBy: z.date(),
+    distance: z.number().openapi({ example: 5.2, description: 'Distance in miles from the user' }),
+    isSubscribable: z.boolean().nullable(),
+  })
+  .openapi('ProduceListItem');
 
 export const ProduceListResponseSchema = z
   .array(ProduceListItemSchema)
@@ -109,33 +113,41 @@ export const ProduceMapQuerySchema = z.object({
   }),
 });
 
-export const ProduceMapItemSchema = z.object({
-  id: ResourceIdSchema,
-  name: z.string().openapi({ example: 'Kale' }),
-  thumbnail: ImageUrlSchema.nullable(),
-});
+export const ProduceMapItemSchema = z
+  .object({
+    id: ResourceIdSchema,
+    name: z.string().openapi({ example: 'Kale' }),
+    thumbnail: ImageUrlSchema.nullable(),
+  })
+  .openapi('ProduceMapItem');
 
-export const SellerMapGroupSchema = z.object({
-  sellerId: UserIdSchema,
-  lat: z.number().openapi({ example: 43.0731 }),
-  lng: z.number().openapi({ example: -89.4012 }),
-  produce: z.array(ProduceMapItemSchema).openapi({
-    description: 'List of produce items available at this specific map location',
-  }),
-});
+export const SellerMapGroupSchema = z
+  .object({
+    sellerId: UserIdSchema,
+    lat: z.number().openapi({ example: 43.0731 }),
+    lng: z.number().openapi({ example: -89.4012 }),
+    produce: z.array(ProduceMapItemSchema).openapi({
+      description: 'List of produce items available at this specific map location',
+    }),
+  })
+  .openapi('SellerMapGroup');
 
 export const SellerMapGroupListSchema = z.array(SellerMapGroupSchema).openapi('SellerMapGroupList');
 
-export const ProduceOrdersQuerySchema = z.object({
-  limit: z.coerce.number().default(10),
-  offset: z.coerce.number().default(0),
-});
+export const ProduceOrdersQuerySchema = z
+  .object({
+    limit: z.coerce.number().default(10),
+    offset: z.coerce.number().default(0),
+  })
+  .openapi('SellerMapGroup');
 
-export const ProduceOrderBuyerSchema = z.object({
-  id: UserIdSchema,
-  name: z.string().nullable().openapi({ example: 'John Doe' }),
-  image: ImageUrlSchema.nullable(),
-});
+export const ProduceOrderBuyerSchema = z
+  .object({
+    id: UserIdSchema,
+    name: z.string().nullable().openapi({ example: 'John Doe' }),
+    image: ImageUrlSchema.nullable(),
+  })
+  .openapi('ProduceOrderBuyer');
 
 export const ProduceOrderListItemSchema = z.object({
   id: ResourceIdSchema,

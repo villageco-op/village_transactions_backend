@@ -7,6 +7,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { DatabaseError } from './interfaces/error.interface.js';
 import { getAuthConfig } from './lib/auth-config.js';
 import { openApiConfig } from './lib/openapi-config.js';
+import { registerSharedSchemas } from './lib/register-schemas.js';
 import { availabilityRoute } from './routes/availability.js';
 import { buyerRoute } from './routes/buyer.js';
 import { cartRoute } from './routes/cart.js';
@@ -60,6 +61,8 @@ app.onError((err, c) => {
   console.error(err, c);
   return c.json({ error: 'Internal Server Error' }, 500);
 });
+
+registerSharedSchemas(app);
 
 app.use('*', initAuthConfig(getAuthConfig));
 

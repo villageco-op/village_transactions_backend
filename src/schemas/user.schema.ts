@@ -47,20 +47,22 @@ export const UpdateUserSchema = z
   })
   .openapi('UpdateUserPayload');
 
-export const WindowSchema = z.object({
-  day: z.string().openapi({
-    example: 'Monday',
-    description: 'The day of the week for this availability window',
-  }),
-  start: z.string().openapi({
-    example: '09:00',
-    description: 'Opening time in 24-hour format (HH:mm)',
-  }),
-  end: z.string().openapi({
-    example: '17:00',
-    description: 'Closing time in 24-hour format (HH:mm)',
-  }),
-});
+export const WindowSchema = z
+  .object({
+    day: z.string().openapi({
+      example: 'Monday',
+      description: 'The day of the week for this availability window',
+    }),
+    start: z.string().openapi({
+      example: '09:00',
+      description: 'Opening time in 24-hour format (HH:mm)',
+    }),
+    end: z.string().openapi({
+      example: '17:00',
+      description: 'Closing time in 24-hour format (HH:mm)',
+    }),
+  })
+  .openapi('AvailabilityWindow');
 
 export const UpdateScheduleRulesSchema = z
   .object({
@@ -105,7 +107,7 @@ export const PublicUserProfileSchema = z
         '4': z.number(),
         '5': z.number(),
       })
-      .openapi({ description: 'Count of reviews for each star level' }),
+      .openapi('ReviewBreakdown', { description: 'Count of reviews for each star level' }),
     activeBuyerCount: z.number().openapi({
       example: 12,
       description: 'Number of unique customers who have ordered recently',
