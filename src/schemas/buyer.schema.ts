@@ -54,12 +54,10 @@ export const BillingSummaryResponseSchema = z
     avgCostPerLb: z
       .number()
       .openapi({ example: 7.45, description: 'Average cost per pound across all orders' }),
-    localSourcingPercentage: z
-      .number()
-      .openapi({
-        example: 75.0,
-        description: 'Percentage of orders from sellers in the same city',
-      }),
+    localSourcingPercentage: z.number().openapi({
+      example: 75.0,
+      description: 'Percentage of orders from sellers in the same city',
+    }),
   })
   .openapi('BillingSummaryResponse');
 
