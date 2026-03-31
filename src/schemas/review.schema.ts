@@ -3,6 +3,7 @@ import { z } from '@hono/zod-openapi';
 import {
   ImageUrlSchema,
   IsoDateTimeSchema,
+  PaginationMetadata,
   ResourceIdSchema,
   UserIdSchema,
 } from './common.schema.js';
@@ -20,7 +21,7 @@ export const CreateReviewSchema = z
       description: 'Optional text review from the buyer',
     }),
   })
-  .openapi('CreateReview');
+  .openapi('CreateReviewPayload');
 
 export const GetSellerReviewsQuerySchema = z.object({
   page: z.coerce
@@ -52,30 +53,31 @@ export const GetSellerReviewsQuerySchema = z.object({
 
 export type GetSellerReviewsQuery = z.infer<typeof GetSellerReviewsQuerySchema>;
 
-export const ReviewBuyerSchema = z.object({
-  id: UserIdSchema,
-  name: z.string().nullable().openapi({ example: 'Alex River' }),
-  image: ImageUrlSchema.nullable(),
-});
+export const ReviewBuyerSchema = z
+  .object({
+    id: UserIdSchema,
+    name: z.string().nullable().openapi({ example: 'Alex River' }),
+    image: ImageUrlSchema.nullable(),
+  })
+  .openapi('ReviewBuyer');
 
-export const SellerReviewItemSchema = z.object({
-  id: ResourceIdSchema,
-  rating: z.number().openapi({ example: 4 }),
-  comment: z.string().nullable().openapi({ example: 'Great produce, slightly late delivery.' }),
-  createdAt: IsoDateTimeSchema,
-  buyer: ReviewBuyerSchema.nullable(),
-});
+export const SellerReviewItemSchema = z
+  .object({
+    id: ResourceIdSchema,
+    rating: z.number().openapi({ example: 4 }),
+    comment: z.string().nullable().openapi({ example: 'Great produce, slightly late delivery.' }),
+    createdAt: IsoDateTimeSchema,
+    buyer: ReviewBuyerSchema.nullable(),
+  })
+  .openapi('SellerReviewItem');
 
-export const PaginatedReviewsResponseSchema = z.object({
-  reviews: z
-    .array(SellerReviewItemSchema)
-    .openapi({ description: 'List of reviews for the seller' }),
-  pagination: z.object({
-    total: z.number().openapi({ example: 45, description: 'Total number of reviews available' }),
-    page: z.number().openapi({ example: 1 }),
-    limit: z.number().openapi({ example: 10 }),
-    totalPages: z.number().openapi({ example: 5 }),
-  }),
-});
+export const PaginatedReviewsResponseSchema = z
+  .object({
+    reviews: z
+      .array(SellerReviewItemSchema)
+      .openapi({ description: 'List of reviews for the seller' }),
+    pagination: PaginationMetadata,
+  })
+  .openapi('PaginatedReviewsResponse');
 
 export type CreateReviewPayload = z.infer<typeof CreateReviewSchema>;

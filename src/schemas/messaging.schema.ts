@@ -38,7 +38,7 @@ export const SendMessageBodySchema = z
     conversationId: z.string().openapi({ example: 'conv_123' }),
     text: z.string().min(1).openapi({ example: 'I will be there in 5 minutes.' }),
   })
-  .openapi('SendMessageRequest');
+  .openapi('SendMessagePayload');
 
 export type GetMessagesQuery = z.infer<typeof GetMessagesQuerySchema>;
 export type SendMessageBody = z.infer<typeof SendMessageBodySchema>;

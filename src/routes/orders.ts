@@ -3,12 +3,11 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 
 import { TAGS } from '../constants/tags.js';
-import { ErrorResponseSchema } from '../schemas/common.schema.js';
+import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.schema.js';
 import {
   CancelOrderBodySchema,
   CancelOrderParamsSchema,
   GetOrdersQuerySchema,
-  OrderActionSuccessSchema,
   OrdersListSchema,
   RescheduleOrderBodySchema,
   RescheduleOrderParamsSchema,
@@ -72,7 +71,7 @@ ordersRoute.openapi(
     responses: {
       200: {
         description: 'Order successfully rescheduled',
-        content: { 'application/json': { schema: OrderActionSuccessSchema } },
+        content: { 'application/json': { schema: SuccessResponseSchema } },
       },
       400: {
         description: 'Bad Request',
@@ -125,7 +124,7 @@ ordersRoute.openapi(
       200: {
         description: 'Order successfully canceled',
         content: {
-          'application/json': { schema: OrderActionSuccessSchema },
+          'application/json': { schema: SuccessResponseSchema },
         },
       },
       400: {

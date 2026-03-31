@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-import { AddressSchema, IsoDateTimeSchema, PriceDollarsSchema } from './common.schema.js';
+import { IsoDateTimeSchema, LocationSchema, PriceDollarsSchema } from './common.schema.js';
 
 export const GetSellerPayoutsQuerySchema = z.object({
   timeframe: z
@@ -17,29 +17,33 @@ export const GetSellerPayoutsQuerySchema = z.object({
     }),
 });
 
-export const PayoutSchema = z.object({
-  date: IsoDateTimeSchema,
-  buyerName: z.string().openapi({
-    example: 'John Doe',
-    description: 'Name of the buyer associated with this transaction',
-  }),
-  productName: z.string().openapi({
-    example: 'Organic Honey crisp Apples',
-    description: 'Name of the product sold',
-  }),
-  quantityLbs: z.number().openapi({
-    example: 15.5,
-    description: 'The quantity sold in pounds (lbs)',
-  }),
-  amountDollars: PriceDollarsSchema,
-});
+export const PayoutSchema = z
+  .object({
+    date: IsoDateTimeSchema,
+    buyerName: z.string().openapi({
+      example: 'John Doe',
+      description: 'Name of the buyer associated with this transaction',
+    }),
+    productName: z.string().openapi({
+      example: 'Organic Honey crisp Apples',
+      description: 'Name of the product sold',
+    }),
+    quantityLbs: z.number().openapi({
+      example: 15.5,
+      description: 'The quantity sold in pounds (lbs)',
+    }),
+    amountDollars: PriceDollarsSchema,
+  })
+  .openapi('Payout');
 
 export const PayoutHistorySchema = z.array(PayoutSchema).openapi('PayoutHistory');
 
-export const ProduceSalesSchema = z.object({
-  produceName: z.string().openapi({ example: 'Organic Apples' }),
-  amount: PriceDollarsSchema,
-});
+export const ProduceSalesSchema = z
+  .object({
+    produceName: z.string().openapi({ example: 'Organic Apples' }),
+    amount: PriceDollarsSchema,
+  })
+  .openapi('ProduceSales');
 
 export const SellerEarningsResponseSchema = z
   .object({
@@ -59,18 +63,14 @@ export const SellerEarningsResponseSchema = z
   })
   .openapi('SellerEarningsResponse');
 
-export const LocationSchema = z.object({
-  lat: z.number().nullable().openapi({ example: 37.7749 }),
-  lng: z.number().nullable().openapi({ example: -122.4194 }),
-  address: AddressSchema.nullable(),
-});
-
-export const EarningsByProduceSchema = z.object({
-  produceName: z.string().openapi({ example: 'Tomatoes' }),
-  earned: z
-    .number()
-    .openapi({ example: 50.0, description: 'Total dollars earned for this produce item' }),
-});
+export const EarningsByProduceSchema = z
+  .object({
+    produceName: z.string().openapi({ example: 'Tomatoes' }),
+    earned: z
+      .number()
+      .openapi({ example: 50.0, description: 'Total dollars earned for this produce item' }),
+  })
+  .openapi('EarningsByProduce');
 
 export const SellerDashboardResponseSchema = z
   .object({

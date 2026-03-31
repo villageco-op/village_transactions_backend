@@ -11,7 +11,7 @@ export const GetAvailabilityQuerySchema = z.object({
   date: IsoDateSchema,
 });
 
-export const AvailabilityResponseSchema = z.array(z.string()).openapi({
+export const AvailabilityResponseSchema = z.array(z.string()).openapi('AvailabilityResponse', {
   example: ['09:00', '10:30', '14:00'],
   description: 'An array of available time slots',
 });

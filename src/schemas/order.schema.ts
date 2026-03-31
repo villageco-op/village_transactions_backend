@@ -9,39 +9,38 @@ export const CancelOrderParamsSchema = z.object({
   id: ResourceIdSchema,
 });
 
-export const CancelOrderBodySchema = z.object({
-  reason: z.string().min(1).openapi({
-    example: 'Changed my mind',
-    description: 'The reason for canceling the order',
-  }),
-});
+export const CancelOrderBodySchema = z
+  .object({
+    reason: z.string().min(1).openapi({
+      example: 'Changed my mind',
+      description: 'The reason for canceling the order',
+    }),
+  })
+  .openapi('CancelOrderPayload');
 
 export const RescheduleOrderParamsSchema = z.object({
   id: ResourceIdSchema,
 });
 
-export const RescheduleOrderBodySchema = z.object({
-  newTime: IsoDateTimeSchema,
-});
+export const RescheduleOrderBodySchema = z
+  .object({
+    newTime: IsoDateTimeSchema,
+  })
+  .openapi('RescheduleOrderPayload');
 
-export const OrderActionSuccessSchema = z.object({
-  success: z.boolean().openapi({
-    example: true,
-    description: 'Indicates if the requested order action was processed successfully',
-  }),
-});
-
-export const GetOrdersQuerySchema = z.object({
-  role: z.enum(['buyer', 'seller']).openapi({
-    description: 'The perspective from which to fetch orders',
-    example: 'buyer',
-  }),
-  status: OrderStatusSchema.optional(),
-  timeframe: z.string().optional().openapi({
-    description: 'Optional timeframe filter (e.g., "7d", "30d", or ISO range)',
-    example: 'recent',
-  }),
-});
+export const GetOrdersQuerySchema = z
+  .object({
+    role: z.enum(['buyer', 'seller']).openapi({
+      description: 'The perspective from which to fetch orders',
+      example: 'buyer',
+    }),
+    status: OrderStatusSchema.optional(),
+    timeframe: z.string().optional().openapi({
+      description: 'Optional timeframe filter (e.g., "7d", "30d", or ISO range)',
+      example: 'recent',
+    }),
+  })
+  .openapi('GetOrdersQuery');
 
 export const OrderSchema = createSelectSchema(orders)
   .omit({ stripeSessionId: true })
@@ -55,5 +54,4 @@ export type CancelOrderParams = z.infer<typeof CancelOrderParamsSchema>;
 export type CancelOrderBody = z.infer<typeof CancelOrderBodySchema>;
 export type RescheduleOrderParams = z.infer<typeof RescheduleOrderParamsSchema>;
 export type RescheduleOrderBody = z.infer<typeof RescheduleOrderBodySchema>;
-export type OrderActionSuccess = z.infer<typeof OrderActionSuccessSchema>;
 export type OrdersList = z.infer<typeof OrdersListSchema>;
