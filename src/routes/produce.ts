@@ -20,6 +20,7 @@ import {
   ProduceOrderListResponseSchema,
   ProduceResponseSchema,
 } from '../schemas/produce.schema.js';
+import { getPaginationParams } from '../schemas/util/pagination.js';
 import {
   createProduceListing,
   deleteProduceListing,
@@ -84,17 +85,19 @@ produceRoute.openapi(
   }),
   async (c) => {
     const query = c.req.valid('query');
+    const { limit, offset } = getPaginationParams(query.page, query.limit);
 
-    const items = await getProduceList({
+    const paginatedItems = await getProduceList({
       lat: query.lat,
       lng: query.lng,
       sortBy: query.sortBy,
       hasDelivery: query.hasDelivery,
-      limit: query.limit,
-      offset: query.offset,
+      page: query.page,
+      limit: limit,
+      offset: offset,
     });
 
-    return c.json(items, 200);
+    return c.json(paginatedItems, 200);
   },
 );
 
@@ -286,15 +289,17 @@ produceRoute.openapi(
     }
 
     const { id } = c.req.valid('param');
-    const query = c.req.valid('query');
+    const { page, limit } = c.req.valid('query');
 
-    const orders = await getProduceOrders(id, userId, query.limit, query.offset);
+    const { offset } = getPaginationParams(page, limit);
 
-    if (!orders) {
+    const paginatedOrders = await getProduceOrders(id, userId, page, limit, offset);
+
+    if (!paginatedOrders) {
       return c.json({ error: 'Listing not found or unauthorized' }, 404);
     }
 
-    return c.json(orders, 200);
+    return c.json(paginatedOrders, 200);
   },
 );
 
@@ -328,14 +333,17 @@ produceRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const query = c.req.valid('query');
+    const { status, page, limit } = c.req.valid('query');
 
-    const items = await getSellerProduceListings(userId, {
-      limit: query.limit,
-      offset: query.offset,
-      status: query.status,
+    const { offset } = getPaginationParams(page, limit);
+
+    const paginatedItems = await getSellerProduceListings(userId, {
+      page: page,
+      limit: limit,
+      offset: offset,
+      status: status,
     });
 
-    return c.json(items, 200);
+    return c.json(paginatedItems, 200);
   },
 );

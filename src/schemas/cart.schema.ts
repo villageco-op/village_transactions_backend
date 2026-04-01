@@ -65,7 +65,7 @@ export const CartSellerGroupSchema = z
 
 export const GetCartResponseSchema = z
   .object({
-    cart: z.array(CartSellerGroupSchema).openapi({
+    data: z.array(CartSellerGroupSchema).openapi({
       description: 'User shopping cart grouped by seller',
     }),
   })

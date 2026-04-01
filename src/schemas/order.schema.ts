@@ -3,7 +3,13 @@ import { createSelectSchema } from 'drizzle-zod';
 
 import { orders } from '../db/schema.js';
 
-import { IsoDateTimeSchema, OrderStatusSchema, ResourceIdSchema } from './common.schema.js';
+import {
+  IsoDateTimeSchema,
+  OrderStatusSchema,
+  PaginationQuerySchema,
+  ResourceIdSchema,
+} from './common.schema.js';
+import { createPaginatedResponseSchema } from './util/pagination.js';
 
 export const CancelOrderParamsSchema = z.object({
   id: ResourceIdSchema,
@@ -40,13 +46,17 @@ export const GetOrdersQuerySchema = z
       example: 'recent',
     }),
   })
+  .extend(PaginationQuerySchema.shape)
   .openapi('GetOrdersQuery');
 
 export const OrderSchema = createSelectSchema(orders)
   .omit({ stripeSessionId: true })
   .openapi('Order');
 
-export const OrdersListSchema = z.array(OrderSchema).openapi('OrdersList');
+export const OrdersListResponseSchema = createPaginatedResponseSchema(
+  OrderSchema,
+  'OrdersListResponse',
+);
 
 export type GetOrdersQuery = z.infer<typeof GetOrdersQuerySchema>;
 export type Order = z.infer<typeof OrderSchema>;
@@ -54,4 +64,3 @@ export type CancelOrderParams = z.infer<typeof CancelOrderParamsSchema>;
 export type CancelOrderBody = z.infer<typeof CancelOrderBodySchema>;
 export type RescheduleOrderParams = z.infer<typeof RescheduleOrderParamsSchema>;
 export type RescheduleOrderBody = z.infer<typeof RescheduleOrderBodySchema>;
-export type OrdersList = z.infer<typeof OrdersListSchema>;

@@ -167,54 +167,57 @@ describe('ProduceService - getProduceList', () => {
     vi.clearAllMocks();
   });
 
-  it('should format repository results, extracting the thumbnail and parsing distance', async () => {
+  it('should format repository results, extracting the thumbnail, parsing distance, and returning pagination meta', async () => {
     const mockDbDate = new Date();
-    const mockRepoResponse = [
-      {
-        id: 'prod_1',
-        name: 'Apples',
-        price: '0.50',
-        amount: '100',
-        images: ['https://example.com/apple1.jpg', 'https://example.com/apple2.jpg'],
-        isSubscribable: true,
-        availableBy: mockDbDate,
-        sellerId: 'user_1',
-        sellerName: 'Farmer Bob',
-        distance: '5.234', // simulated PG string or number return
-      },
-      {
-        id: 'prod_2',
-        name: 'Oranges',
-        price: '0.75',
-        amount: '50',
-        images: [], // No images case
-        isSubscribable: false,
-        availableBy: mockDbDate,
-        sellerId: 'user_2',
-        sellerName: 'Farmer Jane',
-        distance: '10.5',
-      },
-    ];
+    const mockRepoResponse = {
+      items: [
+        {
+          id: 'prod_1',
+          name: 'Apples',
+          price: '0.50',
+          amount: '100',
+          images: ['https://example.com/apple1.jpg', 'https://example.com/apple2.jpg'],
+          isSubscribable: true,
+          availableBy: mockDbDate,
+          sellerId: 'user_1',
+          sellerName: 'Farmer Bob',
+          distance: '5.234',
+        },
+        {
+          id: 'prod_2',
+          name: 'Oranges',
+          price: '0.75',
+          amount: '50',
+          images: [],
+          isSubscribable: false,
+          availableBy: mockDbDate,
+          sellerId: 'user_2',
+          sellerName: 'Farmer Jane',
+          distance: '10.5',
+        },
+      ],
+      total: 45,
+    };
 
     vi.mocked(produceRepository.getList).mockResolvedValueOnce(mockRepoResponse as any);
 
     const result = await getProduceList({
       lat: 40.0,
       lng: -70.0,
+      page: 2,
       limit: 20,
-      offset: 0,
+      offset: 20,
     });
 
-    // Check parameters passed to repo
     expect(produceRepository.getList).toHaveBeenCalledWith({
       lat: 40.0,
       lng: -70.0,
+      page: 2,
       limit: 20,
-      offset: 0,
+      offset: 20,
     });
 
-    // Verify first item mapping (has images)
-    expect(result[0]).toEqual({
+    expect(result.data[0]).toEqual({
       id: 'prod_1',
       name: 'Apples',
       price: '0.50',
@@ -223,12 +226,11 @@ describe('ProduceService - getProduceList', () => {
       availableBy: mockDbDate,
       sellerId: 'user_1',
       sellerName: 'Farmer Bob',
-      distance: 5.234, // Converted to number
-      thumbnail: 'https://example.com/apple1.jpg', // Extracted first image
+      distance: 5.234,
+      thumbnail: 'https://example.com/apple1.jpg',
     });
 
-    // Verify second item mapping (no images)
-    expect(result[1]).toEqual({
+    expect(result.data[1]).toEqual({
       id: 'prod_2',
       name: 'Oranges',
       price: '0.75',
@@ -238,7 +240,14 @@ describe('ProduceService - getProduceList', () => {
       sellerId: 'user_2',
       sellerName: 'Farmer Jane',
       distance: 10.5,
-      thumbnail: null, // Null when empty
+      thumbnail: null,
+    });
+
+    expect(result.meta).toEqual({
+      total: 45,
+      page: 2,
+      limit: 20,
+      totalPages: 3, // Math.ceil(45 / 20)
     });
   });
 });
@@ -342,11 +351,21 @@ describe('ProduceService - getProduceOrders', () => {
       },
     ];
 
-    vi.mocked(produceRepository.getProduceOrders).mockResolvedValueOnce(mockDbOrders as any);
+    vi.mocked(produceRepository.getProduceOrders).mockResolvedValueOnce({
+      items: mockDbOrders,
+      total: 1,
+    } as any);
 
-    const result = await getProduceOrders(mockProduceId, mockSellerId, 10, 0);
+    const result = await getProduceOrders(mockProduceId, mockSellerId, 1, 10, 0);
 
-    expect(result).toEqual(mockDbOrders);
+    expect(result?.data).toEqual(mockDbOrders);
+    expect(result?.meta).toEqual({
+      total: 1,
+      page: 1,
+      limit: 10,
+      totalPages: 1,
+    });
+
     expect(produceRepository.getProduceOrders).toHaveBeenCalledWith(
       mockProduceId,
       mockSellerId,
@@ -358,7 +377,7 @@ describe('ProduceService - getProduceOrders', () => {
   it('should return null if the user is unauthorized or the listing does not exist', async () => {
     vi.mocked(produceRepository.getProduceOrders).mockResolvedValueOnce(null);
 
-    const result = await getProduceOrders(mockProduceId, mockSellerId, 10, 0);
+    const result = await getProduceOrders(mockProduceId, mockSellerId, 1, 10, 0);
 
     expect(result).toBeNull();
     expect(produceRepository.getProduceOrders).toHaveBeenCalledWith(
@@ -374,7 +393,7 @@ describe('ProduceService - getProduceOrders', () => {
       new Error('Database Timeout'),
     );
 
-    await expect(getProduceOrders(mockProduceId, mockSellerId, 10, 0)).rejects.toThrow(
+    await expect(getProduceOrders(mockProduceId, mockSellerId, 1, 10, 0)).rejects.toThrow(
       'Database Timeout',
     );
   });
@@ -403,19 +422,30 @@ describe('ProduceService - getSellerProduceListings', () => {
       },
     ];
 
-    vi.mocked(produceRepository.getSellerListings).mockResolvedValueOnce(mockDbProduce as any);
+    vi.mocked(produceRepository.getSellerListings).mockResolvedValueOnce({
+      items: mockDbProduce,
+      total: 15,
+    } as any);
 
     const result = await getSellerProduceListings(mockSellerId, {
+      page: 2,
       limit: 10,
-      offset: 0,
+      offset: 10,
       status: undefined,
     });
 
-    expect(result).toEqual(mockDbProduce);
+    expect(result.data).toEqual(mockDbProduce);
+    expect(result.meta).toEqual({
+      total: 15,
+      page: 2,
+      limit: 10,
+      totalPages: 2,
+    });
+
     expect(produceRepository.getSellerListings).toHaveBeenCalledWith({
       sellerId: mockSellerId,
       limit: 10,
-      offset: 0,
+      offset: 10,
       status: undefined,
     });
   });
@@ -425,8 +455,8 @@ describe('ProduceService - getSellerProduceListings', () => {
       new Error('Database Timeout'),
     );
 
-    await expect(getSellerProduceListings(mockSellerId, { limit: 10, offset: 0 })).rejects.toThrow(
-      'Database Timeout',
-    );
+    await expect(
+      getSellerProduceListings(mockSellerId, { page: 1, limit: 10, offset: 0 }),
+    ).rejects.toThrow('Database Timeout');
   });
 });

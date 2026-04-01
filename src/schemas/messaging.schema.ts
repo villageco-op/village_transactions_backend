@@ -1,5 +1,8 @@
 import { z } from '@hono/zod-openapi';
 
+import { PaginationQuerySchema } from './common.schema.js';
+import { createPaginatedResponseSchema } from './util/pagination.js';
+
 export const ConversationSchema = z
   .object({
     id: z.string().openapi({ example: 'conv_123' }),
@@ -8,19 +11,25 @@ export const ConversationSchema = z
   })
   .openapi('Conversation');
 
-export const ConversationsResponseSchema = z
-  .array(ConversationSchema)
-  .openapi('ConversationsResponse');
+export const ConversationsResponseSchema = createPaginatedResponseSchema(
+  ConversationSchema,
+  'ConversationsResponse',
+);
 
-export const GetMessagesQuerySchema = z.object({
-  conversationId: z
-    .string()
-    .openapi({ example: 'conv_123', description: 'The unique ID of the chat thread' }),
-  since: z.string().datetime().openapi({
-    example: '2026-03-29T00:00:00Z',
-    description: 'Filter messages updated after this timestamp',
-  }),
-});
+export const GetMessagesQuerySchema = z
+  .object({
+    conversationId: z
+      .string()
+      .openapi({ example: 'conv_123', description: 'The unique ID of the chat thread' }),
+    since: z.string().datetime().optional().openapi({
+      example: '2026-03-29T00:00:00Z',
+      description: 'Filter messages updated after this timestamp',
+    }),
+  })
+  .extend(PaginationQuerySchema.shape)
+  .openapi('GetMessagesQuery');
+
+export const GetConversationsQuerySchema = PaginationQuerySchema.openapi('GetConversationsQuery');
 
 export const MessageSchema = z
   .object({
@@ -31,7 +40,10 @@ export const MessageSchema = z
   })
   .openapi('Message');
 
-export const MessagesResponseSchema = z.array(MessageSchema).openapi('MessagesResponse');
+export const MessagesResponseSchema = createPaginatedResponseSchema(
+  MessageSchema,
+  'MessagesResponse',
+);
 
 export const SendMessageBodySchema = z
   .object({

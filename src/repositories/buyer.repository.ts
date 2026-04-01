@@ -20,10 +20,22 @@ export const buyerRepository = {
    * @param buyerId - The unique user ID of the buyer.
    * @param limit - Number of records to return.
    * @param offset - Number of records to skip.
-   * @returns A list of growers.
+   * @returns An object containing items and total count.
    */
   async getGrowersByBuyerId(buyerId: string, limit: number, offset: number) {
-    return await this.db
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(distinct ${users.id})::int`,
+      })
+      .from(users)
+      .innerJoin(orders, eq(users.id, orders.sellerId))
+      .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .innerJoin(produce, eq(orderItems.productId, produce.id))
+      .where(and(eq(orders.buyerId, buyerId), eq(orders.status, 'completed')));
+
+    const total = totalCountResult?.count || 0;
+
+    const items = await this.db
       .select({
         sellerId: users.id,
         name: users.name,
@@ -45,6 +57,8 @@ export const buyerRepository = {
       .groupBy(users.id)
       .limit(limit)
       .offset(offset);
+
+    return { items, total };
   },
 
   /**

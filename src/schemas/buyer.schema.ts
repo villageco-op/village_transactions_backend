@@ -3,21 +3,14 @@ import { z } from '@hono/zod-openapi';
 import {
   AddressSchema,
   IsoDateTimeSchema,
+  PaginationQuerySchema,
   PriceDollarsSchema,
   ResourceIdSchema,
   UserIdSchema,
 } from './common.schema.js';
+import { createPaginatedResponseSchema } from './util/pagination.js';
 
-export const GetGrowersQuerySchema = z.object({
-  limit: z.coerce.number().min(1).max(100).optional().default(20).openapi({
-    example: 20,
-    description: 'Number of results to return',
-  }),
-  offset: z.coerce.number().min(0).optional().default(0).openapi({
-    example: 0,
-    description: 'Number of results to skip',
-  }),
-});
+export const GetGrowersQuerySchema = PaginationQuerySchema.openapi('GetGrowersQuery');
 
 export const GrowerSchema = z
   .object({
@@ -43,7 +36,7 @@ export const GrowerSchema = z
   })
   .openapi('Grower');
 
-export const GrowersResponseSchema = z.array(GrowerSchema).openapi('GrowersResponse');
+export const GrowersResponseSchema = createPaginatedResponseSchema(GrowerSchema, 'GrowersResponse');
 
 export const BillingSummaryResponseSchema = z
   .object({

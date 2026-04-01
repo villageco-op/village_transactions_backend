@@ -1,6 +1,5 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { HTTPException } from 'hono/http-exception';
 
 import { TAGS } from '../constants/tags.js';
 import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.schema.js';
@@ -8,10 +7,11 @@ import {
   CancelOrderBodySchema,
   CancelOrderParamsSchema,
   GetOrdersQuerySchema,
-  OrdersListSchema,
+  OrdersListResponseSchema,
   RescheduleOrderBodySchema,
   RescheduleOrderParamsSchema,
 } from '../schemas/order.schema.js';
+import { getPaginationParams } from '../schemas/util/pagination.js';
 import { cancelOrder, getOrders, rescheduleOrder } from '../services/order.service.js';
 
 export const ordersRoute = new OpenAPIHono();
@@ -30,7 +30,7 @@ ordersRoute.openapi(
     responses: {
       200: {
         description: 'Orders list',
-        content: { 'application/json': { schema: OrdersListSchema } },
+        content: { 'application/json': { schema: OrdersListResponseSchema } },
       },
       401: {
         description: 'Unauthorized',
@@ -43,14 +43,16 @@ ordersRoute.openapi(
     const userId = authUser?.session?.user?.id;
 
     if (!userId) {
-      throw new HTTPException(401, { message: 'Unauthorized' });
+      return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { role, status, timeframe } = c.req.valid('query');
+    const { role, status, timeframe, page, limit } = c.req.valid('query');
 
-    const ordersList = await getOrders(userId, role, status, timeframe);
+    const { offset } = getPaginationParams(page, limit);
 
-    return c.json(ordersList, 200);
+    const paginatedOrders = await getOrders(userId, role, status, timeframe, page, limit, offset);
+
+    return c.json(paginatedOrders, 200);
   },
 );
 
@@ -92,7 +94,7 @@ ordersRoute.openapi(
     const userId = authUser?.session?.user?.id;
 
     if (!userId) {
-      throw new HTTPException(401, { message: 'Unauthorized' });
+      return c.json({ error: 'Unauthorized' }, 401);
     }
 
     const { id } = c.req.valid('param');
@@ -144,7 +146,7 @@ ordersRoute.openapi(
     const userId = authUser?.session?.user?.id;
 
     if (!userId) {
-      throw new HTTPException(401, { message: 'Unauthorized' });
+      return c.json({ error: 'Unauthorized' }, 401);
     }
 
     const { id } = c.req.valid('param');

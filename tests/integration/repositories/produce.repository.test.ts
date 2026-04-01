@@ -238,13 +238,14 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
 
     it('should sort by spatial distance by default', async () => {
       // Query coordinates near Madison, WI
-      const result = await produceRepository.getList({
+      const { items: result, total } = await produceRepository.getList({
         lat: 43.0,
         lng: -89.4,
         limit: 10,
         offset: 0,
       });
 
+      expect(total).toBe(2);
       expect(result).toHaveLength(2);
       // First item should be Joe (Madison) because it's closer
       expect(result[0].sellerId).toBe(TEST_SELLER_ID);
@@ -254,7 +255,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     });
 
     it('should sort by price when requested', async () => {
-      const result = await produceRepository.getList({
+      const { items: result, total } = await produceRepository.getList({
         lat: 43.0, // Near Madison again
         lng: -89.4,
         sortBy: 'price',
@@ -262,6 +263,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         offset: 0,
       });
 
+      expect(total).toBe(2);
       expect(result).toHaveLength(2);
       // First item should be Jane (Chicago) because it's cheaper (0.25 vs 1.00)
       expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
@@ -271,7 +273,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     it('should filter by hasDelivery logic and deliveryRangeMiles', async () => {
       // Query exactly where Jane is (Chicago)
       // Jane has a delivery radius of 5 miles. Joe is 100+ miles away.
-      const result = await produceRepository.getList({
+      const { items: result, total } = await produceRepository.getList({
         lat: 41.8781,
         lng: -87.6298,
         hasDelivery: 'true',
@@ -281,6 +283,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
 
       // Joe shouldn't be here because he's too far for his 15mi delivery radius to cover Chicago.
       // Jane SHOULD be here because she is right at the location (0mi distance) which is <= 5mi radius.
+      expect(total).toBe(1);
       expect(result).toHaveLength(1);
       expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
     });
@@ -428,15 +431,16 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     it('should return orders successfully if the requester is the seller', async () => {
       const result = await produceRepository.getProduceOrders(dbProduce.id, TEST_SELLER_ID, 10, 0);
 
-      expect(result).toBeDefined();
-      expect(result).toHaveLength(2);
+      expect(result).not.toBeNull();
+      expect(result!.total).toBe(2);
+      expect(result!.items).toHaveLength(2);
 
-      expect(result![0].id).toBeDefined();
-      expect(result![0].status).toBeDefined();
-      expect(result![0].quantityOz).toBeDefined();
-      expect(result![0].buyer).toBeDefined();
-      expect(result![0].buyer.id).toBe(BUYER_ID);
-      expect(result![0].buyer.name).toBe('Bulk Buyer');
+      expect(result!.items[0].id).toBeDefined();
+      expect(result!.items[0].status).toBeDefined();
+      expect(result!.items[0].quantityOz).toBeDefined();
+      expect(result!.items[0].buyer).toBeDefined();
+      expect(result!.items[0].buyer.id).toBe(BUYER_ID);
+      expect(result!.items[0].buyer.name).toBe('Bulk Buyer');
     });
 
     it('should return null if the requester is NOT the seller', async () => {
@@ -445,25 +449,28 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     });
 
     it('should paginate correctly based on limit and offset', async () => {
-      // Get the first item only
       const page1 = await produceRepository.getProduceOrders(dbProduce.id, TEST_SELLER_ID, 1, 0);
-      expect(page1).toHaveLength(1);
+      expect(page1).not.toBeNull();
+      expect(page1!.total).toBe(2);
+      expect(page1!.items).toHaveLength(1);
 
-      // Get the second item
       const page2 = await produceRepository.getProduceOrders(dbProduce.id, TEST_SELLER_ID, 1, 1);
-      expect(page2).toHaveLength(1);
+      expect(page2).not.toBeNull();
+      expect(page2!.total).toBe(2);
+      expect(page2!.items).toHaveLength(1);
 
       // Ensure they are strictly different orders
-      expect(page1![0].id).not.toBe(page2![0].id);
+      expect(page1!.items[0].id).not.toBe(page2!.items[0].id);
 
-      // Try out-of-bounds offset
       const pageOutOfBounds = await produceRepository.getProduceOrders(
         dbProduce.id,
         TEST_SELLER_ID,
         10,
         50,
       );
-      expect(pageOutOfBounds).toHaveLength(0); // Valid structure, empty results
+      expect(pageOutOfBounds).not.toBeNull();
+      expect(pageOutOfBounds!.total).toBe(2);
+      expect(pageOutOfBounds!.items).toHaveLength(0);
     });
   });
 
@@ -507,12 +514,13 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     });
 
     it('should return only the requested sellers listings, ordered by newest first', async () => {
-      const results = await produceRepository.getSellerListings({
+      const { items: results, total } = await produceRepository.getSellerListings({
         sellerId: TEST_SELLER_ID,
         limit: 10,
         offset: 0,
       });
 
+      expect(total).toBe(2);
       expect(results).toHaveLength(2);
 
       expect(results[0].title).toBe('Test Paused 1');
@@ -522,25 +530,27 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     });
 
     it('should filter correctly by status', async () => {
-      const results = await produceRepository.getSellerListings({
+      const { items: results, total } = await produceRepository.getSellerListings({
         sellerId: TEST_SELLER_ID,
         limit: 10,
         offset: 0,
         status: 'active',
       });
 
+      expect(total).toBe(1);
       expect(results).toHaveLength(1);
       expect(results[0].title).toBe('Test Active 1');
       expect(results[0].status).toBe('active');
     });
 
     it('should paginate correctly', async () => {
-      const results = await produceRepository.getSellerListings({
+      const { items: results, total } = await produceRepository.getSellerListings({
         sellerId: TEST_SELLER_ID,
         limit: 1,
         offset: 1,
       });
 
+      expect(total).toBe(2);
       expect(results).toHaveLength(1);
       expect(results[0].title).toBe('Test Active 1');
     });

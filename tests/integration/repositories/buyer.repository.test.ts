@@ -164,7 +164,7 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
 
   it('should accurately aggregate growers stats including city', async () => {
     const results = await buyerRepository.getGrowersByBuyerId(BUYER_ID, 20, 0);
-    const seller1 = results.find((r) => r.sellerId === SELLER_1_ID);
+    const seller1 = results.items.find((r) => r.sellerId === SELLER_1_ID);
     expect(seller1?.city).toBe('Chicago');
   });
 

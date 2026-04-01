@@ -81,11 +81,11 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
 
       expect(res.status).toBe(200);
 
-      const body = await res.json();
-      expect(Array.isArray(body)).toBe(true);
-      expect(body).toHaveLength(1);
+      const { data } = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+      expect(data).toHaveLength(1);
 
-      const payoutLine = body[0];
+      const payoutLine = data[0];
       expect(payoutLine).toMatchObject({
         buyerName: 'Alice',
         productName: 'Fresh Berries',
@@ -99,10 +99,10 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
       const res = await authedRequest('/api/seller/payouts', {}, { id: SELLER_ID });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const { data } = await res.json();
 
-      expect(Array.isArray(body)).toBe(true);
-      expect(body).toHaveLength(1);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data).toHaveLength(1);
     });
   });
 

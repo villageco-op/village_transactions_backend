@@ -124,11 +124,31 @@ export const UserParamSchema = z
   })
   .openapi('UserParam');
 
-export const PaginationMetadata = z
+export const PaginationQuerySchema = z.object({
+  page: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .default(1)
+    .openapi({ example: 1, description: 'The page number for pagination' }),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .default(10)
+    .openapi({ example: 10, description: 'Number of items to return per page' }),
+});
+
+export const PaginationMetadataSchema = z
   .object({
-    total: z.number().openapi({ example: 45, description: 'Total number of reviews available' }),
+    total: z.number().openapi({ example: 45, description: 'Total number of items available' }),
     page: z.number().openapi({ example: 1 }),
     limit: z.number().openapi({ example: 10 }),
     totalPages: z.number().openapi({ example: 5 }),
   })
   .openapi('PaginationMetadata');
+
+export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;

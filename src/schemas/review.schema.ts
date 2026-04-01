@@ -3,7 +3,7 @@ import { z } from '@hono/zod-openapi';
 import {
   ImageUrlSchema,
   IsoDateTimeSchema,
-  PaginationMetadata,
+  PaginationMetadataSchema,
   ResourceIdSchema,
   UserIdSchema,
 } from './common.schema.js';
@@ -76,7 +76,7 @@ export const PaginatedReviewsResponseSchema = z
     reviews: z
       .array(SellerReviewItemSchema)
       .openapi({ description: 'List of reviews for the seller' }),
-    pagination: PaginationMetadata,
+    pagination: PaginationMetadataSchema,
   })
   .openapi('PaginatedReviewsResponse');
 

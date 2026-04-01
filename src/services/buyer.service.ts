@@ -5,22 +5,25 @@ import type {
   BuyerDashboardResponse,
   GrowerResponse,
 } from '../schemas/buyer.schema.js';
+import type { PaginationMetadata } from '../schemas/common.schema.js';
 
 /**
- * Gets a list of growers a buyer has previously bought from with aggregated purchase stats.
+ * Gets a paginated list of growers a buyer has previously bought from with aggregated purchase stats.
  * @param buyerId - The ID of the buyer
- * @param limit - Max results
+ * @param page - Current page number
+ * @param limit - Max results per page
  * @param offset - Offset index
- * @returns Array of formatted grower objects
+ * @returns Paginated grower responses
  */
 export async function getGrowersForBuyer(
   buyerId: string,
+  page: number,
   limit: number,
   offset: number,
-): Promise<GrowerResponse[]> {
-  const growers = await buyerRepository.getGrowersByBuyerId(buyerId, limit, offset);
+): Promise<{ data: GrowerResponse[]; meta: PaginationMetadata }> {
+  const { items, total } = await buyerRepository.getGrowersByBuyerId(buyerId, limit, offset);
 
-  return growers.map((g) => {
+  const data = items.map((g) => {
     const firstOrderDate = g.firstOrderDate ? new Date(g.firstOrderDate) : new Date();
     const now = new Date();
 
@@ -37,6 +40,16 @@ export async function getGrowersForBuyer(
       firstOrderDate: firstOrderDate.toISOString(),
     };
   });
+
+  return {
+    data,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / (limit || 1)),
+    },
+  };
 }
 
 /**

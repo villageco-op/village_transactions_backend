@@ -11,12 +11,14 @@ import {
   LatitudeSchema,
   LongitudeSchema,
   OrderStatusSchema,
+  PaginationQuerySchema,
   PriceDollarsSchema,
   ProduceStatusSchema,
   ResourceIdSchema,
   UserIdSchema,
   WeightOzSchema,
 } from './common.schema.js';
+import { createPaginatedResponseSchema } from './util/pagination.js';
 
 const ProduceFields = z.object({
   title: z.string().min(1).openapi({
@@ -80,23 +82,25 @@ export const ProduceListItemSchema = z
   })
   .openapi('ProduceListItem');
 
-export const ProduceListResponseSchema = z
-  .array(ProduceListItemSchema)
-  .openapi('ProduceListResponse');
+export const ProduceListResponseSchema = createPaginatedResponseSchema(
+  ProduceListItemSchema,
+  'ProduceListResponse',
+);
 
-export const ProduceQuerySchema = z.object({
-  lat: LatitudeSchema,
-  lng: LongitudeSchema,
-  sortBy: z.enum(['distance', 'price']).optional().openapi({
-    description: 'Sort order for the results',
-    example: 'distance',
-  }),
-  hasDelivery: z.enum(['true', 'false']).optional().openapi({
-    description: 'Filter for items that offer delivery',
-  }),
-  limit: z.coerce.number().default(20).openapi({ example: 20 }),
-  offset: z.coerce.number().default(0).openapi({ example: 0 }),
-});
+export const ProduceQuerySchema = z
+  .object({
+    lat: LatitudeSchema,
+    lng: LongitudeSchema,
+    sortBy: z.enum(['distance', 'price']).optional().openapi({
+      description: 'Sort order for the results',
+      example: 'distance',
+    }),
+    hasDelivery: z.enum(['true', 'false']).optional().openapi({
+      description: 'Filter for items that offer delivery',
+    }),
+  })
+  .extend(PaginationQuerySchema.shape)
+  .openapi('ProduceQuery');
 
 export const ProduceMapQuerySchema = z.object({
   lat: LatitudeSchema,
@@ -134,12 +138,7 @@ export const SellerMapGroupSchema = z
 
 export const SellerMapGroupListSchema = z.array(SellerMapGroupSchema).openapi('SellerMapGroupList');
 
-export const ProduceOrdersQuerySchema = z
-  .object({
-    limit: z.coerce.number().default(10),
-    offset: z.coerce.number().default(0),
-  })
-  .openapi('SellerMapGroup');
+export const ProduceOrdersQuerySchema = PaginationQuerySchema.openapi('ProduceOrdersQuery');
 
 export const ProduceOrderBuyerSchema = z
   .object({
@@ -160,19 +159,24 @@ export const ProduceOrderListItemSchema = z.object({
   buyer: ProduceOrderBuyerSchema,
 });
 
-export const ProduceOrderListResponseSchema = z
-  .array(ProduceOrderListItemSchema)
-  .openapi('ProduceOrderListResponse');
+export const ProduceOrderListResponseSchema = createPaginatedResponseSchema(
+  ProduceOrderListItemSchema,
+  'ProduceOrderListResponse',
+);
 
-export const SellerProduceQuerySchema = z.object({
-  limit: z.coerce.number().default(20),
-  offset: z.coerce.number().default(0),
-  status: ProduceStatusSchema.optional(),
-});
+export const SellerProduceQuerySchema = z
+  .object({
+    status: ProduceStatusSchema.optional(),
+  })
+  .extend(PaginationQuerySchema.shape)
+  .openapi('SellerProduceQuery');
 
 export const ProduceSchema = createSelectSchema(produce).openapi('Produce');
 
-export const ProduceResponseSchema = z.array(ProduceSchema).openapi('ProduceResponse');
+export const ProduceResponseSchema = createPaginatedResponseSchema(
+  ProduceSchema,
+  'ProduceResponse',
+);
 
 export type CreateProducePayload = z.infer<typeof CreateProduceSchema>;
 export type UpdateProducePayload = z.infer<typeof UpdateProduceSchema>;

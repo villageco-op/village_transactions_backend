@@ -194,42 +194,66 @@ describe('OrderService - getOrders', () => {
     vi.clearAllMocks();
   });
 
-  it('should call repository with parsed timeframeDays when timeframe is provided', async () => {
-    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce([]);
+  it('should call repository with parsed timeframeDays and pagination params when timeframe is provided', async () => {
+    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce({ items: [], total: 0 });
 
-    await getOrders('user_1', 'buyer', 'pending', '30days');
+    const result = await getOrders('user_1', 'buyer', 'pending', '30days', 1, 10, 0);
 
     expect(orderRepository.getOrders).toHaveBeenCalledWith({
       userId: 'user_1',
       role: 'buyer',
       status: 'pending',
       timeframeDays: 30,
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(result.meta).toEqual({
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
     });
   });
 
-  it('should call repository without timeframeDays if timeframe is omitted', async () => {
-    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce([]);
+  it('should call repository without timeframeDays and return valid pagination meta', async () => {
+    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce({
+      items: [{ id: 'order_1' } as any],
+      total: 25,
+    });
 
-    await getOrders('user_2', 'seller');
+    const result = await getOrders('user_2', 'seller', undefined, undefined, 2, 20, 20);
 
     expect(orderRepository.getOrders).toHaveBeenCalledWith({
       userId: 'user_2',
       role: 'seller',
       status: undefined,
       timeframeDays: undefined,
+      limit: 20,
+      offset: 20,
+    });
+
+    expect(result.data).toHaveLength(1);
+    expect(result.meta).toEqual({
+      total: 25,
+      page: 2,
+      limit: 20,
+      totalPages: 2, // Math.ceil(25 / 20)
     });
   });
 
   it('should call repository without timeframeDays if timeframe format is invalid', async () => {
-    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce([]);
+    vi.mocked(orderRepository.getOrders).mockResolvedValueOnce({ items: [], total: 0 });
 
-    await getOrders('user_3', 'buyer', undefined, 'invalid_string');
+    await getOrders('user_3', 'buyer', undefined, 'invalid_string', 1, 15, 0);
 
     expect(orderRepository.getOrders).toHaveBeenCalledWith({
       userId: 'user_3',
       role: 'buyer',
       status: undefined,
       timeframeDays: undefined,
+      limit: 15,
+      offset: 0,
     });
   });
 });
@@ -239,53 +263,83 @@ describe('OrderService - getSellerPayouts', () => {
     vi.clearAllMocks();
   });
 
-  it('should correctly parse timeframe, fetch data, and map payout items', async () => {
+  it('should correctly parse timeframe, fetch paginated data, and map payout items', async () => {
     const mockDate = new Date('2025-01-01T12:00:00Z');
 
-    vi.mocked(orderRepository.getPayoutHistory).mockResolvedValueOnce([
-      {
-        date: mockDate,
-        buyerName: 'Alice Buyer',
-        productName: 'Organic Carrots',
-        quantityOz: '32',
-        pricePerOz: '1.50',
-      },
-    ] as any);
+    vi.mocked(orderRepository.getPayoutHistory).mockResolvedValueOnce({
+      items: [
+        {
+          date: mockDate,
+          buyerName: 'Alice Buyer',
+          productName: 'Organic Carrots',
+          quantityOz: '32',
+          pricePerOz: '1.50',
+        },
+      ],
+      total: 12,
+    } as any);
 
-    const result = await getSellerPayouts('seller_123', '30days');
+    const result = await getSellerPayouts('seller_123', '30days', 1, 10, 0);
 
-    expect(orderRepository.getPayoutHistory).toHaveBeenCalledWith('seller_123', expect.any(Date));
+    expect(orderRepository.getPayoutHistory).toHaveBeenCalledWith(
+      'seller_123',
+      expect.any(Date),
+      10,
+      0,
+    );
 
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toEqual({
       date: '2025-01-01T12:00:00.000Z',
       buyerName: 'Alice Buyer',
       productName: 'Organic Carrots',
-      quantityLbs: 2,
-      amountDollars: 48,
+      quantityLbs: 2, // 32 oz / 16
+      amountDollars: 48, // 32 oz * $1.50
+    });
+
+    expect(result.meta).toEqual({
+      total: 12,
+      page: 1,
+      limit: 10,
+      totalPages: 2, // Math.ceil(12 / 10)
     });
   });
 
-  it('should fallback to 90 days if timeframe is invalid or omitted, and handle null fields gracefully', async () => {
-    vi.mocked(orderRepository.getPayoutHistory).mockResolvedValueOnce([
-      {
-        date: null,
-        buyerName: null,
-        productName: null,
-        quantityOz: '16',
-        pricePerOz: '2.00',
-      },
-    ] as any);
+  it('should fallback to 90 days if timeframe is invalid or omitted, handle null fields gracefully, and process offsets', async () => {
+    vi.mocked(orderRepository.getPayoutHistory).mockResolvedValueOnce({
+      items: [
+        {
+          date: null,
+          buyerName: null,
+          productName: null,
+          quantityOz: '16',
+          pricePerOz: '2.00',
+        },
+      ],
+      total: 5,
+    } as any);
 
-    const result = await getSellerPayouts('seller_123', 'invalid_frame');
+    const result = await getSellerPayouts('seller_123', 'invalid_frame', 2, 5, 5);
 
-    expect(orderRepository.getPayoutHistory).toHaveBeenCalledWith('seller_123', expect.any(Date));
+    expect(orderRepository.getPayoutHistory).toHaveBeenCalledWith(
+      'seller_123',
+      expect.any(Date),
+      5,
+      5,
+    );
 
-    expect(result).toHaveLength(1);
-    expect(result[0].buyerName).toBe('Unknown');
-    expect(result[0].productName).toBe('Unknown');
-    expect(result[0].quantityLbs).toBe(1);
-    expect(result[0].amountDollars).toBe(32);
-    expect(result[0].date).toBeDefined();
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].buyerName).toBe('Unknown');
+    expect(result.data[0].productName).toBe('Unknown');
+    expect(result.data[0].quantityLbs).toBe(1);
+    expect(result.data[0].amountDollars).toBe(32);
+    expect(result.data[0].date).toBeDefined();
+
+    expect(result.meta).toEqual({
+      total: 5,
+      page: 2,
+      limit: 5,
+      totalPages: 1,
+    });
   });
 });

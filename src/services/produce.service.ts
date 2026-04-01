@@ -43,22 +43,23 @@ export async function deleteProduceListing(id: string, sellerId: string): Promis
  * @param params.lng - The longitude of the user's current location.
  * @param params.sortBy - The criteria used to order the results. Defaults to distance if not specified.
  * @param params.hasDelivery - A string-based boolean flag to filter items by delivery availability.
+ * @param params.page - Current page number.
  * @param params.limit - The maximum number of items to return for pagination.
  * @param params.offset - The number of items to skip (used for pagination).
- * @returns A promise that resolves to an array of produce items, including a calculated
- * `thumbnail` from the image set and a normalized `distance` value.
+ * @returns A promise that resolves to a paginated response object containing the mapped produce items.
  */
 export async function getProduceList(params: {
   lat: number;
   lng: number;
   sortBy?: 'distance' | 'price';
   hasDelivery?: 'true' | 'false';
+  page: number;
   limit: number;
   offset: number;
 }) {
-  const items = await produceRepository.getList(params);
+  const { items, total } = await produceRepository.getList(params);
 
-  return items.map((item) => {
+  const data = items.map((item) => {
     const { images, ...rest } = item;
     return {
       ...rest,
@@ -66,6 +67,16 @@ export async function getProduceList(params: {
       distance: Number(item.distance || 0),
     };
   });
+
+  return {
+    data,
+    meta: {
+      total,
+      page: params.page,
+      limit: params.limit,
+      totalPages: Math.ceil(total / (params.limit || 1)),
+    },
+  };
 }
 
 /**
@@ -124,39 +135,68 @@ export async function getProduceMap(params: {
 }
 
 /**
- * Retrieves paginated orders for a specific produce listing.
+ * Retrieves paginated orders for a specific produce listing with standardized metadata.
  * @param produceId - The ID of the listing.
  * @param sellerId - The ID of the user requesting the orders (must be the seller).
+ * @param page - Current page number.
  * @param limit - Pagination limit.
  * @param offset - Pagination offset.
- * @returns Array of orders or null if unauthorized/not found.
+ * @returns Standardized paginated response or null if unauthorized/not found.
  */
 export async function getProduceOrders(
   produceId: string,
   sellerId: string,
+  page: number,
   limit: number,
   offset: number,
 ) {
-  return await produceRepository.getProduceOrders(produceId, sellerId, limit, offset);
+  const result = await produceRepository.getProduceOrders(produceId, sellerId, limit, offset);
+
+  if (!result) {
+    return null;
+  }
+
+  const { items, total } = result;
+
+  return {
+    data: items,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / (limit || 1)),
+    },
+  };
 }
 
 /**
  * Retrieves a paginated list of the authenticated seller's own produce listings.
  * @param sellerId - The ID of the authenticated seller.
  * @param params - Pagination and filtering configuration.
+ * @param params.page - Current page number.
  * @param params.limit - The maximum number of items to return.
  * @param params.offset - The number of items to skip.
  * @param params.status - Optional status filter.
- * @returns Array of full produce details.
+ * @returns Standardized paginated response with full produce details.
  */
 export async function getSellerProduceListings(
   sellerId: string,
-  params: { limit: number; offset: number; status?: 'active' | 'paused' | 'deleted' },
+  params: { page: number; limit: number; offset: number; status?: 'active' | 'paused' | 'deleted' },
 ) {
-  return await produceRepository.getSellerListings({
+  const { items, total } = await produceRepository.getSellerListings({
     sellerId,
     limit: params.limit,
     offset: params.offset,
     status: params.status,
   });
+
+  return {
+    data: items,
+    meta: {
+      total,
+      page: params.page,
+      limit: params.limit,
+      totalPages: Math.ceil(total / (params.limit || 1)),
+    },
+  };
 }

@@ -4,6 +4,7 @@ import { TAGS } from '../constants/tags.js';
 import { SuccessResponseSchema } from '../schemas/common.schema.js';
 import {
   ConversationsResponseSchema,
+  GetConversationsQuerySchema,
   GetMessagesQuerySchema,
   MessagesResponseSchema,
   SendMessageBodySchema,
@@ -21,6 +22,9 @@ messagingRoute.conversationsRoute.openapi(
     operationId: 'getConversations',
     description: 'List all active chat threads for the user.',
     tags: [TAGS.MESSAGING],
+    request: {
+      query: GetConversationsQuerySchema,
+    },
     responses: {
       200: {
         description: 'Successful retrieval of conversations',
@@ -28,8 +32,12 @@ messagingRoute.conversationsRoute.openapi(
       },
     },
   }),
-  // TODO: [Service] Call get conversations service.
-  (c) => c.json([], 200),
+  (c) => {
+    // const { page, limit } = c.req.valid('query');
+    // TODO: [Service] Call get conversations service with pagination.
+
+    return c.json({ data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } }, 200);
+  },
 );
 
 messagingRoute.messagesRoute.openapi(
@@ -49,8 +57,12 @@ messagingRoute.messagesRoute.openapi(
       },
     },
   }),
-  // TODO: [Service] Get data and call get messages service.
-  (c) => c.json([], 200),
+  (c) => {
+    // const { conversationId, since, page, limit } = c.req.valid('query');
+    // TODO: [Service] Get data and call get messages service.
+
+    return c.json({ data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } }, 200);
+  },
 );
 
 messagingRoute.messagesRoute.openapi(
