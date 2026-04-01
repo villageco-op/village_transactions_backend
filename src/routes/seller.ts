@@ -5,10 +5,11 @@ import { TAGS } from '../constants/tags.js';
 import { ErrorResponseSchema } from '../schemas/common.schema.js';
 import {
   GetSellerPayoutsQuerySchema,
-  PayoutHistorySchema,
+  PayoutHistoryResponseSchema,
   SellerDashboardResponseSchema,
   SellerEarningsResponseSchema,
 } from '../schemas/seller.schema.js';
+import { getPaginationParams } from '../schemas/util/pagination.js';
 import { getSellerPayouts } from '../services/order.service.js';
 import { getSellerDashboard, getSellerEarningsMetrics } from '../services/seller.service.js';
 
@@ -30,7 +31,7 @@ sellerRoute.openapi(
         description: 'Payout history array',
         content: {
           'application/json': {
-            schema: PayoutHistorySchema,
+            schema: PayoutHistoryResponseSchema,
           },
         },
       },
@@ -48,10 +49,13 @@ sellerRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { timeframe } = c.req.valid('query');
-    const payouts = await getSellerPayouts(userId, timeframe);
+    const { timeframe, page, limit } = c.req.valid('query');
 
-    return c.json(payouts, 200);
+    const { offset } = getPaginationParams(page, limit);
+
+    const paginatedPayouts = await getSellerPayouts(userId, timeframe, page, limit, offset);
+
+    return c.json(paginatedPayouts, 200);
   },
 );
 

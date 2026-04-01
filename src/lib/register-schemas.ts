@@ -47,7 +47,7 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('Location', Common.LocationSchema);
   app.openAPIRegistry.register('IsoDateTime', Common.IsoDateTimeSchema);
   app.openAPIRegistry.register('IsoDate', Common.IsoDateSchema);
-  app.openAPIRegistry.register('PaginationMetadata', Common.PaginationMetadata);
+  app.openAPIRegistry.register('PaginationMetadata', Common.PaginationMetadataSchema);
 
   // Produce Request Payloads
   app.openAPIRegistry.register('CreateProducePayload', Produce.CreateProduceSchema);
@@ -57,6 +57,7 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('ProduceListResponse', Produce.ProduceListResponseSchema);
   app.openAPIRegistry.register('ProduceOrderListResponse', Produce.ProduceOrderListResponseSchema);
   app.openAPIRegistry.register('SellerMapGroupList', Produce.SellerMapGroupListSchema);
+  app.openAPIRegistry.register('ProduceResponse', Produce.ProduceResponseSchema);
 
   // Produce Nested Entities
   app.openAPIRegistry.register('ProduceOrderBuyer', Produce.ProduceOrderBuyerSchema);
@@ -69,7 +70,7 @@ export function registerSharedSchemas(app: OpenAPIHono) {
 
   // Order Entities
   app.openAPIRegistry.register('Order', Orders.OrderSchema);
-  app.openAPIRegistry.register('OrdersList', Orders.OrdersListSchema);
+  app.openAPIRegistry.register('OrdersListResponse', Orders.OrdersListResponseSchema);
 
   // Order Payloads
   app.openAPIRegistry.register('CancelOrderPayload', Orders.CancelOrderBodySchema);
@@ -144,7 +145,7 @@ export function registerSharedSchemas(app: OpenAPIHono) {
 
   // Seller Dashboard
   app.openAPIRegistry.register('Payout', Seller.PayoutSchema);
-  app.openAPIRegistry.register('PayoutHistory', Seller.PayoutHistorySchema);
+  app.openAPIRegistry.register('PayoutHistoryResponse', Seller.PayoutHistoryResponseSchema);
   app.openAPIRegistry.register('ProduceSales', Seller.ProduceSalesSchema);
   app.openAPIRegistry.register('SellerEarningsResponse', Seller.SellerEarningsResponseSchema);
   app.openAPIRegistry.register('EarningsByProduce', Seller.EarningsByProduceSchema);

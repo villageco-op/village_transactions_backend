@@ -10,6 +10,7 @@ import {
   GrowersResponseSchema,
 } from '../schemas/buyer.schema.js';
 import { ErrorResponseSchema } from '../schemas/common.schema.js';
+import { getPaginationParams } from '../schemas/util/pagination.js';
 import {
   getBillingSummary,
   getBuyerDashboardMetrics,
@@ -49,11 +50,12 @@ buyerRoute.openapi(
       throw new HTTPException(401, { message: 'Unauthorized' });
     }
 
-    const { limit, offset } = c.req.valid('query');
+    const { page, limit } = c.req.valid('query');
+    const { offset } = getPaginationParams(page, limit);
 
-    const growers = await getGrowersForBuyer(userId, limit, offset);
+    const paginatedGrowers = await getGrowersForBuyer(userId, page, limit, offset);
 
-    return c.json(growers, 200);
+    return c.json(paginatedGrowers, 200);
   },
 );
 

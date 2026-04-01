@@ -111,7 +111,7 @@ export const produceRepository = {
    * @param params.hasDelivery - If 'true', filters for sellers where distance <= their delivery range.
    * @param params.limit - Max items per page.
    * @param params.offset - Starting index for results.
-   * @returns A promise resolving to an array of produce items including a calculated `distance` in miles.
+   * @returns An object containing the paginated items and total count.
    */
   async getList(params: {
     lat: number;
@@ -132,6 +132,16 @@ export const produceRepository = {
       conditions.push(sql`${users.deliveryRangeMiles} > 0`);
       conditions.push(sql`${distanceMiles} <= ${users.deliveryRangeMiles}`);
     }
+
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(produce)
+      .innerJoin(users, eq(produce.sellerId, users.id))
+      .where(and(...conditions));
+
+    const total = totalCountResult?.count || 0;
 
     let query = this.db
       .select({
@@ -157,7 +167,9 @@ export const produceRepository = {
       query = query.orderBy(asc(distanceMiles));
     }
 
-    return await query.limit(limit).offset(offset);
+    const items = await query.limit(limit).offset(offset);
+
+    return { items, total };
   },
 
   /**
@@ -225,7 +237,7 @@ export const produceRepository = {
    * @param sellerId - The ID of the seller requesting the data (for authorization).
    * @param limit - Max items per page.
    * @param offset - Starting index.
-   * @returns Array of order items or null if unauthorized/not found.
+   * @returns Object containing the paginated items and total count, or null if unauthorized/not found.
    */
   async getProduceOrders(produceId: string, sellerId: string, limit: number, offset: number) {
     const [ownershipCheck] = await this.db
@@ -237,7 +249,16 @@ export const produceRepository = {
       return null;
     }
 
-    return await this.db
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(orderItems)
+      .where(eq(orderItems.productId, produceId));
+
+    const total = totalCountResult?.count || 0;
+
+    const items = await this.db
       .select({
         id: orders.id,
         status: orders.status,
@@ -259,6 +280,8 @@ export const produceRepository = {
       .orderBy(desc(orders.createdAt))
       .limit(limit)
       .offset(offset);
+
+    return { items, total };
   },
 
   /**
@@ -268,7 +291,7 @@ export const produceRepository = {
    * @param params.limit - Max items per page.
    * @param params.offset - Starting index for results.
    * @param params.status - Optional status filter (active, paused, deleted).
-   * @returns Array of full produce records.
+   * @returns Object containing the paginated items and total count.
    */
   async getSellerListings(params: {
     sellerId: string;
@@ -284,13 +307,24 @@ export const produceRepository = {
       conditions.push(eq(produce.status, status));
     }
 
-    return await this.db
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(produce)
+      .where(and(...conditions));
+
+    const total = totalCountResult?.count || 0;
+
+    const items = await this.db
       .select()
       .from(produce)
       .where(and(...conditions))
       .orderBy(desc(produce.createdAt))
       .limit(limit)
       .offset(offset);
+
+    return { items, total };
   },
 
   /**

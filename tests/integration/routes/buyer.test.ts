@@ -149,12 +149,13 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
     const res = await authedRequest(`/api/buyer/growers`, { method: 'GET' }, { id: BUYER_ID });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const { data, meta } = await res.json();
 
     // Seller 2 should be omitted because their order is 'pending'
-    expect(body).toHaveLength(1);
+    expect(data).toHaveLength(1);
+    expect(meta.total).toBe(1);
 
-    const seller1Stats = body[0];
+    const seller1Stats = data[0];
 
     expect(seller1Stats.sellerId).toBe(SELLER_1_ID);
     expect(seller1Stats.name).toBe('Farm One');

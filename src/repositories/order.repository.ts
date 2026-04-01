@@ -208,7 +208,9 @@ export const orderRepository = {
    * @param params.role - Determines if the user is fetched as the 'buyer' or 'seller' in the transaction.
    * @param params.status - (Optional) Filter by order state: 'pending', 'completed', or 'canceled'.
    * @param params.timeframeDays - (Optional) Limit results to orders created within this many days from today.
-   * @returns A promise resolving to an array of orders. Each order includes:
+   * @param params.limit - Limit the max amount of orders.
+   * @param params.offset - The pagination offset.
+   * @returns A promise resolving to an array of orders and the total order count. Each order includes:
    * - Full order record fields
    * - `counterparty`: Public profile of the other party (ID, name, image, email)
    * - `items`: An array of order items, each including the full `product` (produce) details.
@@ -219,6 +221,8 @@ export const orderRepository = {
     role: 'buyer' | 'seller';
     status?: 'pending' | 'completed' | 'canceled';
     timeframeDays?: number;
+    limit: number;
+    offset: number;
   }) {
     const conditions = [];
 
@@ -238,6 +242,15 @@ export const orderRepository = {
       conditions.push(gte(orders.createdAt, cutoffDate));
     }
 
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(${orders.id})::int`,
+      })
+      .from(orders)
+      .where(and(...conditions));
+
+    const total = totalCountResult?.count || 0;
+
     const ordersResult = await this.db
       .select({
         order: orders,
@@ -251,10 +264,12 @@ export const orderRepository = {
       .from(orders)
       .leftJoin(users, eq(params.role === 'seller' ? orders.buyerId : orders.sellerId, users.id))
       .where(and(...conditions))
-      .orderBy(desc(orders.createdAt));
+      .orderBy(desc(orders.createdAt))
+      .limit(params.limit)
+      .offset(params.offset);
 
     if (ordersResult.length === 0) {
-      return [];
+      return { items: [], total };
     }
 
     const orderIds = ordersResult.map((o) => o.order.id);
@@ -268,7 +283,7 @@ export const orderRepository = {
       .innerJoin(produce, eq(orderItems.productId, produce.id))
       .where(inArray(orderItems.orderId, orderIds));
 
-    return ordersResult.map((o) => ({
+    const items = ordersResult.map((o) => ({
       ...o.order,
       counterparty: o.counterparty,
       items: itemsResult
@@ -278,16 +293,38 @@ export const orderRepository = {
           product: i.product,
         })),
     }));
+
+    return { items, total };
   },
 
   /**
-   * Retrieves the payout history items for a seller since a specific date.
+   * Retrieves the payout history items for a seller since a specific date with pagination.
    * @param sellerId - The unique seller ID
    * @param startDate - The cutoff date to start fetching records
-   * @returns Array of order items tied to completed checkouts
+   * @param limit - Number of records per page
+   * @param offset - Offset index for database query
+   * @returns Object containing the paginated items and total count
    */
-  async getPayoutHistory(sellerId: string, startDate: Date) {
-    return await this.db
+  async getPayoutHistory(sellerId: string, startDate: Date, limit: number, offset: number) {
+    const baseWhere = and(
+      eq(orders.sellerId, sellerId),
+      gte(orders.createdAt, startDate),
+      eq(orders.status, 'completed'),
+    );
+
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(users, eq(orders.buyerId, users.id))
+      .innerJoin(produce, eq(orderItems.productId, produce.id))
+      .where(baseWhere);
+
+    const total = totalCountResult?.count || 0;
+
+    const items = await this.db
       .select({
         date: orders.createdAt,
         buyerName: users.name,
@@ -299,14 +336,12 @@ export const orderRepository = {
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .innerJoin(users, eq(orders.buyerId, users.id))
       .innerJoin(produce, eq(orderItems.productId, produce.id))
-      .where(
-        and(
-          eq(orders.sellerId, sellerId),
-          gte(orders.createdAt, startDate),
-          eq(orders.status, 'completed'),
-        ),
-      )
-      .orderBy(desc(orders.createdAt));
+      .where(baseWhere)
+      .orderBy(desc(orders.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { items, total };
   },
 
   /**

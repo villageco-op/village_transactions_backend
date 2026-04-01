@@ -1,21 +1,22 @@
 import { z } from '@hono/zod-openapi';
 
-import { IsoDateTimeSchema, LocationSchema, PriceDollarsSchema } from './common.schema.js';
+import {
+  IsoDateTimeSchema,
+  LocationSchema,
+  PaginationQuerySchema,
+  PriceDollarsSchema,
+} from './common.schema.js';
+import { createPaginatedResponseSchema } from './util/pagination.js';
 
-export const GetSellerPayoutsQuerySchema = z.object({
-  timeframe: z
-    .string()
-    .optional()
-    .default('90days')
-    .openapi({
-      param: {
-        name: 'timeframe',
-        in: 'query',
-      },
+export const GetSellerPayoutsQuerySchema = z
+  .object({
+    timeframe: z.string().optional().default('90days').openapi({
       example: '90days',
       description: 'The period for which to fetch payout history.',
     }),
-});
+  })
+  .extend(PaginationQuerySchema.shape)
+  .openapi('GetSellerPayoutsQuery');
 
 export const PayoutSchema = z
   .object({
@@ -36,7 +37,10 @@ export const PayoutSchema = z
   })
   .openapi('Payout');
 
-export const PayoutHistorySchema = z.array(PayoutSchema).openapi('PayoutHistory');
+export const PayoutHistoryResponseSchema = createPaginatedResponseSchema(
+  PayoutSchema,
+  'PayoutHistoryResponse',
+);
 
 export const ProduceSalesSchema = z
   .object({

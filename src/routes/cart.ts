@@ -42,7 +42,7 @@ cartRoute.openapi(
     }
 
     const cart = await getCart(userId);
-    return c.json({ cart }, 200);
+    return c.json({ data: cart }, 200);
   },
 );
 

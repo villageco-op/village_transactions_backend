@@ -349,11 +349,14 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
         pricePerOz: '2.00',
       });
 
-      const buyerOrders = await orderRepository.getOrders({
+      const { items: buyerOrders, total: buyerTotal } = await orderRepository.getOrders({
         userId: buyerId,
         role: 'buyer',
+        limit: 10,
+        offset: 0,
       });
 
+      expect(buyerTotal).toBe(1);
       expect(buyerOrders).toHaveLength(1);
       expect(buyerOrders[0].id).toBe(order.id);
       expect(buyerOrders[0].counterparty?.id).toBe(sellerId);
@@ -361,11 +364,14 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(buyerOrders[0].items).toHaveLength(1);
       expect(buyerOrders[0].items[0].product.title).toBe('Heirloom Tomatoes');
 
-      const sellerOrders = await orderRepository.getOrders({
+      const { items: sellerOrders, total: sellerTotal } = await orderRepository.getOrders({
         userId: sellerId,
         role: 'seller',
+        limit: 10,
+        offset: 0,
       });
 
+      expect(sellerTotal).toBe(1);
       expect(sellerOrders).toHaveLength(1);
       expect(sellerOrders[0].id).toBe(order.id);
       expect(sellerOrders[0].counterparty?.id).toBe(buyerId);
@@ -402,21 +408,27 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
         },
       ]);
 
-      const pendingOrders = await orderRepository.getOrders({
+      const { items: pendingOrders, total: pendingTotal } = await orderRepository.getOrders({
         userId: buyerId,
         role: 'buyer',
         status: 'pending',
+        limit: 10,
+        offset: 0,
       });
 
+      expect(pendingTotal).toBe(1);
       expect(pendingOrders).toHaveLength(1);
       expect(pendingOrders[0].status).toBe('pending');
 
-      const completedOrders = await orderRepository.getOrders({
+      const { items: completedOrders, total: completedTotal } = await orderRepository.getOrders({
         userId: buyerId,
         role: 'buyer',
         status: 'completed',
+        limit: 10,
+        offset: 0,
       });
 
+      expect(completedTotal).toBe(1);
       expect(completedOrders).toHaveLength(1);
       expect(completedOrders[0].status).toBe('completed');
     });
@@ -457,12 +469,15 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
         },
       ]);
 
-      const recentOrders = await orderRepository.getOrders({
+      const { items: recentOrders, total: recentTotal } = await orderRepository.getOrders({
         userId: buyerId,
         role: 'buyer',
         timeframeDays: 30,
+        limit: 10,
+        offset: 0,
       });
 
+      expect(recentTotal).toBe(1);
       expect(recentOrders).toHaveLength(1);
       expect(recentOrders[0].totalAmount).toBe('10.00');
     });
@@ -552,8 +567,14 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 30);
 
-      const payoutHistory = await orderRepository.getPayoutHistory(sellerId, startDate);
+      const { items: payoutHistory, total } = await orderRepository.getPayoutHistory(
+        sellerId,
+        startDate,
+        10,
+        0,
+      );
 
+      expect(total).toBe(1);
       expect(payoutHistory).toHaveLength(1);
       expect(payoutHistory[0].buyerName).toBe('Customer Bob');
       expect(payoutHistory[0].productName).toBe('Farm Fresh Milk');

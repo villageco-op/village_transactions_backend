@@ -163,9 +163,9 @@ describe('Cart API Integration', { timeout: 60_000 }, () => {
       const body = await res.json();
 
       expect(res.status).toBe(200);
-      expect(body.cart).toHaveLength(2);
+      expect(body.data).toHaveLength(2);
 
-      const s1Group = body.cart.find((g: any) => g.seller.id === S1_ID);
+      const s1Group = body.data.find((g: any) => g.seller.id === S1_ID);
       expect(s1Group.items).toHaveLength(1);
       expect(s1Group.items[0].title).toBe('Apples');
     });

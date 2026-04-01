@@ -88,18 +88,24 @@ export async function rescheduleOrder(orderId: string, newTime: string, requesti
 }
 
 /**
- * Gets historical or active orders for a user.
+ * Gets historical or active orders for a user with pagination.
  * @param userId - The ID of the user requesting their orders
  * @param role - Whether the user is acting as a 'buyer' or 'seller'
  * @param status - Optional status to filter by
  * @param timeframe - Optional timeframe string (e.g. "30days")
- * @returns List of orders
+ * @param page - Current page number
+ * @param limit - Number of records per page
+ * @param offset - Offset index for database query
+ * @returns Paginated list of orders
  */
 export async function getOrders(
   userId: string,
   role: 'buyer' | 'seller',
-  status?: 'pending' | 'completed' | 'canceled',
-  timeframe?: string,
+  status: 'pending' | 'completed' | 'canceled' | undefined,
+  timeframe: string | undefined,
+  page: number,
+  limit: number,
+  offset: number,
 ) {
   let timeframeDays: number | undefined;
 
@@ -110,30 +116,56 @@ export async function getOrders(
     }
   }
 
-  return await orderRepository.getOrders({
+  const { items, total } = await orderRepository.getOrders({
     userId,
     role,
     status,
     timeframeDays,
+    limit,
+    offset,
   });
+
+  return {
+    data: items,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / (limit || 1)),
+    },
+  };
 }
 
 /**
- * Gets formatted payout line items for the seller based on a specific rolling timeframe.
+ * Gets formatted payout line items for the seller based on a specific rolling timeframe with pagination.
  * @param sellerId - User's (Seller's) unique ID
  * @param timeframe - e.g. "90days"
- * @returns Formatted array of payout records
+ * @param page - Current page number
+ * @param limit - Number of records per page
+ * @param offset - Offset index for database query
+ * @returns Standardized paginated response of payout records
  */
-export async function getSellerPayouts(sellerId: string, timeframe: string) {
+export async function getSellerPayouts(
+  sellerId: string,
+  timeframe: string,
+  page: number,
+  limit: number,
+  offset: number,
+) {
   const daysMatch = timeframe.match(/^(\d+)days$/);
   const days = daysMatch ? parseInt(daysMatch[1], 10) : 90;
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  const rows = await orderRepository.getPayoutHistory(sellerId, startDate);
+  const { items, total } = await orderRepository.getPayoutHistory(
+    sellerId,
+    startDate,
+    limit,
+    offset,
+  );
 
-  return rows.map((row) => {
+  const data = items.map((row) => {
     const qtyOz = Number(row.quantityOz);
     const price = Number(row.pricePerOz);
 
@@ -145,4 +177,14 @@ export async function getSellerPayouts(sellerId: string, timeframe: string) {
       amountDollars: Number((qtyOz * price).toFixed(2)),
     };
   });
+
+  return {
+    data,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / (limit || 1)),
+    },
+  };
 }

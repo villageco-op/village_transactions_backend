@@ -53,8 +53,8 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       { id: TEST_USER_ID },
     );
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
+    const { data } = await res.json();
+    expect(Array.isArray(data)).toBe(true);
   });
 
   it('PUT /api/produce/:id should return 200 and update the DB listing', async () => {
@@ -335,12 +335,13 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     );
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const { data, meta } = await res.json();
 
-    expect(Array.isArray(body)).toBe(true);
-    expect(body.length).toBeGreaterThan(0);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThan(0);
+    expect(meta.total).toBeGreaterThan(0);
 
-    const firstItem = body[0];
+    const firstItem = data[0];
 
     expect(firstItem).toHaveProperty('id');
     expect(firstItem).toHaveProperty('name', 'Plums');
@@ -394,10 +395,10 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       { id: TEST_USER_ID },
     );
 
-    const body = await res.json();
-    expect(body.length).toBe(1);
-    expect(body[0].sellerId).toBe(TEST_USER_ID);
-    expect(body[0].name).toBe('Delivery Apples');
+    const { data } = await res.json();
+    expect(data.length).toBe(1);
+    expect(data[0].sellerId).toBe(TEST_USER_ID);
+    expect(data[0].name).toBe('Delivery Apples');
   });
 
   it('GET /api/produce/map should return 200 and correctly grouped sellers', async () => {
@@ -507,11 +508,11 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       );
 
       expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(Array.isArray(body)).toBe(true);
-      expect(body.length).toBe(1);
+      const { data } = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(1);
 
-      const firstItem = body[0];
+      const firstItem = data[0];
       expect(firstItem.id).toBe(dbOrder.id);
       expect(firstItem.status).toBe('pending');
       expect(firstItem.fulfillmentType).toBe('pickup');
@@ -622,12 +623,12 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       );
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const { data } = await res.json();
 
-      expect(Array.isArray(body)).toBe(true);
-      expect(body).toHaveLength(2);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data).toHaveLength(2);
 
-      const titles = body.map((item: any) => item.title);
+      const titles = data.map((item: any) => item.title);
       expect(titles).toContain('Active Apples');
       expect(titles).toContain('Paused Peaches');
       expect(titles).not.toContain('Other Users Oranges');
@@ -641,11 +642,11 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       );
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const { data } = await res.json();
 
-      expect(body).toHaveLength(1);
-      expect(body[0].title).toBe('Paused Peaches');
-      expect(body[0].status).toBe('paused');
+      expect(data).toHaveLength(1);
+      expect(data[0].title).toBe('Paused Peaches');
+      expect(data[0].status).toBe('paused');
     });
 
     it('should return 401 if the user is unauthenticated', async () => {

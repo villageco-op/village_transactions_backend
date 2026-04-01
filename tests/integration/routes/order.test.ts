@@ -81,7 +81,7 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
     const res = await authedRequest('/api/orders?role=buyer&status=pending', {}, { id: BUYER_ID });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
+    expect(Array.isArray(body.data)).toBe(true);
   });
 
   it('PUT /api/orders/:id/schedule should return 200 and trigger notification', async () => {
@@ -139,11 +139,12 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       );
       expect(res.status).toBe(200);
 
-      const body = await res.json();
-      expect(Array.isArray(body)).toBe(true);
-      expect(body).toHaveLength(1);
+      const { data, meta } = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+      expect(data).toHaveLength(1);
+      expect(meta.total).toBe(1);
 
-      const retrievedOrder = body[0];
+      const retrievedOrder = data[0];
       expect(retrievedOrder.id).toBe(testOrder.id);
       expect(retrievedOrder.totalAmount).toBe('12.00');
 
@@ -161,10 +162,11 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       const res = await authedRequest('/api/orders?role=seller', {}, { id: SELLER_ID });
       expect(res.status).toBe(200);
 
-      const body = await res.json();
-      expect(body).toHaveLength(1);
+      const { data, meta } = await res.json();
+      expect(data).toHaveLength(1);
+      expect(meta.total).toBe(1);
 
-      const retrievedOrder = body[0];
+      const retrievedOrder = data[0];
       expect(retrievedOrder.id).toBe(testOrder.id);
       expect(retrievedOrder.counterparty.id).toBe(BUYER_ID);
       expect(retrievedOrder.counterparty.name).toBe('Test Buyer');
@@ -178,8 +180,8 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       );
       expect(res.status).toBe(200);
 
-      const body = await res.json();
-      expect(body).toHaveLength(0);
+      const { data } = await res.json();
+      expect(data).toHaveLength(0);
     });
   });
 });
