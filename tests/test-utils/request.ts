@@ -7,10 +7,16 @@ import { app } from '../../src/app';
  * @returns The resulting Response object
  */
 export const request = async (path: string, options: RequestInit = {}) => {
-  const defaultHeaders = { 'Content-Type': 'application/json' };
+  const headers = new Headers(options.headers);
+
+  if (!(options.body instanceof FormData)) {
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+  }
 
   return await app.request(path, {
     ...options,
-    headers: { ...defaultHeaders, ...options.headers },
+    headers,
   });
 };

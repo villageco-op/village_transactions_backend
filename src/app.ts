@@ -21,6 +21,7 @@ import { reviewsRoute } from './routes/reviews.js';
 import { sellerRoute } from './routes/seller.js';
 import { stripeRoute } from './routes/stripe.js';
 import { subscriptionsRoute } from './routes/subscriptions.js';
+import { uploadRoute } from './routes/upload.js';
 import { usersRoute } from './routes/users.js';
 import { isDatabaseError } from './utils.js';
 
@@ -72,6 +73,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);
+app.route('/api/upload', uploadRoute);
 app.route('/api/cart', cartRoute);
 app.route('/api/checkout', checkoutRoute);
 app.route('/api/stripe', stripeRoute);
