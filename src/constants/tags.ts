@@ -13,4 +13,5 @@ export const TAGS = {
   CART: 'Cart',
   CONTACT: 'Contact',
   REVIEWS: 'Reviews',
+  UPLOAD: 'Upload',
 } as const;
