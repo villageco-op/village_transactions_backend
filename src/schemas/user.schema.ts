@@ -12,9 +12,7 @@ import {
   UserIdSchema,
 } from './common.schema.js';
 
-export const UserProfileSchema = createSelectSchema(users)
-  .omit({ passwordHash: true })
-  .openapi('User');
+export const UserProfileSchema = createSelectSchema(users).openapi('User');
 
 export const UpdateUserSchema = z
   .object({
