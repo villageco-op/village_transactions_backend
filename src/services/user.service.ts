@@ -23,9 +23,7 @@ export async function getCurrentUser(id: string) {
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  const { passwordHash: _passwordHash, ...safeUser } = user;
-
-  return safeUser;
+  return user;
 }
 
 /**
@@ -41,9 +39,7 @@ export async function updateCurrentUser(id: string, data: UpdateUserPayload) {
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  const { passwordHash: _passwordHash, ...safeUser } = updatedUser;
-
-  return safeUser;
+  return updatedUser;
 }
 
 /**

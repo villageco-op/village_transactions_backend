@@ -42,7 +42,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       id: TEST_USER_ID,
       name: 'Jane Api User',
       email: 'jane.api@example.com',
-      passwordHash: 'super_secret_do_not_leak',
       aboutMe: 'A short bio here.',
       specialties: ['lettuce', 'kale'],
       goal: '150.00',
@@ -64,8 +63,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(body).toHaveProperty('goal', '150.00');
     expect(body).toHaveProperty('address', '101 Api Blvd');
     expect(body).toHaveProperty('stripeAccountId', 'acct_api_123');
-
-    expect(body).not.toHaveProperty('passwordHash');
   });
 
   it('GET /api/users/me should return 404 if the authenticated user does not exist in DB', async () => {
@@ -81,7 +78,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       id: TEST_USER_ID,
       name: 'Old Api Name',
       email: 'update.api@example.com',
-      passwordHash: 'secret',
       address: 'Old Address',
     });
 
@@ -376,7 +372,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
           id: SELLER_ID,
           name: 'Farmer John',
           email: 'john@example.com',
-          passwordHash: 'super_secret',
           aboutMe: 'Farm life',
           specialties: ['corn', 'beans'],
           city: 'Omaha',
@@ -437,7 +432,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       expect(body.specialties).toEqual(['corn', 'beans']);
       expect(body.joinedAt).toBeDefined();
 
-      expect(body).not.toHaveProperty('passwordHash');
       expect(body).not.toHaveProperty('email');
 
       expect(body.totalReviews).toBe(2);

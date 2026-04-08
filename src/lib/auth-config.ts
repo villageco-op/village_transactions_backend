@@ -1,12 +1,14 @@
-import Credentials from '@auth/core/providers/credentials';
+import Google from '@auth/core/providers/google';
+import Nodemailer from '@auth/core/providers/nodemailer';
+import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import type { AuthConfig } from '@hono/auth-js';
 
-import { authorize } from '../services/auth/authorize.js';
+import { db } from '../db/index.js';
 import { jwtCallback, sessionCallback } from '../services/auth/callbacks.js';
 
 /**
  * Generates the configuration for Auth.js integration.
- * Defines the JWT strategy, credential provider for email/password login,
+ * Defines the JWT strategy, Google and Nodemailer for passwordless authentication,
  * and the necessary session/JWT callbacks.
  * @returns The complete Auth.js configuration object
  */
@@ -14,15 +16,16 @@ export function getAuthConfig(): AuthConfig {
   return {
     secret: process.env.AUTH_SECRET,
     session: { strategy: 'jwt' },
+    adapter: DrizzleAdapter(db),
 
     providers: [
-      Credentials({
-        name: 'Credentials',
-        credentials: {
-          email: { label: 'Email', type: 'email' },
-          password: { label: 'Password', type: 'password' },
-        },
-        authorize,
+      Google({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      }),
+      Nodemailer({
+        server: process.env.EMAIL_SERVER,
+        from: process.env.EMAIL_FROM,
       }),
     ],
 

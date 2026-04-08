@@ -17,7 +17,7 @@ export default defineConfig({
           name: 'unit',
           include: ['tests/unit/**/*.test.ts'],
           pool: 'threads',
-          setupFiles: ['dotenv/config', './tests/setup/firebase.ts'],
+          setupFiles: ['dotenv/config', './tests/setup/firebase.ts', './tests/setup/nodemailer.ts'],
         },
       },
       {
@@ -25,7 +25,7 @@ export default defineConfig({
           name: 'smoke',
           include: ['tests/smoke/**/*.test.ts'],
           pool: 'threads',
-          setupFiles: ['dotenv/config', './tests/setup/firebase.ts'],
+          setupFiles: ['dotenv/config', './tests/setup/firebase.ts', './tests/setup/nodemailer.ts'],
         },
       },
       {
@@ -35,7 +35,7 @@ export default defineConfig({
           pool: 'forks',
           fileParallelism: false,
           globalSetup: './tests/integration/global-setup.ts',
-          setupFiles: ['dotenv/config', './tests/setup/firebase.ts'],
+          setupFiles: ['dotenv/config', './tests/setup/firebase.ts', './tests/setup/nodemailer.ts'],
         },
       },
     ],

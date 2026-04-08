@@ -53,12 +53,11 @@ describe('UserService - getCurrentUser', () => {
     expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
   });
 
-  it('should return a sanitized user object (without passwordHash) if the user is found', async () => {
+  it('should return a user object if the user is found', async () => {
     const mockDbUser = {
       id: 'user_123',
       name: 'Alice',
       email: 'alice@example.com',
-      passwordHash: 'super_secret_hash',
       address: '456 Seller Ave',
       stripeAccountId: 'acct_999',
       stripeOnboardingComplete: false,
@@ -68,7 +67,6 @@ describe('UserService - getCurrentUser', () => {
 
     const result = await getCurrentUser('user_123');
 
-    // Ensure the returned object matches the DB record MINUS the passwordHash
     expect(result).toEqual({
       id: 'user_123',
       name: 'Alice',
@@ -78,8 +76,6 @@ describe('UserService - getCurrentUser', () => {
       stripeOnboardingComplete: false,
     });
 
-    // Explicitly verify the sensitive data was stripped
-    expect(result).not.toHaveProperty('passwordHash');
     expect(userRepository.findById).toHaveBeenCalledWith('user_123');
   });
 
@@ -97,7 +93,7 @@ describe('UserService - getCurrentUser', () => {
       expect(userRepository.updateById).toHaveBeenCalledWith('missing_user_id', updateData);
     });
 
-    it('should update the user and return a sanitized user object (without passwordHash)', async () => {
+    it('should update the user and return a user object', async () => {
       const updateData = {
         name: 'Updated Alice',
         address: '789 New St',
@@ -108,7 +104,6 @@ describe('UserService - getCurrentUser', () => {
         id: 'user_123',
         name: 'Updated Alice',
         email: 'alice@example.com',
-        passwordHash: 'super_secret_hash', // Should be removed
         address: '789 New St',
         deliveryRangeMiles: '20',
       };
@@ -125,8 +120,6 @@ describe('UserService - getCurrentUser', () => {
         deliveryRangeMiles: '20',
       });
 
-      // Explicitly verify the sensitive data was stripped
-      expect(result).not.toHaveProperty('passwordHash');
       expect(userRepository.updateById).toHaveBeenCalledWith('user_123', updateData);
     });
   });
@@ -217,7 +210,6 @@ describe('UserService - getCurrentUser', () => {
       vi.mocked(userRepository.findById).mockResolvedValueOnce({
         id: 'user_123',
         name: 'Alice',
-        passwordHash: 'secret',
       } as any);
       vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([]);
       vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(0);
@@ -232,7 +224,6 @@ describe('UserService - getCurrentUser', () => {
         reviewBreakdown: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
         activeBuyerCount: 0,
       });
-      expect(result).not.toHaveProperty('passwordHash');
     });
 
     it('should correctly calculate star rating, total reviews, and map breakdown', async () => {

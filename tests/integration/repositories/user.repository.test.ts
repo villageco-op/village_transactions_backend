@@ -32,7 +32,6 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       id: 'test_id',
       name: 'Integration Tester',
       email: 'integration@example.com',
-      passwordHash: 'hashed_pw_123',
     });
 
     const user = await userRepository.findByEmail('integration@example.com');
@@ -52,7 +51,6 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       id: 'seller_123',
       name: 'Marketplace Seller',
       email: 'seller@example.com',
-      passwordHash: 'hashed_pw_456',
       aboutMe: 'I am a passionate local farmer.',
       specialties: ['tomatoes', 'carrots', 'corn'],
       goal: '500.00',
@@ -85,7 +83,6 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       id: 'update_user_123',
       name: 'Old Name',
       email: 'update@example.com',
-      passwordHash: 'hashed_pw_123',
     });
 
     const updatedUser = await userRepository.updateById('update_user_123', {
