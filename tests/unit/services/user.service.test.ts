@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
+import { del } from '@vercel/blob';
 
 import {
   getCurrentUser,
@@ -12,6 +13,10 @@ import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
+
+vi.mock('@vercel/blob', () => ({
+  del: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('../../../src/repositories/user.repository.js', () => ({
   userRepository: {
@@ -78,181 +83,266 @@ describe('UserService - getCurrentUser', () => {
 
     expect(userRepository.findById).toHaveBeenCalledWith('user_123');
   });
+});
 
-  describe('updateCurrentUser', () => {
-    it('should throw a 404 HTTPException if the user is not found during update', async () => {
-      vi.mocked(userRepository.updateById).mockResolvedValueOnce(null);
+describe('updateCurrentUser', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
 
-      const updateData = { name: 'New Name' };
+    vi.mocked(del).mockReturnValue(Promise.resolve());
+  });
 
-      await expect(updateCurrentUser('missing_user_id', updateData)).rejects.toThrow(HTTPException);
-      await expect(updateCurrentUser('missing_user_id', updateData)).rejects.toMatchObject({
-        status: 404,
-      });
+  it('should throw a 404 HTTPException if the user is not found during update', async () => {
+    vi.mocked(userRepository.updateById).mockResolvedValueOnce(null);
 
-      expect(userRepository.updateById).toHaveBeenCalledWith('missing_user_id', updateData);
+    const updateData = { name: 'New Name' };
+
+    await expect(updateCurrentUser('missing_user_id', updateData)).rejects.toThrow(HTTPException);
+    await expect(updateCurrentUser('missing_user_id', updateData)).rejects.toMatchObject({
+      status: 404,
     });
 
-    it('should update the user and return a user object', async () => {
-      const updateData = {
-        name: 'Updated Alice',
-        address: '789 New St',
-        deliveryRangeMiles: 20,
-      };
+    expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
+    expect(userRepository.updateById).not.toHaveBeenCalled();
+  });
 
-      const mockDbUpdatedUser = {
-        id: 'user_123',
-        name: 'Updated Alice',
-        email: 'alice@example.com',
-        address: '789 New St',
-        deliveryRangeMiles: '20',
-      };
+  it('should update the user and return a user object', async () => {
+    const updateData = {
+      name: 'Updated Alice',
+      address: '789 New St',
+      deliveryRangeMiles: 20,
+    };
 
-      vi.mocked(userRepository.updateById).mockResolvedValueOnce(mockDbUpdatedUser as any);
+    const mockDbUser = {
+      id: 'user_123',
+      name: 'Alice',
+      email: 'alice@example.com',
+      address: '788 Old St',
+      deliveryRangeMiles: '5',
+    };
 
-      const result = await updateCurrentUser('user_123', updateData);
+    const mockDbUpdatedUser = {
+      id: 'user_123',
+      name: 'Updated Alice',
+      email: 'alice@example.com',
+      address: '789 New St',
+      deliveryRangeMiles: '20',
+    };
 
-      expect(result).toEqual({
-        id: 'user_123',
-        name: 'Updated Alice',
-        email: 'alice@example.com',
-        address: '789 New St',
-        deliveryRangeMiles: '20',
-      });
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockDbUser as any);
+    vi.mocked(userRepository.updateById).mockResolvedValueOnce(mockDbUpdatedUser as any);
 
-      expect(userRepository.updateById).toHaveBeenCalledWith('user_123', updateData);
+    const result = await updateCurrentUser('user_123', updateData);
+
+    expect(result).toEqual({
+      id: 'user_123',
+      name: 'Updated Alice',
+      email: 'alice@example.com',
+      address: '789 New St',
+      deliveryRangeMiles: '20',
+    });
+
+    expect(userRepository.updateById).toHaveBeenCalledWith('user_123', updateData);
+  });
+
+  it('should update the user and NOT call del if no image is changed', async () => {
+    const mockUser = { id: 'user_123', name: 'Alice', image: 'old-url.jpg' };
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockUser as any);
+    vi.mocked(userRepository.updateById).mockResolvedValueOnce({ ...mockUser, name: 'Bob' } as any);
+
+    await updateCurrentUser('user_123', { name: 'Bob' });
+
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it('should delete the old image when a new image URL is provided', async () => {
+    const userId = 'user_123';
+    const oldImageUrl = 'https://blob.vercel.com/old-image.png';
+    const newImageUrl = 'https://blob.vercel.com/new-image.png';
+
+    const existingUser = {
+      id: userId,
+      name: 'Alice',
+      image: oldImageUrl,
+    };
+
+    const updateData = {
+      image: newImageUrl,
+    };
+
+    const updatedUser = {
+      ...existingUser,
+      image: newImageUrl,
+    };
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(existingUser as any);
+    vi.mocked(userRepository.updateById).mockResolvedValueOnce(updatedUser as any);
+
+    const result = await updateCurrentUser(userId, updateData);
+
+    expect(result?.image).toBe(newImageUrl);
+    expect(userRepository.updateById).toHaveBeenCalledWith(userId, updateData);
+
+    expect(del).toHaveBeenCalledWith(oldImageUrl);
+  });
+
+  it('should not call del if the user had no previous image', async () => {
+    const userId = 'user_123';
+    const newImageUrl = 'https://blob.vercel.com/first-image.png';
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: userId,
+      image: null,
+    } as any);
+    vi.mocked(userRepository.updateById).mockResolvedValueOnce({
+      id: userId,
+      image: newImageUrl,
+    } as any);
+
+    await updateCurrentUser(userId, { image: newImageUrl });
+
+    expect(del).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateInternalStripeAccountId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should throw a 404 HTTPException if the user is not found during update', async () => {
+    vi.mocked(userRepository.updateStripeAccountId).mockResolvedValueOnce(null);
+
+    await expect(updateInternalStripeAccountId('missing_user_id', 'acct_123')).rejects.toThrow(
+      HTTPException,
+    );
+    await expect(
+      updateInternalStripeAccountId('missing_user_id', 'acct_123'),
+    ).rejects.toMatchObject({
+      status: 404,
+    });
+
+    expect(userRepository.updateStripeAccountId).toHaveBeenCalledWith(
+      'missing_user_id',
+      'acct_123',
+    );
+  });
+
+  it('should update the user internal stripe account ID and return the user', async () => {
+    const mockDbUpdatedUser = {
+      id: 'user_123',
+      stripeAccountId: 'acct_123',
+    };
+
+    vi.mocked(userRepository.updateStripeAccountId).mockResolvedValueOnce(mockDbUpdatedUser as any);
+
+    const result = await updateInternalStripeAccountId('user_123', 'acct_123');
+
+    expect(result).toEqual(mockDbUpdatedUser);
+    expect(userRepository.updateStripeAccountId).toHaveBeenCalledWith('user_123', 'acct_123');
+  });
+});
+
+describe('updateScheduleRules', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should throw a 404 HTTPException if the user is not found', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+    const payload = {
+      pickupWindows: [{ day: 'Monday', start: '09:00', end: '17:00' }],
+      deliveryWindows: [], // Added to satisfy new schema
+    };
+
+    await expect(updateScheduleRules('missing_user_id', payload)).rejects.toThrow(HTTPException);
+    await expect(updateScheduleRules('missing_user_id', payload)).rejects.toMatchObject({
+      status: 404,
+    });
+
+    expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
+    expect(scheduleRuleRepository.replaceSellerRules).not.toHaveBeenCalled();
+  });
+
+  it('should map payload correctly and call repository replace method', async () => {
+    const mockDbUser = { id: 'seller_123', email: 'seller@example.com' };
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockDbUser as any);
+    vi.mocked(scheduleRuleRepository.replaceSellerRules).mockResolvedValueOnce();
+
+    const payload = {
+      pickupWindows: [{ day: 'Monday', start: '09:00', end: '12:00' }],
+      deliveryWindows: [{ day: 'Wednesday', start: '13:00', end: '17:00' }],
+    };
+
+    await updateScheduleRules('seller_123', payload);
+
+    expect(userRepository.findById).toHaveBeenCalledWith('seller_123');
+    expect(scheduleRuleRepository.replaceSellerRules).toHaveBeenCalledWith('seller_123', [
+      { dayOfWeek: 'Monday', startTime: '09:00', endTime: '12:00', type: 'pickup' },
+      { dayOfWeek: 'Wednesday', startTime: '13:00', endTime: '17:00', type: 'delivery' },
+    ]);
+  });
+});
+
+describe('getPublicUserProfile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should throw a 404 HTTPException if the user is not found', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+    await expect(getPublicUserProfile('missing_user_id')).rejects.toThrow(HTTPException);
+    expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
+  });
+
+  it('should return default zeroed stats if user has no reviews or buyers', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'user_123',
+      name: 'Alice',
+    } as any);
+    vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([]);
+    vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(0);
+
+    const result = await getPublicUserProfile('user_123');
+
+    expect(result).toMatchObject({
+      id: 'user_123',
+      name: 'Alice',
+      starRating: 0,
+      totalReviews: 0,
+      reviewBreakdown: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
+      activeBuyerCount: 0,
     });
   });
 
-  describe('updateInternalStripeAccountId', () => {
-    it('should throw a 404 HTTPException if the user is not found during update', async () => {
-      vi.mocked(userRepository.updateStripeAccountId).mockResolvedValueOnce(null);
+  it('should correctly calculate star rating, total reviews, and map breakdown', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'user_123',
+      name: 'Alice',
+      city: 'Seattle',
+    } as any);
 
-      await expect(updateInternalStripeAccountId('missing_user_id', 'acct_123')).rejects.toThrow(
-        HTTPException,
-      );
-      await expect(
-        updateInternalStripeAccountId('missing_user_id', 'acct_123'),
-      ).rejects.toMatchObject({
-        status: 404,
-      });
+    // 10 total reviews: (5 * 4 stars = 20) + (3 * 5 stars = 15) + (2 * 1 star = 2) = 37 total stars
+    // Average: 37 / 10 = 3.7
+    vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([
+      { rating: 4, count: 5 },
+      { rating: 5, count: 3 },
+      { rating: 1, count: 2 },
+    ]);
+    vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(12);
 
-      expect(userRepository.updateStripeAccountId).toHaveBeenCalledWith(
-        'missing_user_id',
-        'acct_123',
-      );
-    });
+    const result = await getPublicUserProfile('user_123');
 
-    it('should update the user internal stripe account ID and return the user', async () => {
-      const mockDbUpdatedUser = {
-        id: 'user_123',
-        stripeAccountId: 'acct_123',
-      };
-
-      vi.mocked(userRepository.updateStripeAccountId).mockResolvedValueOnce(
-        mockDbUpdatedUser as any,
-      );
-
-      const result = await updateInternalStripeAccountId('user_123', 'acct_123');
-
-      expect(result).toEqual(mockDbUpdatedUser);
-      expect(userRepository.updateStripeAccountId).toHaveBeenCalledWith('user_123', 'acct_123');
-    });
-  });
-
-  describe('updateScheduleRules', () => {
-    it('should throw a 404 HTTPException if the user is not found', async () => {
-      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
-
-      const payload = {
-        pickupWindows: [{ day: 'Monday', start: '09:00', end: '17:00' }],
-        deliveryWindows: [], // Added to satisfy new schema
-      };
-
-      await expect(updateScheduleRules('missing_user_id', payload)).rejects.toThrow(HTTPException);
-      await expect(updateScheduleRules('missing_user_id', payload)).rejects.toMatchObject({
-        status: 404,
-      });
-
-      expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
-      expect(scheduleRuleRepository.replaceSellerRules).not.toHaveBeenCalled();
-    });
-
-    it('should map payload correctly and call repository replace method', async () => {
-      const mockDbUser = { id: 'seller_123', email: 'seller@example.com' };
-      vi.mocked(userRepository.findById).mockResolvedValueOnce(mockDbUser as any);
-      vi.mocked(scheduleRuleRepository.replaceSellerRules).mockResolvedValueOnce();
-
-      const payload = {
-        pickupWindows: [{ day: 'Monday', start: '09:00', end: '12:00' }],
-        deliveryWindows: [{ day: 'Wednesday', start: '13:00', end: '17:00' }],
-      };
-
-      await updateScheduleRules('seller_123', payload);
-
-      expect(userRepository.findById).toHaveBeenCalledWith('seller_123');
-      expect(scheduleRuleRepository.replaceSellerRules).toHaveBeenCalledWith('seller_123', [
-        { dayOfWeek: 'Monday', startTime: '09:00', endTime: '12:00', type: 'pickup' },
-        { dayOfWeek: 'Wednesday', startTime: '13:00', endTime: '17:00', type: 'delivery' },
-      ]);
-    });
-  });
-
-  describe('getPublicUserProfile', () => {
-    it('should throw a 404 HTTPException if the user is not found', async () => {
-      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
-
-      await expect(getPublicUserProfile('missing_user_id')).rejects.toThrow(HTTPException);
-      expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
-    });
-
-    it('should return default zeroed stats if user has no reviews or buyers', async () => {
-      vi.mocked(userRepository.findById).mockResolvedValueOnce({
-        id: 'user_123',
-        name: 'Alice',
-      } as any);
-      vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([]);
-      vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(0);
-
-      const result = await getPublicUserProfile('user_123');
-
-      expect(result).toMatchObject({
-        id: 'user_123',
-        name: 'Alice',
-        starRating: 0,
-        totalReviews: 0,
-        reviewBreakdown: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
-        activeBuyerCount: 0,
-      });
-    });
-
-    it('should correctly calculate star rating, total reviews, and map breakdown', async () => {
-      vi.mocked(userRepository.findById).mockResolvedValueOnce({
-        id: 'user_123',
-        name: 'Alice',
-        city: 'Seattle',
-      } as any);
-
-      // 10 total reviews: (5 * 4 stars = 20) + (3 * 5 stars = 15) + (2 * 1 star = 2) = 37 total stars
-      // Average: 37 / 10 = 3.7
-      vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([
-        { rating: 4, count: 5 },
-        { rating: 5, count: 3 },
-        { rating: 1, count: 2 },
-      ]);
-      vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(12);
-
-      const result = await getPublicUserProfile('user_123');
-
-      expect(result).toMatchObject({
-        id: 'user_123',
-        name: 'Alice',
-        city: 'Seattle',
-        starRating: 3.7,
-        totalReviews: 10,
-        reviewBreakdown: { '1': 2, '2': 0, '3': 0, '4': 5, '5': 3 },
-        activeBuyerCount: 12,
-      });
+    expect(result).toMatchObject({
+      id: 'user_123',
+      name: 'Alice',
+      city: 'Seattle',
+      starRating: 3.7,
+      totalReviews: 10,
+      reviewBreakdown: { '1': 2, '2': 0, '3': 0, '4': 5, '5': 3 },
+      activeBuyerCount: 12,
     });
   });
 });
