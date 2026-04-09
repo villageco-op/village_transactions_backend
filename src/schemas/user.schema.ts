@@ -20,6 +20,10 @@ export const UpdateUserSchema = z
       example: 'Alex Farmer',
       description: 'The user’s display name',
     }),
+    image: z.url().optional().openapi({
+      example: 'https://blob.vercel.com/image.png',
+      description: 'The url to the image in vercel blob from the upload image response.',
+    }),
     aboutMe: z.string().optional().openapi({
       example: 'Growing organic berries since 2010.',
       description: 'A brief bio or description of the farm/user',

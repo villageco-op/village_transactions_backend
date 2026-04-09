@@ -49,7 +49,7 @@ export const userRepository = {
 
     if (data.name !== undefined) updatePayload.name = data.name;
 
-    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.image !== undefined) updatePayload.image = data.image;
     if (data.aboutMe !== undefined) updatePayload.aboutMe = data.aboutMe;
     if (data.specialties !== undefined) updatePayload.specialties = data.specialties;
 
