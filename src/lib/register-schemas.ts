@@ -57,7 +57,12 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('ProduceListResponse', Produce.ProduceListResponseSchema);
   app.openAPIRegistry.register('ProduceOrderListResponse', Produce.ProduceOrderListResponseSchema);
   app.openAPIRegistry.register('SellerMapGroupList', Produce.SellerMapGroupListSchema);
-  app.openAPIRegistry.register('ProduceResponse', Produce.ProduceResponseSchema);
+  app.openAPIRegistry.register('ProduceAnalytics', Produce.ProduceAnalyticsSchema);
+  app.openAPIRegistry.register('SellerProduceListing', Produce.SellerProduceListingSchema);
+  app.openAPIRegistry.register(
+    'SellerProduceListResponse',
+    Produce.SellerProduceListResponseSchema,
+  );
 
   // Produce Nested Entities
   app.openAPIRegistry.register('ProduceOrderBuyer', Produce.ProduceOrderBuyerSchema);

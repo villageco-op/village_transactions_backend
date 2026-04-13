@@ -358,4 +358,25 @@ export const orderRepository = {
 
     return result?.count ?? 0;
   },
+
+  /**
+   * Retrieves specific analytics data for an array of product IDs.
+   * @param productIds - An array of product IDs
+   * @returns Analytics like quantity, price, and status for the given products
+   */
+  async getAnalyticsForProducts(productIds: string[]) {
+    if (!productIds.length) return [];
+    return await this.db
+      .select({
+        productId: orderItems.productId,
+        quantityOz: orderItems.quantityOz,
+        pricePerOz: orderItems.pricePerOz,
+        status: orders.status,
+        createdAt: orders.createdAt,
+        orderId: orders.id,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(inArray(orderItems.productId, productIds));
+  },
 };

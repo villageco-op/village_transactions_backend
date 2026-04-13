@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { produce, subscriptions } from '../db/schema.js';
@@ -63,5 +63,22 @@ export const subscriptionRepository = {
       .from(subscriptions)
       .innerJoin(produce, eq(subscriptions.productId, produce.id))
       .where(and(eq(subscriptions.buyerId, buyerId), eq(subscriptions.status, 'active')));
+  },
+
+  /**
+   * Retrieves active subscriptions for an array of product IDs to calculate analytics.
+   * @param productIds - Array of product IDs
+   * @returns The active subscriptions for the given products
+   */
+  async getActiveSubscriptionsForProducts(productIds: string[]) {
+    if (!productIds.length) return [];
+    return await this.db
+      .select({
+        productId: subscriptions.productId,
+        quantityOz: subscriptions.quantityOz,
+        nextDeliveryDate: subscriptions.nextDeliveryDate,
+      })
+      .from(subscriptions)
+      .where(and(inArray(subscriptions.productId, productIds), eq(subscriptions.status, 'active')));
   },
 };

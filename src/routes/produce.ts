@@ -18,7 +18,7 @@ import {
   SellerMapGroupListSchema,
   ProduceListResponseSchema,
   ProduceOrderListResponseSchema,
-  ProduceResponseSchema,
+  SellerProduceListResponseSchema,
 } from '../schemas/produce.schema.js';
 import { getPaginationParams } from '../schemas/util/pagination.js';
 import {
@@ -316,8 +316,8 @@ produceRoute.openapi(
     },
     responses: {
       200: {
-        description: "List of the seller's produce",
-        content: { 'application/json': { schema: ProduceResponseSchema } },
+        description: "List of the seller's produce including metrics",
+        content: { 'application/json': { schema: SellerProduceListResponseSchema } },
       },
       401: {
         description: 'Unauthorized',

@@ -670,4 +670,97 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(count).toBe(0);
     });
   });
+
+  describe('OrderRepository - getAnalyticsForProducts Integration', () => {
+    it('should successfully fetch order items joined with their order statuses for a list of products', async () => {
+      const sellerId = 'seller_analytics';
+      const buyerId = 'buyer_analytics';
+
+      await testDb.insert(users).values([
+        { id: sellerId, name: 'Farmer Dan', email: 'dan@farm.com' },
+        { id: buyerId, name: 'Customer Sue', email: 'sue@city.com' },
+      ]);
+
+      const [product1, product2] = await testDb
+        .insert(produce)
+        .values([
+          {
+            sellerId,
+            title: 'Corn',
+            pricePerOz: '0.20',
+            totalOzInventory: '100',
+            harvestFrequencyDays: 1,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+          },
+          {
+            sellerId,
+            title: 'Peas',
+            pricePerOz: '0.30',
+            totalOzInventory: '100',
+            harvestFrequencyDays: 1,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+          },
+          {
+            sellerId,
+            title: 'Carrots',
+            pricePerOz: '0.40',
+            totalOzInventory: '100',
+            harvestFrequencyDays: 1,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+          },
+        ])
+        .returning();
+
+      const [order1, order2] = await testDb
+        .insert(orders)
+        .values([
+          {
+            buyerId,
+            sellerId,
+            status: 'completed',
+            totalAmount: '10',
+            fulfillmentType: 'pickup',
+            scheduledTime: new Date(),
+            paymentMethod: 'card',
+          },
+          {
+            buyerId,
+            sellerId,
+            status: 'pending',
+            totalAmount: '15',
+            fulfillmentType: 'pickup',
+            scheduledTime: new Date(),
+            paymentMethod: 'card',
+          },
+        ])
+        .returning();
+
+      await testDb.insert(orderItems).values([
+        { orderId: order1.id, productId: product1.id, quantityOz: '20', pricePerOz: '0.20' },
+        { orderId: order2.id, productId: product1.id, quantityOz: '15', pricePerOz: '0.20' },
+        { orderId: order2.id, productId: product2.id, quantityOz: '10', pricePerOz: '0.30' },
+      ]);
+
+      // Query only products 1 & 2
+      const results = await orderRepository.getAnalyticsForProducts([product1.id, product2.id]);
+
+      expect(results).toHaveLength(3);
+
+      const cornResults = results.filter((r) => r.productId === product1.id);
+      expect(cornResults).toHaveLength(2);
+      expect(cornResults.map((r) => r.status).sort()).toEqual(['completed', 'pending']);
+
+      const peaResults = results.filter((r) => r.productId === product2.id);
+      expect(peaResults).toHaveLength(1);
+      expect(peaResults[0].status).toBe('pending');
+    });
+
+    it('should return an empty array if given an empty product list', async () => {
+      const results = await orderRepository.getAnalyticsForProducts([]);
+      expect(results).toEqual([]);
+    });
+  });
 });

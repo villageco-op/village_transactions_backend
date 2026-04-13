@@ -1,4 +1,6 @@
+import { orderRepository } from '../repositories/order.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
+import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import type { CreateProducePayload, UpdateProducePayload } from '../schemas/produce.schema.js';
 
 /**
@@ -135,7 +137,8 @@ export async function getProduceMap(params: {
 }
 
 /**
- * Retrieves paginated orders for a specific produce listing with standardized metadata.
+ * Retrieves paginated orders for a specific produce listing with standardized metadata
+ * and in depth per listing analytics.
  * @param produceId - The ID of the listing.
  * @param sellerId - The ID of the user requesting the orders (must be the seller).
  * @param page - Current page number.
@@ -177,7 +180,7 @@ export async function getProduceOrders(
  * @param params.limit - The maximum number of items to return.
  * @param params.offset - The number of items to skip.
  * @param params.status - Optional status filter.
- * @returns Standardized paginated response with full produce details.
+ * @returns Standardized paginated response with full produce details and analytics data.
  */
 export async function getSellerProduceListings(
   sellerId: string,
@@ -190,8 +193,100 @@ export async function getSellerProduceListings(
     status: params.status,
   });
 
+  if (!items || items.length === 0) {
+    return {
+      data: [],
+      meta: {
+        total,
+        page: params.page,
+        limit: params.limit,
+        totalPages: Math.ceil(total / (params.limit || 1)),
+      },
+    };
+  }
+
+  const productIds = items.map((i) => i.id);
+  const [ordersData, subsData] = await Promise.all([
+    orderRepository.getAnalyticsForProducts(productIds),
+    subscriptionRepository.getActiveSubscriptionsForProducts(productIds),
+  ]);
+
+  const now = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const enrichedItems = items.map((item) => {
+    const itemOrders = ordersData.filter((o) => o.productId === item.id);
+    const itemSubs = subsData.filter((s) => s.productId === item.id);
+
+    let totalOzSold = 0;
+    let totalMonthlyEarnings = 0;
+    let pendingOrderOz = 0;
+    const uniqueOrders = new Set();
+
+    for (const o of itemOrders) {
+      if (o.status !== 'canceled') {
+        uniqueOrders.add(o.orderId);
+      }
+      if (o.status === 'completed') {
+        totalOzSold += Number(o.quantityOz);
+        // Only count within last 30 days for monthly earnings
+        if (o.createdAt && new Date(o.createdAt) >= thirtyDaysAgo) {
+          totalMonthlyEarnings += Number(o.quantityOz) * Number(o.pricePerOz);
+        }
+      } else if (o.status === 'pending') {
+        pendingOrderOz += Number(o.quantityOz);
+      }
+    }
+
+    let activeSubscriptionOz = 0;
+    for (const s of itemSubs) {
+      activeSubscriptionOz += Number(s.quantityOz);
+    }
+
+    const totalOzInventory = Number(item.totalOzInventory);
+
+    let percentSold = 0;
+    if (totalOzInventory > 0) {
+      percentSold = ((pendingOrderOz + activeSubscriptionOz) / totalOzInventory) * 100;
+    }
+
+    const availableInventory = totalOzInventory - pendingOrderOz;
+
+    let nextHarvest = new Date(item.availableBy);
+    if (item.harvestFrequencyDays && item.harvestFrequencyDays > 0) {
+      while (nextHarvest < now) {
+        nextHarvest.setDate(nextHarvest.getDate() + item.harvestFrequencyDays);
+      }
+    }
+
+    let upcomingSubscriptionOzNeeded = 0;
+    for (const s of itemSubs) {
+      if (s.nextDeliveryDate && new Date(s.nextDeliveryDate) < nextHarvest) {
+        upcomingSubscriptionOzNeeded += Number(s.quantityOz);
+      }
+    }
+
+    const inventorySufficientForUpcoming = availableInventory >= upcomingSubscriptionOzNeeded;
+
+    return {
+      ...item,
+      analytics: {
+        totalOzSold,
+        totalMonthlyEarnings,
+        numberOfSubscriptions: itemSubs.length,
+        numberOfOrders: uniqueOrders.size,
+        percentSold: Number(percentSold.toFixed(2)),
+        upcomingSubscriptionOzNeeded,
+        availableInventory,
+        inventorySufficientForUpcoming,
+        nextHarvestDate: nextHarvest.toISOString(),
+      },
+    };
+  });
+
   return {
-    data: items,
+    data: enrichedItems,
     meta: {
       total,
       page: params.page,
