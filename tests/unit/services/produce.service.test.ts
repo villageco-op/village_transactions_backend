@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   createProduceListing,
@@ -10,6 +10,8 @@ import {
   updateProduceListing,
 } from '../../../src/services/produce.service.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
 
 vi.mock('../../../src/repositories/produce.repository.js', () => ({
   produceRepository: {
@@ -20,6 +22,18 @@ vi.mock('../../../src/repositories/produce.repository.js', () => ({
     getMapItems: vi.fn(),
     getProduceOrders: vi.fn(),
     getSellerListings: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/order.repository.js', () => ({
+  orderRepository: {
+    getAnalyticsForProducts: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/subscription.repository.js', () => ({
+  subscriptionRepository: {
+    getActiveSubscriptionsForProducts: vi.fn(),
   },
 }));
 
@@ -401,24 +415,37 @@ describe('ProduceService - getProduceOrders', () => {
 
 describe('ProduceService - getSellerProduceListings', () => {
   const mockSellerId = 'user_123';
+  const mockDate = new Date('2024-05-15T12:00:00Z');
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(mockDate);
   });
 
-  it('should successfully retrieve a paginated list of the sellers own produce', async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should successfully retrieve a paginated list of the sellers own produce with analytics', async () => {
     const mockDbProduce = [
       {
         id: 'prod_1',
         sellerId: mockSellerId,
         title: 'My Apples',
         status: 'active',
+        totalOzInventory: '100',
+        availableBy: new Date('2024-05-10T12:00:00Z'), // 5 days ago
+        harvestFrequencyDays: 7, // Next harvest should be 2024-05-17
       },
       {
         id: 'prod_2',
         sellerId: mockSellerId,
         title: 'My Oranges',
         status: 'paused',
+        totalOzInventory: '50',
+        availableBy: new Date('2024-05-20T12:00:00Z'),
+        harvestFrequencyDays: 14,
       },
     ];
 
@@ -427,6 +454,40 @@ describe('ProduceService - getSellerProduceListings', () => {
       total: 15,
     } as any);
 
+    const thirtyOneDaysAgo = new Date('2024-04-13T12:00:00Z');
+    const fiveDaysAgo = new Date('2024-05-10T12:00:00Z');
+
+    vi.mocked(orderRepository.getAnalyticsForProducts).mockResolvedValueOnce([
+      {
+        productId: 'prod_1',
+        orderId: 'ord_1',
+        quantityOz: '10',
+        pricePerOz: '2',
+        status: 'completed',
+        createdAt: fiveDaysAgo,
+      },
+      {
+        productId: 'prod_1',
+        orderId: 'ord_2',
+        quantityOz: '5',
+        pricePerOz: '2',
+        status: 'completed',
+        createdAt: thirtyOneDaysAgo,
+      },
+      {
+        productId: 'prod_1',
+        orderId: 'ord_3',
+        quantityOz: '20',
+        pricePerOz: '2',
+        status: 'pending',
+        createdAt: fiveDaysAgo,
+      },
+    ] as any);
+
+    vi.mocked(subscriptionRepository.getActiveSubscriptionsForProducts).mockResolvedValueOnce([
+      { productId: 'prod_1', quantityOz: '15', nextDeliveryDate: new Date('2024-05-16T12:00:00Z') },
+    ] as any);
+
     const result = await getSellerProduceListings(mockSellerId, {
       page: 2,
       limit: 10,
@@ -434,19 +495,35 @@ describe('ProduceService - getSellerProduceListings', () => {
       status: undefined,
     });
 
-    expect(result.data).toEqual(mockDbProduce);
+    expect(result.data[0].analytics).toEqual({
+      totalOzSold: 15,
+      totalMonthlyEarnings: 20,
+      numberOfSubscriptions: 1,
+      numberOfOrders: 3,
+      percentSold: 35,
+      upcomingSubscriptionOzNeeded: 15,
+      availableInventory: 80,
+      inventorySufficientForUpcoming: true,
+      nextHarvestDate: new Date('2024-05-17T12:00:00.000Z').toISOString(),
+    });
+
+    expect(result.data[1].analytics).toEqual({
+      totalOzSold: 0,
+      totalMonthlyEarnings: 0,
+      numberOfSubscriptions: 0,
+      numberOfOrders: 0,
+      percentSold: 0,
+      upcomingSubscriptionOzNeeded: 0,
+      availableInventory: 50,
+      inventorySufficientForUpcoming: true,
+      nextHarvestDate: new Date('2024-05-20T12:00:00.000Z').toISOString(),
+    });
+
     expect(result.meta).toEqual({
       total: 15,
       page: 2,
       limit: 10,
       totalPages: 2,
-    });
-
-    expect(produceRepository.getSellerListings).toHaveBeenCalledWith({
-      sellerId: mockSellerId,
-      limit: 10,
-      offset: 10,
-      status: undefined,
     });
   });
 

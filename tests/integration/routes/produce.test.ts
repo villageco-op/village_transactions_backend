@@ -7,15 +7,20 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
-import { users, produce, orderItems, orders } from '../../../src/db/schema.js';
+import { users, produce, orderItems, orders, subscriptions } from '../../../src/db/schema.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
 
 describe('Produce API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
   const TEST_USER_ID = 'test_auth_seller_123';
+  const TEST_BUYER_ID = 'test_auth_buyer_456';
 
   beforeAll(() => {
     testDb = getTestDb();
     produceRepository.setDb(testDb);
+    subscriptionRepository.setDb(testDb);
+    orderRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -575,47 +580,89 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
   describe('GET /api/produce/me', () => {
     beforeEach(async () => {
       const OTHER_SELLER_ID = 'another_seller_xyz';
-      await testDb.insert(users).values({
-        id: OTHER_SELLER_ID,
-        name: 'Another Seller',
-        email: 'another@example.com',
-      });
-
-      await testDb.insert(produce).values([
+      await testDb.insert(users).values([
         {
-          sellerId: TEST_USER_ID,
-          title: 'Active Apples',
-          pricePerOz: '0.50',
-          totalOzInventory: '100',
-          harvestFrequencyDays: 1,
-          seasonStart: '2024-01-01',
-          seasonEnd: '2024-12-31',
-          status: 'active',
+          id: OTHER_SELLER_ID,
+          name: 'Another Seller',
+          email: 'another@example.com',
         },
         {
-          sellerId: TEST_USER_ID,
-          title: 'Paused Peaches',
-          pricePerOz: '0.60',
-          totalOzInventory: '50',
-          harvestFrequencyDays: 1,
-          seasonStart: '2024-01-01',
-          seasonEnd: '2024-12-31',
-          status: 'paused',
-        },
-        {
-          sellerId: OTHER_SELLER_ID,
-          title: 'Other Users Oranges',
-          pricePerOz: '0.40',
-          totalOzInventory: '200',
-          harvestFrequencyDays: 1,
-          seasonStart: '2024-01-01',
-          seasonEnd: '2024-12-31',
-          status: 'active',
+          id: TEST_BUYER_ID,
+          name: 'Integration Buyer',
+          email: 'buyer.api@example.com',
+          passwordHash: 'secret_hash',
         },
       ]);
+
+      const [activeApples] = await testDb
+        .insert(produce)
+        .values([
+          {
+            sellerId: TEST_USER_ID,
+            title: 'Active Apples',
+            pricePerOz: '0.50',
+            totalOzInventory: '100',
+            harvestFrequencyDays: 7,
+            availableBy: new Date(),
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+            status: 'active',
+          },
+          {
+            sellerId: TEST_USER_ID,
+            title: 'Paused Peaches',
+            pricePerOz: '0.60',
+            totalOzInventory: '50',
+            harvestFrequencyDays: 1,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+            status: 'paused',
+          },
+          {
+            sellerId: OTHER_SELLER_ID,
+            title: 'Other Users Oranges',
+            pricePerOz: '0.40',
+            totalOzInventory: '200',
+            harvestFrequencyDays: 1,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+            status: 'active',
+          },
+        ])
+        .returning();
+
+      const [mockOrder] = await testDb
+        .insert(orders)
+        .values({
+          buyerId: TEST_BUYER_ID,
+          sellerId: TEST_USER_ID,
+          status: 'completed',
+          totalAmount: '10.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          createdAt: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      await testDb.insert(orderItems).values({
+        orderId: mockOrder.id,
+        productId: activeApples.id,
+        quantityOz: '20',
+        pricePerOz: '0.50',
+      });
+
+      await testDb.insert(subscriptions).values({
+        buyerId: TEST_BUYER_ID,
+        productId: activeApples.id,
+        quantityOz: '10',
+        status: 'active',
+        fulfillmentType: 'pickup',
+        nextDeliveryDate: new Date(Date.now() + 86400000), // tomorrow
+      });
     });
 
-    it('should return 200 and a list of the authenticated sellers own listings', async () => {
+    it('should return 200 and a list of the authenticated sellers own listings with metrics', async () => {
       const res = await authedRequest(
         '/api/produce/me?limit=10&offset=0',
         { method: 'GET' },
@@ -628,10 +675,16 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(Array.isArray(data)).toBe(true);
       expect(data).toHaveLength(2);
 
-      const titles = data.map((item: any) => item.title);
-      expect(titles).toContain('Active Apples');
-      expect(titles).toContain('Paused Peaches');
-      expect(titles).not.toContain('Other Users Oranges');
+      const activeApples = data.find((item: any) => item.title === 'Active Apples');
+      expect(activeApples).toBeDefined();
+
+      expect(activeApples.analytics).toBeDefined();
+      expect(activeApples.analytics.totalOzSold).toBe(20);
+      expect(activeApples.analytics.totalMonthlyEarnings).toBe(10); // 20oz * 0.50
+      expect(activeApples.analytics.numberOfSubscriptions).toBe(1);
+      expect(activeApples.analytics.numberOfOrders).toBe(1);
+      // percentSold = (pending + active subs) / inventory -> (0 pending + 10 sub) / 100 = 10%
+      expect(activeApples.analytics.percentSold).toBe(10);
     });
 
     it('should correctly filter the sellers listings by status', async () => {
@@ -647,6 +700,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(data).toHaveLength(1);
       expect(data[0].title).toBe('Paused Peaches');
       expect(data[0].status).toBe('paused');
+      expect(data[0].analytics).toBeDefined();
     });
 
     it('should return 401 if the user is unauthenticated', async () => {

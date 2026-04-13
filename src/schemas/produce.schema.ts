@@ -173,9 +173,27 @@ export const SellerProduceQuerySchema = z
 
 export const ProduceSchema = createSelectSchema(produce).openapi('Produce');
 
-export const ProduceResponseSchema = createPaginatedResponseSchema(
-  ProduceSchema,
-  'ProduceResponse',
+export const ProduceAnalyticsSchema = z
+  .object({
+    totalOzSold: z.number(),
+    totalMonthlyEarnings: z.number(),
+    numberOfSubscriptions: z.number(),
+    numberOfOrders: z.number(),
+    percentSold: z.number(),
+    upcomingSubscriptionOzNeeded: z.number(),
+    availableInventory: z.number(),
+    inventorySufficientForUpcoming: z.boolean(),
+    nextHarvestDate: z.string().optional(),
+  })
+  .openapi('ProduceAnalytics');
+
+export const SellerProduceListingSchema = ProduceSchema.extend({
+  analytics: ProduceAnalyticsSchema.optional(),
+}).openapi('SellerProduceListing');
+
+export const SellerProduceListResponseSchema = createPaginatedResponseSchema(
+  SellerProduceListingSchema,
+  'SellerProduceListResponse',
 );
 
 export type CreateProducePayload = z.infer<typeof CreateProduceSchema>;
