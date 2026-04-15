@@ -295,3 +295,12 @@ export async function getSellerProduceListings(
     },
   };
 }
+
+/**
+ * Retrieves details for a specific produce listing.
+ * @param id - The ID of the listing to retrieve
+ * @returns The produce listing with seller details, or undefined if not found
+ */
+export async function getProduceListing(id: string) {
+  return await produceRepository.getById(id);
+}

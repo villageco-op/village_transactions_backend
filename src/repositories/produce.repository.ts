@@ -19,6 +19,35 @@ export const produceRepository = {
   },
 
   /**
+   * Retrieves a specific produce listing by its ID, including basic seller information.
+   * @param id - The ID of the produce listing
+   * @returns The produce record with seller details, or undefined if not found
+   */
+  async getById(id: string) {
+    const [item] = await this.db
+      .select({
+        produce: produce,
+        seller: {
+          id: users.id,
+          name: users.name,
+          image: users.image,
+        },
+      })
+      .from(produce)
+      .innerJoin(users, eq(produce.sellerId, users.id))
+      .where(eq(produce.id, id));
+
+    if (!item) {
+      return undefined;
+    }
+
+    return {
+      ...item.produce,
+      seller: item.seller,
+    };
+  },
+
+  /**
    * Creates a new produce listing in the database.
    * @param sellerId - The ID of the user creating the listing
    * @param data - The parsed payload containing listing details

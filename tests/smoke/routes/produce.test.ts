@@ -76,4 +76,14 @@ describe('Produce API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/produce/:id should not return a 500 error', async () => {
+    const mockId = '123e4567-e89b-12d3-a456-426614174000';
+
+    const res = await authedRequest(`/api/produce/${mockId}`, {
+      method: 'GET',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });

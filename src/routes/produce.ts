@@ -19,6 +19,7 @@ import {
   ProduceListResponseSchema,
   ProduceOrderListResponseSchema,
   SellerProduceListResponseSchema,
+  ProduceDetailSchema,
 } from '../schemas/produce.schema.js';
 import { getPaginationParams } from '../schemas/util/pagination.js';
 import {
@@ -29,6 +30,7 @@ import {
   getProduceMap,
   getProduceOrders,
   getSellerProduceListings,
+  getProduceListing,
 } from '../services/produce.service.js';
 
 export const produceRoute = new OpenAPIHono();
@@ -345,5 +347,40 @@ produceRoute.openapi(
     });
 
     return c.json(paginatedItems, 200);
+  },
+);
+
+produceRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}',
+    operationId: 'getProduce',
+    description:
+      'Get details of a specific produce listing. Used by buyers to view items and sellers to populate edit forms.',
+    tags: [TAGS.PRODUCE],
+    request: {
+      params: EntityParamSchema,
+    },
+    responses: {
+      200: {
+        description: 'Produce listing details',
+        content: { 'application/json': { schema: ProduceDetailSchema } },
+      },
+      404: {
+        description: 'Listing Not Found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+
+    const item = await getProduceListing(id);
+
+    if (!item) {
+      return c.json({ error: 'Listing not found' }, 404);
+    }
+
+    return c.json(item, 200);
   },
 );

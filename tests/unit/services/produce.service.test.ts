@@ -4,6 +4,7 @@ import {
   createProduceListing,
   deleteProduceListing,
   getProduceList,
+  getProduceListing,
   getProduceMap,
   getProduceOrders,
   getSellerProduceListings,
@@ -22,6 +23,7 @@ vi.mock('../../../src/repositories/produce.repository.js', () => ({
     getMapItems: vi.fn(),
     getProduceOrders: vi.fn(),
     getSellerListings: vi.fn(),
+    getById: vi.fn(),
   },
 }));
 
@@ -535,5 +537,51 @@ describe('ProduceService - getSellerProduceListings', () => {
     await expect(
       getSellerProduceListings(mockSellerId, { page: 1, limit: 10, offset: 0 }),
     ).rejects.toThrow('Database Timeout');
+  });
+});
+
+describe('ProduceService - getProduceListing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return a produce listing with seller details when found', async () => {
+    const mockDbResult = {
+      id: 'prod_123',
+      sellerId: 'user_123',
+      title: 'Organic Carrots',
+      produceType: 'vegetable',
+      pricePerOz: '0.50',
+      totalOzInventory: '100',
+      seller: {
+        id: 'user_123',
+        name: 'Farmer Joe',
+        image: 'https://example.com/joe.jpg',
+      },
+    };
+
+    vi.mocked(produceRepository.getById).mockResolvedValueOnce(mockDbResult as any);
+
+    const result = await getProduceListing('prod_123');
+
+    expect(result).toEqual(mockDbResult);
+    expect(produceRepository.getById).toHaveBeenCalledWith('prod_123');
+    expect(produceRepository.getById).toHaveBeenCalledTimes(1);
+  });
+
+  it('should return undefined when the listing is not found', async () => {
+    vi.mocked(produceRepository.getById).mockResolvedValueOnce(undefined);
+
+    const result = await getProduceListing('missing_prod_999');
+
+    expect(result).toBeUndefined();
+    expect(produceRepository.getById).toHaveBeenCalledWith('missing_prod_999');
+  });
+
+  it('should propagate repository errors upward', async () => {
+    const dbError = new Error('Database connection lost');
+    vi.mocked(produceRepository.getById).mockRejectedValueOnce(dbError);
+
+    await expect(getProduceListing('prod_123')).rejects.toThrow('Database connection lost');
   });
 });
