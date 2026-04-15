@@ -289,6 +289,41 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     });
   });
 
+  it('should retrieve a specific produce listing by ID with seller details', async () => {
+    const createPayload = {
+      title: 'Heirloom Tomatoes',
+      produceType: 'vegetable',
+      pricePerOz: 0.3,
+      totalOzInventory: 400,
+      harvestFrequencyDays: 2,
+      seasonStart: '2024-05-01',
+      seasonEnd: '2024-10-31',
+      images: ['https://example.com/tomato.jpg'],
+      isSubscribable: true,
+    };
+
+    const created = await produceRepository.create(TEST_SELLER_ID, createPayload);
+
+    const item = await produceRepository.getById(created.id);
+
+    expect(item).toBeDefined();
+    expect(item?.id).toBe(created.id);
+    expect(item?.title).toBe('Heirloom Tomatoes');
+    expect(item?.produceType).toBe('vegetable');
+
+    // Check joined seller details
+    expect(item?.seller).toBeDefined();
+    expect(item?.seller.id).toBe(TEST_SELLER_ID);
+    expect(item?.seller.name).toBe('Farmer Joe'); // Name matches the BeforeEach setup
+  });
+
+  it('should return undefined when retrieving a non-existent produce ID', async () => {
+    const fakeId = '00000000-0000-0000-0000-000000000000';
+    const item = await produceRepository.getById(fakeId);
+
+    expect(item).toBeUndefined();
+  });
+
   describe('getMapItems', () => {
     beforeEach(async () => {
       await testDb.insert(produce).values([

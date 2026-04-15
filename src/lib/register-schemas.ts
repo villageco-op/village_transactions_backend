@@ -63,6 +63,7 @@ export function registerSharedSchemas(app: OpenAPIHono) {
     'SellerProduceListResponse',
     Produce.SellerProduceListResponseSchema,
   );
+  app.openAPIRegistry.register('ProduceDetails', Produce.ProduceDetailSchema);
 
   // Produce Nested Entities
   app.openAPIRegistry.register('ProduceOrderBuyer', Produce.ProduceOrderBuyerSchema);

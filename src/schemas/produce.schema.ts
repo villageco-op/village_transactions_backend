@@ -196,5 +196,14 @@ export const SellerProduceListResponseSchema = createPaginatedResponseSchema(
   'SellerProduceListResponse',
 );
 
+export const ProduceDetailSchema = ProduceSchema.extend({
+  seller: z.object({
+    id: UserIdSchema,
+    name: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
+    image: ImageUrlSchema.nullable(),
+  }),
+}).openapi('ProduceDetail');
+
+export type ProduceDetailPayload = z.infer<typeof ProduceDetailSchema>;
 export type CreateProducePayload = z.infer<typeof CreateProduceSchema>;
 export type UpdateProducePayload = z.infer<typeof UpdateProduceSchema>;

@@ -711,4 +711,65 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(body.error).toBe('Unauthorized');
     });
   });
+
+  describe('GET /api/produce/:id', () => {
+    it('should return 200 and the produce details for a valid ID (publicly accessible)', async () => {
+      const [dbProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: TEST_USER_ID,
+          title: 'Sweet Corn',
+          produceType: 'vegetable',
+          pricePerOz: '0.15',
+          totalOzInventory: '1000',
+          harvestFrequencyDays: 5,
+          seasonStart: '2024-07-01',
+          seasonEnd: '2024-09-30',
+        })
+        .returning();
+
+      // Test without an auth session (simulating a guest buyer viewing a listing)
+      const res = await authedRequest(
+        `/api/produce/${dbProduce.id}`,
+        { method: 'GET' },
+        { id: '' }, // No session
+      );
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+
+      expect(data.id).toBe(dbProduce.id);
+      expect(data.title).toBe('Sweet Corn');
+      expect(data.pricePerOz).toBe('0.15');
+      expect(data.seller).toBeDefined();
+      expect(data.seller.id).toBe(TEST_USER_ID);
+      expect(data.seller.name).toBe('Integration Seller');
+    });
+
+    it('should return 404 if the produce listing does not exist', async () => {
+      const randomValidUuid = crypto.randomUUID();
+
+      const res = await authedRequest(
+        `/api/produce/${randomValidUuid}`,
+        { method: 'GET' },
+        { id: '' },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('Listing not found');
+    });
+
+    it('should return 400 for an invalid UUID format in params', async () => {
+      const res = await authedRequest(
+        '/api/produce/not-a-valid-uuid',
+        { method: 'GET' },
+        { id: '' },
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+    });
+  });
 });
