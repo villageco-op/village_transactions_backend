@@ -29,4 +29,13 @@ describe('Order API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/orders/:id should not return a 500 error', async () => {
+    const mockId = '550e8400-e29b-41d4-a716-446655440000';
+    const res = await authedRequest(`/api/orders/${mockId}`, {
+      method: 'GET',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });

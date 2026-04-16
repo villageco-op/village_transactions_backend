@@ -6,13 +6,20 @@ import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.sc
 import {
   CancelOrderBodySchema,
   CancelOrderParamsSchema,
+  GetOrderParamsSchema,
   GetOrdersQuerySchema,
+  OrderDetailResponseSchema,
   OrdersListResponseSchema,
   RescheduleOrderBodySchema,
   RescheduleOrderParamsSchema,
 } from '../schemas/order.schema.js';
 import { getPaginationParams } from '../schemas/util/pagination.js';
-import { cancelOrder, getOrders, rescheduleOrder } from '../services/order.service.js';
+import {
+  cancelOrder,
+  getOrderDetails,
+  getOrders,
+  rescheduleOrder,
+} from '../services/order.service.js';
 
 export const ordersRoute = new OpenAPIHono();
 
@@ -155,5 +162,48 @@ ordersRoute.openapi(
     await cancelOrder(id, reason, userId);
 
     return c.json({ success: true }, 200);
+  },
+);
+
+ordersRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}',
+    operationId: 'getOrderById',
+    description:
+      'Get detailed information for a specific order by ID. Accessible only by the buyer or seller associated with the order.',
+    tags: [TAGS.ORDERS],
+    middleware: [verifyAuth()],
+    request: {
+      params: GetOrderParamsSchema,
+    },
+    responses: {
+      200: {
+        description: 'Order details successfully retrieved',
+        content: { 'application/json': { schema: OrderDetailResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized - User not logged in',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Not Found - Order does not exist or user lacks permission to view it',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id } = c.req.valid('param');
+
+    const orderDetails = await getOrderDetails(id, userId);
+
+    return c.json(orderDetails, 200);
   },
 );

@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import {
   cancelOrder,
+  getOrderDetails,
   getOrders,
   getSellerPayouts,
   rescheduleOrder,
@@ -10,6 +11,7 @@ import {
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
 
 vi.mock('../../../src/repositories/order.repository.js', () => ({
   orderRepository: {
@@ -18,6 +20,13 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
     updateOrderScheduleTime: vi.fn(),
     getOrders: vi.fn(),
     getPayoutHistory: vi.fn(),
+    getOrderWithItemsById: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/user.repository.js', () => ({
+  userRepository: {
+    findById: vi.fn(),
   },
 }));
 
@@ -341,5 +350,88 @@ describe('OrderService - getSellerPayouts', () => {
       limit: 5,
       totalPages: 1,
     });
+  });
+});
+
+describe('OrderService - getOrderDetails', () => {
+  const mockOrderWithItems = {
+    id: 'order_123',
+    buyerId: 'buyer_1',
+    sellerId: 'seller_1',
+    status: 'pending',
+    stripeSessionId: 'cs_test_123',
+    items: [{ productId: 'prod_1', productName: 'Carrots', quantityOz: '16', pricePerOz: '0.5' }],
+  };
+
+  const mockBuyer = {
+    id: 'buyer_1',
+    name: 'Buyer Bob',
+    email: 'bob@test.com',
+    stripeAccountId: 'acct_1',
+  };
+  const mockSeller = {
+    id: 'seller_1',
+    name: 'Seller Sam',
+    email: 'sam@test.com',
+    stripeAccountId: 'acct_2',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully return order details for the buyer without sensitive fields', async () => {
+    vi.mocked(orderRepository.getOrderWithItemsById).mockResolvedValueOnce(
+      mockOrderWithItems as any,
+    );
+    vi.mocked(userRepository.findById)
+      .mockResolvedValueOnce(mockBuyer as any) // first call (buyer)
+      .mockResolvedValueOnce(mockSeller as any); // second call (seller)
+
+    const result = await getOrderDetails('order_123', 'buyer_1');
+
+    expect(orderRepository.getOrderWithItemsById).toHaveBeenCalledWith('order_123');
+    expect(userRepository.findById).toHaveBeenCalledTimes(2);
+
+    // Ensure stripeSessionId is stripped
+    expect((result as any).stripeSessionId).toBeUndefined();
+    expect(result.id).toBe('order_123');
+    expect(result.items).toHaveLength(1);
+
+    // Ensure sensitive user data is stripped
+    expect(result.buyer?.name).toBe('Buyer Bob');
+    expect((result.buyer as any).stripeAccountId).toBeUndefined();
+    expect(result.seller?.name).toBe('Seller Sam');
+  });
+
+  it('should successfully return order details for the seller', async () => {
+    vi.mocked(orderRepository.getOrderWithItemsById).mockResolvedValueOnce(
+      mockOrderWithItems as any,
+    );
+    vi.mocked(userRepository.findById).mockResolvedValue(null as any); // Mock users not found just to test safe fallbacks
+
+    const result = await getOrderDetails('order_123', 'seller_1');
+
+    expect(result.id).toBe('order_123');
+    expect(result.buyer).toBeNull();
+    expect(result.seller).toBeNull();
+  });
+
+  it('should throw an HTTPException 404 if the order does not exist', async () => {
+    vi.mocked(orderRepository.getOrderWithItemsById).mockResolvedValueOnce(null);
+
+    await expect(getOrderDetails('invalid_id', 'buyer_1')).rejects.toThrow(
+      new HTTPException(404, { message: 'Order not found' }),
+    );
+  });
+
+  it('should throw an HTTPException 404 if the requesting user is neither buyer nor seller', async () => {
+    vi.mocked(orderRepository.getOrderWithItemsById).mockResolvedValueOnce(
+      mockOrderWithItems as any,
+    );
+
+    await expect(getOrderDetails('order_123', 'random_hacker')).rejects.toThrow(
+      new HTTPException(404, { message: 'Order not found' }),
+    );
   });
 });

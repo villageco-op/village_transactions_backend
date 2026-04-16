@@ -1,6 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 
 import { orderRepository } from '../repositories/order.repository.js';
+import { userRepository } from '../repositories/user.repository.js';
 
 import { sendPushNotification } from './notification.service.js';
 import { refundCheckoutSession } from './stripe.service.js';
@@ -186,5 +187,56 @@ export async function getSellerPayouts(
       limit,
       totalPages: Math.ceil(total / (limit || 1)),
     },
+  };
+}
+
+/**
+ * Retrieves comprehensive details of a specific order.
+ * Ensures the requesting user is either the buyer or the seller.
+ * @param orderId - The ID of the order
+ * @param requestingUserId - The ID of the authenticated user
+ * @returns Full order data with order items and buyer and seller info
+ */
+export async function getOrderDetails(orderId: string, requestingUserId: string) {
+  const orderData = await orderRepository.getOrderWithItemsById(orderId);
+
+  if (!orderData) {
+    throw new HTTPException(404, { message: 'Order not found' });
+  }
+
+  const isBuyer = orderData.buyerId === requestingUserId;
+  const isSeller = orderData.sellerId === requestingUserId;
+
+  if (!isBuyer && !isSeller) {
+    throw new HTTPException(404, { message: 'Order not found' });
+  }
+
+  const [buyerData, sellerData] = await Promise.all([
+    userRepository.findById(orderData.buyerId),
+    userRepository.findById(orderData.sellerId),
+  ]);
+
+  const safeBuyer = buyerData
+    ? {
+        id: buyerData.id,
+        name: buyerData.name,
+        email: buyerData.email,
+      }
+    : null;
+
+  const safeSeller = sellerData
+    ? {
+        id: sellerData.id,
+        name: sellerData.name,
+        email: sellerData.email,
+      }
+    : null;
+
+  const { stripeSessionId: _stripeSessionId, ...safeOrderData } = orderData;
+
+  return {
+    ...safeOrderData,
+    buyer: safeBuyer,
+    seller: safeSeller,
   };
 }

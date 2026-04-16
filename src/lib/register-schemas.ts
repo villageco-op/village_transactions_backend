@@ -76,9 +76,13 @@ export function registerSharedSchemas(app: OpenAPIHono) {
 
   // Order Entities
   app.openAPIRegistry.register('Order', Orders.OrderSchema);
+  app.openAPIRegistry.register('OrderDetailResponse', Orders.OrderDetailResponseSchema);
+  app.openAPIRegistry.register('OrderItemDetail', Orders.OrderItemDetailSchema);
+  app.openAPIRegistry.register('UserBasicInfo', Orders.UserBasicInfoSchema);
   app.openAPIRegistry.register('OrdersListResponse', Orders.OrdersListResponseSchema);
 
-  // Order Payloads
+  // Order Payloads & Params
+  app.openAPIRegistry.register('GetOrderParams', Orders.GetOrderParamsSchema);
   app.openAPIRegistry.register('CancelOrderPayload', Orders.CancelOrderBodySchema);
   app.openAPIRegistry.register('RescheduleOrderPayload', Orders.RescheduleOrderBodySchema);
 
