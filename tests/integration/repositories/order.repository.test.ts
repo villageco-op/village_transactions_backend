@@ -763,4 +763,63 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(results).toEqual([]);
     });
   });
+
+  describe('OrderRepository - getOrderWithItemsById', () => {
+    it('should retrieve an order and its joined items', async () => {
+      const buyerId = 'b_items_test';
+      const sellerId = 's_items_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'b_items@test.com' },
+        { id: sellerId, email: 's_items@test.com' },
+      ]);
+
+      const [testProduct] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Test Apples',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 1,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      const [insertedOrder] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '20.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      await testDb.insert(orderItems).values({
+        orderId: insertedOrder.id,
+        productId: testProduct.id,
+        quantityOz: '20',
+        pricePerOz: '1.00',
+      });
+
+      const fetchedOrderData = await orderRepository.getOrderWithItemsById(insertedOrder.id);
+
+      expect(fetchedOrderData).toBeDefined();
+      expect(fetchedOrderData?.id).toBe(insertedOrder.id);
+      expect(fetchedOrderData?.items).toHaveLength(1);
+      expect(fetchedOrderData?.items[0].productName).toBe('Test Apples');
+      expect(fetchedOrderData?.items[0].quantityOz).toBe('20.00');
+    });
+
+    it('should return null when getting order items by a non-existent ID', async () => {
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
+      const fetchedOrder = await orderRepository.getOrderWithItemsById(nonExistentId);
+      expect(fetchedOrder).toBeNull();
+    });
+  });
 });

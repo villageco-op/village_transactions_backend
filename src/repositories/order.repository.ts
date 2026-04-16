@@ -379,4 +379,32 @@ export const orderRepository = {
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .where(inArray(orderItems.productId, productIds));
   },
+
+  /**
+   * Retrieves an order and its associated line items.
+   * @param orderId - The UUID of the order.
+   * @returns The combined order and items object or null.
+   */
+  async getOrderWithItemsById(orderId: string) {
+    const [order] = await this.db.select().from(orders).where(eq(orders.id, orderId));
+
+    if (!order) return null;
+
+    const items = await this.db
+      .select({
+        id: orderItems.id,
+        productId: orderItems.productId,
+        productName: produce.title,
+        quantityOz: orderItems.quantityOz,
+        pricePerOz: orderItems.pricePerOz,
+      })
+      .from(orderItems)
+      .innerJoin(produce, eq(orderItems.productId, produce.id))
+      .where(eq(orderItems.orderId, orderId));
+
+    return {
+      ...order,
+      items,
+    };
+  },
 };

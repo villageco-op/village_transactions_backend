@@ -11,6 +11,7 @@ import { users, orders, orderItems, produce } from '../../../src/db/schema.js';
 
 import * as stripeService from '../../../src/services/stripe.service.js';
 import * as notificationService from '../../../src/services/notification.service.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
 
 vi.spyOn(stripeService, 'refundCheckoutSession').mockResolvedValue();
 vi.spyOn(notificationService, 'sendPushNotification').mockResolvedValue();
@@ -24,6 +25,7 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     orderRepository.setDb(testDb);
+    userRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -182,6 +184,72 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
 
       const { data } = await res.json();
       expect(data).toHaveLength(0);
+    });
+  });
+
+  describe('GET /api/orders/:id', () => {
+    it('should return 200 and the correct comprehensive details for the buyer', async () => {
+      const res = await authedRequest(
+        `/api/orders/${testOrder.id}`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.id).toBe(testOrder.id);
+      expect(body.totalAmount).toBe('12.00');
+      expect(body.stripeSessionId).toBeUndefined(); // Ensure sensitive data is stripped
+
+      // Validate Buyer Details
+      expect(body.buyer).toBeDefined();
+      expect(body.buyer.id).toBe(BUYER_ID);
+      expect(body.buyer.name).toBe('Test Buyer');
+
+      // Validate Seller Details
+      expect(body.seller).toBeDefined();
+      expect(body.seller.id).toBe(SELLER_ID);
+      expect(body.seller.name).toBe('Test Seller');
+
+      // Validate Items Joined Correctly
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].productName).toBe('Fresh Berries');
+      expect(body.items[0].quantityOz).toBe('10.00');
+    });
+
+    it('should return 200 and details when requested by the seller', async () => {
+      const res = await authedRequest(
+        `/api/orders/${testOrder.id}`,
+        { method: 'GET' },
+        { id: SELLER_ID },
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.id).toBe(testOrder.id);
+    });
+
+    it('should return 404 when requested by an unrelated user (unauthorized view)', async () => {
+      const res = await authedRequest(
+        `/api/orders/${testOrder.id}`,
+        { method: 'GET' },
+        { id: 'some_random_snooper_id' },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+    });
+
+    it('should return 404 for a malformed/non-existent UUID', async () => {
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
+      const res = await authedRequest(
+        `/api/orders/${nonExistentId}`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(404);
     });
   });
 });

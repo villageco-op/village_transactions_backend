@@ -58,6 +58,33 @@ export const OrdersListResponseSchema = createPaginatedResponseSchema(
   'OrdersListResponse',
 );
 
+export const GetOrderParamsSchema = z.object({
+  id: ResourceIdSchema,
+});
+
+export const UserBasicInfoSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+});
+
+export const OrderItemDetailSchema = z.object({
+  id: ResourceIdSchema,
+  productId: ResourceIdSchema,
+  productName: z.string(),
+  quantityOz: z.string(),
+  pricePerOz: z.string(),
+});
+
+export const OrderDetailResponseSchema = OrderSchema.extend({
+  buyer: UserBasicInfoSchema.nullable(),
+  seller: UserBasicInfoSchema.nullable(),
+  items: z.array(OrderItemDetailSchema),
+}).openapi('OrderDetailResponse');
+
+export type GetOrderParams = z.infer<typeof GetOrderParamsSchema>;
+export type OrderDetailResponse = z.infer<typeof OrderDetailResponseSchema>;
+
 export type GetOrdersQuery = z.infer<typeof GetOrdersQuerySchema>;
 export type Order = z.infer<typeof OrderSchema>;
 export type CancelOrderParams = z.infer<typeof CancelOrderParamsSchema>;
