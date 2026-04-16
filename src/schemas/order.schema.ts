@@ -5,6 +5,7 @@ import { orders } from '../db/schema.js';
 
 import {
   IsoDateTimeSchema,
+  LocationSchema,
   OrderStatusSchema,
   PaginationQuerySchema,
   ResourceIdSchema,
@@ -66,6 +67,7 @@ export const UserBasicInfoSchema = z.object({
   id: z.string(),
   name: z.string().nullable().optional(),
   email: z.string().nullable().optional(),
+  location: LocationSchema.nullable().optional(),
 });
 
 export const OrderItemDetailSchema = z.object({

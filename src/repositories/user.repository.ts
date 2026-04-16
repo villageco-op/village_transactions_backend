@@ -80,6 +80,8 @@ export const userRepository = {
 
       updatePayload.address = data.address;
       updatePayload.city = data.city;
+      updatePayload.lat = data.lat;
+      updatePayload.lng = data.lng;
       updatePayload.location = sql`ST_SetSRID(ST_MakePoint(${data.lng}, ${data.lat}), 4326)`;
     }
 
