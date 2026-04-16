@@ -368,12 +368,16 @@ describe('OrderService - getOrderDetails', () => {
     name: 'Buyer Bob',
     email: 'bob@test.com',
     stripeAccountId: 'acct_1',
+    lat: 30.0,
+    lng: 23.9,
   };
   const mockSeller = {
     id: 'seller_1',
     name: 'Seller Sam',
     email: 'sam@test.com',
     stripeAccountId: 'acct_2',
+    lat: 20.0,
+    lng: 13.9,
   };
 
   beforeEach(() => {
@@ -400,8 +404,10 @@ describe('OrderService - getOrderDetails', () => {
 
     // Ensure sensitive user data is stripped
     expect(result.buyer?.name).toBe('Buyer Bob');
+    expect(result.buyer?.location.lat).toBe(30.0);
     expect((result.buyer as any).stripeAccountId).toBeUndefined();
     expect(result.seller?.name).toBe('Seller Sam');
+    expect(result.seller?.location.lat).toBe(20.0);
   });
 
   it('should successfully return order details for the seller', async () => {

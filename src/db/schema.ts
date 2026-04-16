@@ -15,6 +15,7 @@ import {
   unique,
   time,
   primaryKey,
+  doublePrecision,
 } from 'drizzle-orm/pg-core';
 
 export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
@@ -46,6 +47,8 @@ export const users = pgTable('users', {
 
   address: text('address'),
   city: text('city'),
+  lat: doublePrecision('lat'),
+  lng: doublePrecision('lng'),
   location: geography('location'),
   deliveryRangeMiles: numeric('delivery_range_miles').default('0'),
 

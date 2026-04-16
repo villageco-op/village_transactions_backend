@@ -221,6 +221,11 @@ export async function getOrderDetails(orderId: string, requestingUserId: string)
         id: buyerData.id,
         name: buyerData.name,
         email: buyerData.email,
+        location: {
+          lat: buyerData.lat ?? null,
+          lng: buyerData.lng ?? null,
+          address: buyerData.address ?? null,
+        },
       }
     : null;
 
@@ -229,6 +234,11 @@ export async function getOrderDetails(orderId: string, requestingUserId: string)
         id: sellerData.id,
         name: sellerData.name,
         email: sellerData.email,
+        location: {
+          lat: sellerData.lat ?? null,
+          lng: sellerData.lng ?? null,
+          address: sellerData.address ?? null,
+        },
       }
     : null;
 
