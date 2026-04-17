@@ -33,7 +33,12 @@ export async function getGrowersForBuyer(
     return {
       sellerId: g.sellerId,
       name: g.name,
-      address: g.address,
+      location: {
+        address: g.address,
+        lat: g.lat,
+        lng: g.lng,
+      },
+      city: g.city,
       produceTypesOrdered: g.produceTypesOrdered || [],
       amountOrderedThisMonthLbs: Number((Number(g.amountThisMonthOz || 0) / 16).toFixed(2)),
       daysSinceFirstOrder,

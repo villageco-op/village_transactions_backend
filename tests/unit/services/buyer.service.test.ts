@@ -36,6 +36,8 @@ describe('BuyerService - Unit Tests', () => {
             sellerId: 'seller_123',
             name: 'Test Farm',
             address: '123 Farm Way',
+            lat: 0.0,
+            lng: 10.0,
             city: 'Chicago',
             produceTypesOrdered: ['spinach'],
             amountThisMonthOz: 16,

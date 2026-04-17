@@ -8,6 +8,7 @@ import {
 } from '../../test-utils/testcontainer-db.js';
 import { buyerRepository } from '../../../src/repositories/buyer.repository.js';
 import { users, produce, orders, orderItems } from '../../../src/db/schema.js';
+import type { GrowersResonse } from '../../../src/schemas/buyer.schema.js';
 
 describe('Buyer API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -149,7 +150,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
     const res = await authedRequest(`/api/buyer/growers`, { method: 'GET' }, { id: BUYER_ID });
 
     expect(res.status).toBe(200);
-    const { data, meta } = await res.json();
+    const { data, meta } = (await res.json()) as GrowersResonse;
 
     // Seller 2 should be omitted because their order is 'pending'
     expect(data).toHaveLength(1);
@@ -159,7 +160,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
 
     expect(seller1Stats.sellerId).toBe(SELLER_1_ID);
     expect(seller1Stats.name).toBe('Farm One');
-    expect(seller1Stats.address).toBe('456 Dirt Rd, Ruraltown, CA 90000');
+    expect(seller1Stats.location?.address).toBe('456 Dirt Rd, Ruraltown, CA 90000');
 
     expect(seller1Stats.produceTypesOrdered.sort()).toEqual(['carrots', 'spinach'].sort());
 
