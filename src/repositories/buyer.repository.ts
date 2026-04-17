@@ -40,6 +40,8 @@ export const buyerRepository = {
         sellerId: users.id,
         name: users.name,
         address: users.address,
+        lat: users.lat,
+        lng: users.lng,
         city: users.city,
         produceTypesOrdered: sql<
           string[]

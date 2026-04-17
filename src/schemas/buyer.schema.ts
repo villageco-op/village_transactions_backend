@@ -1,8 +1,8 @@
 import { z } from '@hono/zod-openapi';
 
 import {
-  AddressSchema,
   IsoDateTimeSchema,
+  LocationSchema,
   PaginationQuerySchema,
   PriceDollarsSchema,
   ResourceIdSchema,
@@ -19,7 +19,8 @@ export const GrowerSchema = z
       example: 'Green Valley Farm',
       description: 'The display name of the grower',
     }),
-    address: AddressSchema.nullable(),
+    location: LocationSchema.nullable(),
+    city: z.string().nullable(),
     produceTypesOrdered: z.array(z.string()).openapi({
       example: ['spinach', 'carrots'],
       description: 'List of produce categories previously purchased from this grower',
@@ -100,3 +101,4 @@ export type GrowerResponse = z.infer<typeof GrowerSchema>;
 export type BillingSummaryResponse = z.infer<typeof BillingSummaryResponseSchema>;
 export type ActiveSubscriptionResponse = z.infer<typeof ActiveSubscriptionSchema>;
 export type BuyerDashboardResponse = z.infer<typeof BuyerDashboardResponseSchema>;
+export type GrowersResonse = z.infer<typeof GrowersResponseSchema>;
