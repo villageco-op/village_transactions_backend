@@ -165,6 +165,7 @@ export const orders = pgTable('orders', {
     .notNull()
     .references(() => users.id),
   stripeSessionId: text('stripe_session_id').unique(),
+  stripeReceiptUrl: text('stripe_receipt_url'),
   paymentMethod: paymentMethodEnum('payment_method').notNull(),
   fulfillmentType: fulfillmentTypeEnum('fulfillment_type').notNull(),
   scheduledTime: timestamp('scheduled_time').notNull(),

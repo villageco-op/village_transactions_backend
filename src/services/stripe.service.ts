@@ -200,6 +200,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
+  const expandedSession = await stripe.checkout.sessions.retrieve(session.id, {
+    expand: ['payment_intent.latest_charge'],
+  });
+
+  const paymentIntent = expandedSession.payment_intent as Stripe.PaymentIntent | null;
+  const latestCharge = paymentIntent?.latest_charge as Stripe.Charge | null;
+  const stripeReceiptUrl = latestCharge?.receipt_url || '';
+
   const totalAmount = session.amount_total ? session.amount_total / 100 : 0;
 
   const stripeSubscriptionId =
@@ -211,6 +219,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       sellerId,
       stripeSessionId: session.id,
       stripeSubscriptionId,
+      stripeReceiptUrl,
       totalAmount,
       fulfillmentType: fulfillmentType as 'pickup' | 'delivery',
       scheduledTime: new Date(scheduledTime),
