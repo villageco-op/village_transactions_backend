@@ -26,7 +26,16 @@ const mockStripe = {
   },
   checkout: {
     sessions: {
-      retrieve: vi.fn(),
+      retrieve: vi.fn().mockResolvedValue({
+        id: 'cs_test',
+        payment_intent: {
+          id: 'pi_test',
+          latest_charge: {
+            id: 'ch_test',
+            receipt_url: 'https://stripe.com/receipt',
+          },
+        },
+      }),
     },
   },
   refunds: {
@@ -182,6 +191,7 @@ describe('StripeService - processStripeWebhookEvent', () => {
       sellerId: 'seller_1',
       stripeSessionId: 'cs_test_123',
       stripeSubscriptionId: 'sub_stripe_abc123',
+      stripeReceiptUrl: 'https://stripe.com/receipt',
       totalAmount: 15,
       fulfillmentType: 'pickup',
       scheduledTime: new Date('2026-05-15T12:00:00Z'),

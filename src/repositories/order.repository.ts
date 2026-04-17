@@ -34,6 +34,7 @@ export const orderRepository = {
    * @param payload.sellerId - ID of the seller fulfilling the order.
    * @param payload.stripeSessionId - The unique ID from the Stripe Checkout session.
    * @param payload.stripeSubscriptionId - The ID of the Stripe recurring subscription (if applicable).
+   * @param payload.stripeReceiptUrl - The receipt url for the order.
    * @param payload.totalAmount - Total order value in dollars.
    * @param payload.fulfillmentType - Whether the order is for 'pickup' or 'delivery'.
    * @param payload.scheduledTime - The intended date/time for fulfillment.
@@ -46,6 +47,7 @@ export const orderRepository = {
     sellerId: string;
     stripeSessionId: string;
     stripeSubscriptionId?: string;
+    stripeReceiptUrl: string;
     totalAmount: number;
     fulfillmentType: 'pickup' | 'delivery';
     scheduledTime: Date;
@@ -80,6 +82,7 @@ export const orderRepository = {
           buyerId: payload.buyerId,
           sellerId: payload.sellerId,
           stripeSessionId: payload.stripeSessionId,
+          stripeReceiptUrl: payload.stripeReceiptUrl,
           paymentMethod: 'card',
           fulfillmentType: payload.fulfillmentType,
           scheduledTime: payload.scheduledTime,
