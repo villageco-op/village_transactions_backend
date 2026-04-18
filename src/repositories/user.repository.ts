@@ -64,14 +64,20 @@ export const userRepository = {
       data.address !== undefined ||
       data.city !== undefined ||
       data.lat !== undefined ||
-      data.lng !== undefined;
+      data.lng !== undefined ||
+      data.state !== undefined ||
+      data.country !== undefined ||
+      data.zip !== undefined;
 
     if (isUpdatingLocation) {
       if (
         data.address === undefined ||
         data.city === undefined ||
         data.lat === undefined ||
-        data.lng === undefined
+        data.lng === undefined ||
+        data.state === undefined ||
+        data.country === undefined ||
+        data.zip === undefined
       ) {
         throw new Error(
           'Address, city, lat, and lng must all be provided together to update location.',
@@ -82,6 +88,9 @@ export const userRepository = {
       updatePayload.city = data.city;
       updatePayload.lat = data.lat;
       updatePayload.lng = data.lng;
+      updatePayload.state = data.state;
+      updatePayload.country = data.country;
+      updatePayload.zip = data.zip;
       updatePayload.location = sql`ST_SetSRID(ST_MakePoint(${data.lng}, ${data.lat}), 4326)`;
     }
 

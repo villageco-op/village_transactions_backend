@@ -72,16 +72,15 @@ export const ImageUrlSchema = z.string().url().openapi('ImageUrl', {
   description: 'A fully qualified URL to an image asset',
 });
 
-export const AddressSchema = z.string().min(5).openapi('Address', {
-  example: '123 Farm Lane, Springfield, OR 97477',
-  description: 'Full physical street address',
-});
-
 export const LocationSchema = z
   .object({
     lat: z.number().nullable().openapi({ example: 37.7749 }),
     lng: z.number().nullable().openapi({ example: -122.4194 }),
-    address: AddressSchema.nullable(),
+    address: z.string().nullable(),
+    city: z.string().nullable(),
+    state: z.string().nullable(),
+    country: z.string().nullable(),
+    zip: z.string().nullable(),
   })
   .openapi('Location');
 

@@ -88,6 +88,10 @@ export async function getSellerDashboard(sellerId: string): Promise<SellerDashbo
       lat: data.seller?.lat ?? null,
       lng: data.seller?.lng ?? null,
       address: data.seller?.address ?? null,
+      city: data.seller?.city ?? null,
+      state: data.seller?.state ?? null,
+      country: data.seller?.country ?? null,
+      zip: data.seller?.zip ?? null,
     },
   };
 }

@@ -146,6 +146,8 @@ export async function getPublicUserProfile(id: string) {
     image: user.image,
     aboutMe: user.aboutMe,
     specialties: user.specialties,
+    country: user.country,
+    state: user.state,
     city: user.city,
     joinedAt: user.createdAt,
     starRating,

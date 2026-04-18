@@ -91,10 +91,13 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
           specialties: ['squash', 'pumpkins'],
           goal: 2000.5,
           address: '123 Main St',
-          city: 'Timbuktu',
+          city: 'Town',
           lat: 45.0,
           lng: -90.0,
           deliveryRangeMiles: 10,
+          state: 'WI',
+          country: 'USA',
+          zip: '00000',
         }),
       },
       { id: TEST_USER_ID },
@@ -111,6 +114,10 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(updatedDbUser?.address).toBe('123 Main St');
     expect(updatedDbUser?.deliveryRangeMiles).toBe('10');
     expect(updatedDbUser?.location).not.toBeNull();
+    expect(updatedDbUser?.state).toBe('WI');
+    expect(updatedDbUser?.city).toBe('Town');
+    expect(updatedDbUser?.country).toBe('USA');
+    expect(updatedDbUser?.zip).toBe('00000');
   });
 
   it('PUT /api/users/me should return 404 if the user does not exist in DB', async () => {

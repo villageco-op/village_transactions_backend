@@ -43,6 +43,9 @@ export const buyerRepository = {
         lat: users.lat,
         lng: users.lng,
         city: users.city,
+        state: users.state,
+        country: users.country,
+        zip: users.zip,
         produceTypesOrdered: sql<
           string[]
         >`array_agg(DISTINCT ${produce.produceType}) FILTER (WHERE ${produce.produceType} IS NOT NULL)`,

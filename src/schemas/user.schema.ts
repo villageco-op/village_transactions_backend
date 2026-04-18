@@ -4,7 +4,6 @@ import { createSelectSchema } from 'drizzle-zod';
 import { users } from '../db/schema.js';
 
 import {
-  AddressSchema,
   ImageUrlSchema,
   LatitudeSchema,
   LongitudeSchema,
@@ -38,8 +37,11 @@ export const UpdateUserSchema = z
     goal: PriceDollarsSchema.optional().openapi({
       description: 'The monthly earnings goal for the seller',
     }),
-    address: AddressSchema.optional(),
+    address: z.string().optional().openapi({ example: '123 West st.' }),
     city: z.string().optional().openapi({ example: 'Madison' }),
+    state: z.string().optional().openapi({ example: 'WI' }),
+    country: z.string().optional().openapi({ example: 'United States of America' }),
+    zip: z.string().optional().openapi({ example: '54751' }),
     lat: LatitudeSchema.optional(),
     lng: LongitudeSchema.optional(),
     deliveryRangeMiles: z.number().optional().openapi({
@@ -92,7 +94,9 @@ export const PublicUserProfileSchema = z
         example: ['spinach', 'carrots'],
         description: 'List of produce the seller specializes in.',
       }),
-    city: z.string().nullable().openapi({ example: 'Madison, WI' }),
+    country: z.string().nullable().openapi({ example: 'United States of America' }),
+    state: z.string().nullable().openapi({ example: 'WI' }),
+    city: z.string().nullable().openapi({ example: 'Madison' }),
     joinedAt: z.union([z.string(), z.date()]).nullable().openapi({
       description: 'Timestamp of when the user first registered',
     }),

@@ -95,6 +95,9 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       deliveryRangeMiles: 15,
       lat: 40.7128,
       lng: -74.006,
+      state: 'TX',
+      country: 'USA',
+      zip: '94949',
     });
 
     expect(updatedUser).toBeDefined();
@@ -104,6 +107,9 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
     expect(updatedUser?.goal).toBe('1000.00');
     expect(updatedUser?.address).toBe('123 Map St');
     expect(updatedUser?.deliveryRangeMiles).toBe('15');
+    expect(updatedUser?.state).toBe('TX');
+    expect(updatedUser?.country).toBe('USA');
+    expect(updatedUser?.zip).toBe('94949');
 
     const fetchedUser = await userRepository.findById('update_user_123');
     expect(fetchedUser?.location).toBeDefined();
