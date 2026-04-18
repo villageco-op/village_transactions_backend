@@ -91,6 +91,10 @@ export const sellerRepository = {
       .select({
         goal: users.goal,
         address: users.address,
+        city: users.city,
+        state: users.state,
+        country: users.country,
+        zip: users.zip,
         lat: sql<number | null>`ST_Y(${users.location}::geometry)`,
         lng: sql<number | null>`ST_X(${users.location}::geometry)`,
       })

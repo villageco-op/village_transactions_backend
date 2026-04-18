@@ -91,7 +91,16 @@ describe('SellerService - Unit Tests', () => {
   describe('getSellerDashboard', () => {
     it('should format dashboard metrics and compute onTrackWithGoal correctly (On Track)', async () => {
       vi.mocked(sellerRepository.getDashboardMetrics).mockResolvedValueOnce({
-        seller: { goal: '1000.00', address: '123 Farm St', lat: 35.1, lng: -120.5 },
+        seller: {
+          goal: '1000.00',
+          address: '123 Farm St',
+          lat: 35.1,
+          lng: -120.5,
+          city: 'Town',
+          country: 'USA',
+          zip: '00021',
+          state: 'Idaho',
+        },
         aggregates: { earnedThisMonth: '600.00', earnedLastMonth: '800.00' },
         weeklySales: { soldThisWeekOz: '320' },
         produceSalesThisMonth: [{ produceName: 'Corn', earned: '600.00' }],
@@ -110,13 +119,30 @@ describe('SellerService - Unit Tests', () => {
       expect(result.soldThisWeekLbs).toBe(20);
       expect(result.activeListingsCount).toBe(2);
       expect(result.activeListingsNames).toEqual(['Corn', 'Tomatoes']);
-      expect(result.sellerLocation).toEqual({ lat: 35.1, lng: -120.5, address: '123 Farm St' });
+      expect(result.sellerLocation).toEqual({
+        lat: 35.1,
+        lng: -120.5,
+        address: '123 Farm St',
+        city: 'Town',
+        country: 'USA',
+        zip: '00021',
+        state: 'Idaho',
+      });
       expect(result.earningsByProduceThisMonth).toEqual([{ produceName: 'Corn', earned: 600 }]);
     });
 
     it('should compute onTrackWithGoal correctly when falling behind (Off Track)', async () => {
       vi.mocked(sellerRepository.getDashboardMetrics).mockResolvedValueOnce({
-        seller: { goal: '1000.00', address: null, lat: null, lng: null },
+        seller: {
+          goal: '1000.00',
+          address: null,
+          lat: null,
+          lng: null,
+          city: null,
+          state: null,
+          country: null,
+          zip: null,
+        },
         aggregates: { earnedThisMonth: '400.00', earnedLastMonth: '300.00' },
         weeklySales: { soldThisWeekOz: '160' },
         produceSalesThisMonth: [],
@@ -129,7 +155,15 @@ describe('SellerService - Unit Tests', () => {
       expect(result.earnedThisMonth).toBe(400);
       expect(result.onTrackWithGoal).toBe(false);
       expect(result.activeListingsCount).toBe(0);
-      expect(result.sellerLocation).toEqual({ lat: null, lng: null, address: null });
+      expect(result.sellerLocation).toEqual({
+        lat: null,
+        lng: null,
+        address: null,
+        city: null,
+        state: null,
+        country: null,
+        zip: null,
+      });
     });
   });
 });

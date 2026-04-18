@@ -43,7 +43,6 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('WeightOz', Common.WeightOzSchema);
   app.openAPIRegistry.register('PriceDollars', Common.PriceDollarsSchema);
   app.openAPIRegistry.register('ImageUrl', Common.ImageUrlSchema);
-  app.openAPIRegistry.register('Address', Common.AddressSchema);
   app.openAPIRegistry.register('Location', Common.LocationSchema);
   app.openAPIRegistry.register('IsoDateTime', Common.IsoDateTimeSchema);
   app.openAPIRegistry.register('IsoDate', Common.IsoDateSchema);
