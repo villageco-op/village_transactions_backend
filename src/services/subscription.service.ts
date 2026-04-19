@@ -1,7 +1,9 @@
 import { HTTPException } from 'hono/http-exception';
 
+import type { User } from '../db/types.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
+import type { GetSubscriptionsQuery } from '../schemas/subscription.schema.js';
 
 import { updateStripeSubscriptionStatus } from './stripe.service.js';
 
@@ -100,5 +102,71 @@ export async function getSubscriptionDetails(subscriptionId: string, requestingU
     ...safeSubscriptionData,
     buyer: safeBuyer,
     seller: safeSeller,
+  };
+}
+
+/**
+ * Retrieves a paginated list of subscriptions.
+ * Enforces security by verifying the requesting user is the buyer or seller.
+ * @param requestingUserId - The ID of the calling user
+ * @param query - The query filters
+ * @param offset - Pagination offset
+ * @returns A list of subscriptions and basic buyer and seller user information
+ */
+export async function getSubscriptions(
+  requestingUserId: string,
+  query: GetSubscriptionsQuery,
+  offset: number,
+) {
+  // Security check: Prevent users from arbitrarily searching other users' data.
+  if (query.buyerId && query.buyerId !== requestingUserId) {
+    throw new HTTPException(403, { message: 'Forbidden: Cannot view other buyers subscriptions' });
+  }
+  if (query.sellerId && query.sellerId !== requestingUserId) {
+    throw new HTTPException(403, { message: 'Forbidden: Cannot view other sellers subscriptions' });
+  }
+
+  const result = await subscriptionRepository.querySubscriptions(requestingUserId, query, offset);
+
+  const totalPages = Math.ceil(result.total / query.limit);
+
+  const formattedData = result.data.map((row) => {
+    const { stripeSubscriptionId: _stripeId, ...safeSubscription } = row.subscription;
+
+    const mapUser = (user: User | null) =>
+      user
+        ? {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            location: {
+              lat: user.lat ?? null,
+              lng: user.lng ?? null,
+              address: user.address ?? null,
+              city: user.city ?? null,
+              state: user.state ?? null,
+              country: user.country ?? null,
+              zip: user.zip ?? null,
+            },
+          }
+        : null;
+
+    return {
+      ...safeSubscription,
+      sellerId: row.product.sellerId,
+      product: row.product,
+      buyer: mapUser(row.buyer),
+      seller: mapUser(row.seller),
+    };
+  });
+
+  return {
+    data: formattedData,
+    meta: {
+      total: result.total,
+      page: query.page,
+      limit: query.limit,
+      totalPages,
+    },
   };
 }

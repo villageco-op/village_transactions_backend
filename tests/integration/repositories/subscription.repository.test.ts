@@ -391,4 +391,130 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('querySubscriptions', () => {
+    const buyer1Id = 'buyer_q_1';
+    const buyer2Id = 'buyer_q_2';
+    const seller1Id = 'seller_q_1';
+    let product1: any;
+    let product2: any;
+
+    beforeEach(async () => {
+      // 1. Setup Users
+      await testDb.insert(users).values([
+        { id: buyer1Id, email: 'bq1@test.com' },
+        { id: buyer2Id, email: 'bq2@test.com' },
+        { id: seller1Id, email: 'sq1@test.com' },
+      ]);
+
+      // 2. Setup Products
+      const products = await testDb
+        .insert(produce)
+        .values([
+          {
+            sellerId: seller1Id,
+            title: 'Prod 1',
+            pricePerOz: '1.00',
+            totalOzInventory: '10',
+            harvestFrequencyDays: 7,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+          },
+          {
+            sellerId: seller1Id,
+            title: 'Prod 2',
+            pricePerOz: '2.00',
+            totalOzInventory: '20',
+            harvestFrequencyDays: 7,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+          },
+        ])
+        .returning();
+
+      product1 = products[0];
+      product2 = products[1];
+
+      // 3. Setup Subscriptions
+      await testDb.insert(subscriptions).values([
+        {
+          buyerId: buyer1Id,
+          productId: product1.id,
+          quantityOz: '5',
+          status: 'active',
+          fulfillmentType: 'pickup',
+        },
+        {
+          buyerId: buyer1Id,
+          productId: product2.id,
+          quantityOz: '10',
+          status: 'paused',
+          fulfillmentType: 'pickup',
+        },
+        {
+          buyerId: buyer2Id,
+          productId: product1.id,
+          quantityOz: '15',
+          status: 'active',
+          fulfillmentType: 'pickup',
+        },
+      ]);
+    });
+
+    it('should filter explicitly by buyer ID and join user data', async () => {
+      const result = await subscriptionRepository.querySubscriptions(
+        buyer1Id,
+        { buyerId: buyer1Id, page: 1, limit: 10 },
+        0,
+      );
+
+      expect(result.total).toBe(2);
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0].buyer?.id).toBe(buyer1Id);
+    });
+
+    it('should filter by subscription status and respect seller context', async () => {
+      const result = await subscriptionRepository.querySubscriptions(
+        seller1Id,
+        { status: 'paused', page: 1, limit: 10 },
+        0,
+      );
+
+      expect(result.total).toBe(1);
+      expect(result.data[0].subscription.status).toBe('paused');
+      expect(result.data[0].subscription.productId).toBe(product2.id);
+    });
+
+    it('should correctly paginate results using limit and offset', async () => {
+      // Page 1
+      const page1 = await subscriptionRepository.querySubscriptions(
+        seller1Id,
+        { sellerId: seller1Id, page: 1, limit: 2 },
+        0,
+      );
+      expect(page1.total).toBe(3);
+      expect(page1.data).toHaveLength(2);
+
+      // Page 2
+      const page2 = await subscriptionRepository.querySubscriptions(
+        seller1Id,
+        { sellerId: seller1Id, page: 2, limit: 2 },
+        2,
+      );
+      expect(page2.data).toHaveLength(1);
+    });
+
+    it('should restrict results to the requesting user’s scope for security', async () => {
+      // Even without a buyerId filter, the requestingUserId (buyer2Id) should restrict the result
+      const result = await subscriptionRepository.querySubscriptions(
+        buyer2Id,
+        { page: 1, limit: 10 },
+        0,
+      );
+
+      expect(result.total).toBe(1);
+      expect(result.data[0].subscription.buyerId).toBe(buyer2Id);
+      expect(result.data.every((row) => row.subscription.buyerId === buyer2Id)).toBe(true);
+    });
+  });
 });

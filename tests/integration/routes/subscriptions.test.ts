@@ -199,4 +199,84 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
       expect(body.product.title).toBe('Weekly Tomatoes');
     });
   });
+
+  describe('Get Subscriptions List', () => {
+    beforeEach(async () => {
+      // Seed an extra subscription so we have multiple items to paginate
+      const [testProduce] = await testDb
+        .select()
+        .from(produce)
+        .where(eq(produce.sellerId, SELLER_ID));
+
+      await testDb.insert(subscriptions).values({
+        buyerId: BUYER_ID,
+        productId: testProduce.id,
+        quantityOz: '15',
+        status: 'paused',
+        fulfillmentType: 'delivery',
+      });
+    });
+
+    it('GET /api/subscriptions should return 401 if unauthorized', async () => {
+      const res = await authedRequest(`/api/subscriptions`, { method: 'GET' }, { id: '' });
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /api/subscriptions should return 403 if querying a different buyer ID', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions?buyerId=${BUYER_ID}`,
+        { method: 'GET' },
+        { id: RANDOM_USER_ID }, // Acting as random user
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('GET /api/subscriptions should return 403 if querying a different seller ID', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions?sellerId=${SELLER_ID}`,
+        { method: 'GET' },
+        { id: BUYER_ID }, // Acting as buyer trying to query seller's global list
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('GET /api/subscriptions should successfully return a paginated list for a valid buyer context', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions?page=1&limit=10`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.meta).toEqual({
+        total: 2,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      });
+
+      expect(body.data).toHaveLength(2);
+      expect(body.data[0].buyerId).toBe(BUYER_ID);
+      expect(body.data[0].product.sellerId).toBe(SELLER_ID);
+      expect(body.data[0].buyer).toBeDefined();
+      expect(body.data[0].seller).toBeDefined();
+    });
+
+    it('GET /api/subscriptions should filter by status successfully', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions?status=paused&limit=5`,
+        { method: 'GET' },
+        { id: SELLER_ID }, // Seller can query their own paused subs
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.meta.total).toBe(1);
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].status).toBe('paused');
+    });
+  });
 });

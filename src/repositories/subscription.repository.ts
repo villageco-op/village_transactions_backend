@@ -1,8 +1,10 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, count, desc, or } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 import { db as defaultDb } from '../db/index.js';
-import { produce, subscriptions } from '../db/schema.js';
+import { produce, subscriptions, users } from '../db/schema.js';
 import type { DbClient, Subscription } from '../db/types.js';
+import type { GetSubscriptionsQuery } from '../schemas/subscription.schema.js';
 
 export const subscriptionRepository = {
   db: defaultDb as unknown as DbClient,
@@ -103,6 +105,69 @@ export const subscriptionRepository = {
       ...result.subscription,
       product: result.product,
       sellerId: result.product.sellerId,
+    };
+  },
+
+  /**
+   * Dynamically query, filter, and paginate subscriptions.
+   * Joins produce, buyer, and seller natively for optimal performance.
+   * @param requestingUserId - The ID of the calling user
+   * @param query - The filters for the query
+   * @param offset - Pagination offset
+   * @returns A list of subscriptions and the total subscriptions
+   */
+  async querySubscriptions(requestingUserId: string, query: GetSubscriptionsQuery, offset: number) {
+    const { buyerId, sellerId, productId, status, limit } = query;
+
+    // Create table aliases for self-joining the users table
+    const buyers = alias(users, 'buyers');
+    const sellers = alias(users, 'sellers');
+
+    const baseQuery = this.db
+      .select({
+        subscription: subscriptions,
+        product: produce,
+        buyer: buyers,
+        seller: sellers,
+      })
+      .from(subscriptions)
+      .innerJoin(produce, eq(subscriptions.productId, produce.id))
+      .leftJoin(buyers, eq(subscriptions.buyerId, buyers.id))
+      .leftJoin(sellers, eq(produce.sellerId, sellers.id));
+
+    // Dynamic conditions based on user input
+    const conditions = [];
+
+    if (buyerId) conditions.push(eq(subscriptions.buyerId, buyerId));
+    if (sellerId) conditions.push(eq(produce.sellerId, sellerId));
+    if (productId) conditions.push(eq(subscriptions.productId, productId));
+    if (status) conditions.push(eq(subscriptions.status, status));
+
+    // Crucial Security Layer: If neither buyerId nor sellerId is explicitly asked for,
+    // restrict results to ONLY rows where the requesting user is EITHER the buyer or the seller.
+    if (!buyerId && !sellerId) {
+      conditions.push(
+        or(eq(subscriptions.buyerId, requestingUserId), eq(produce.sellerId, requestingUserId)),
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [totalResult] = await this.db
+      .select({ value: count() })
+      .from(subscriptions)
+      .innerJoin(produce, eq(subscriptions.productId, produce.id))
+      .where(whereClause);
+
+    const data = await baseQuery
+      .where(whereClause)
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      data,
+      total: Number(totalResult.value),
     };
   },
 };

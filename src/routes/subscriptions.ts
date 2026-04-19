@@ -8,11 +8,15 @@ import {
   SuccessResponseSchema,
 } from '../schemas/common.schema.js';
 import {
+  GetSubscriptionsQuerySchema,
   SubscriptionDetailResponseSchema,
+  SubscriptionsListResponseSchema,
   UpdateSubscriptionStatusSchema,
 } from '../schemas/subscription.schema.js';
+import { getPaginationParams } from '../schemas/util/pagination.js';
 import {
   getSubscriptionDetails,
+  getSubscriptions,
   updateSubscriptionStatus,
 } from '../services/subscription.service.js';
 
@@ -107,5 +111,49 @@ subscriptionsRoute.openapi(
     await updateSubscriptionStatus(buyerId, id, status);
 
     return c.json({ success: true }, 200);
+  },
+);
+
+subscriptionsRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/',
+    operationId: 'getSubscriptions',
+    description:
+      'Get a paginated list of subscriptions. Filterable by buyerId, sellerId, productId, and status.',
+    tags: [TAGS.SUBSCRIPTIONS],
+    middleware: [verifyAuth()],
+    request: {
+      query: GetSubscriptionsQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'Paginated subscriptions list',
+        content: { 'application/json': { schema: SubscriptionsListResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized - User not logged in',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: 'Forbidden - Attempting to access data outside user scope',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const query = c.req.valid('query');
+    const { offset } = getPaginationParams(query.page, query.limit);
+
+    const paginatedSubscriptions = await getSubscriptions(userId, query, offset);
+
+    return c.json(paginatedSubscriptions, 200);
   },
 );
