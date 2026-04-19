@@ -176,7 +176,7 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
       // Assert that populated nested entities exist
       expect(body.product).toBeDefined();
       expect(body.product.title).toBe('Weekly Tomatoes');
-      console.log(JSON.stringify(body));
+
       expect(body.buyer).toBeDefined();
       expect(body.buyer.name).toBe('Sub Buyer');
 
