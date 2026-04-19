@@ -1,6 +1,8 @@
 import { z } from '@hono/zod-openapi';
 
 import {
+  PaginationMetadataSchema,
+  PaginationQuerySchema,
   ResourceIdSchema,
   SubscriptionStatusSchema,
   UserBasicInfoSchema,
@@ -16,7 +18,7 @@ export const UpdateSubscriptionStatusSchema = z
 
 export const SubscriptionDetailResponseSchema = z
   .object({
-    id: z.string(),
+    id: ResourceIdSchema,
     buyerId: UserIdSchema,
     productId: ResourceIdSchema,
     sellerId: UserIdSchema,
@@ -32,4 +34,21 @@ export const SubscriptionDetailResponseSchema = z
   })
   .openapi('SubscriptionDetailResponse');
 
+export const GetSubscriptionsQuerySchema = PaginationQuerySchema.extend({
+  buyerId: UserIdSchema.optional().openapi({ description: 'Filter by buyer ID' }),
+  sellerId: UserIdSchema.optional().openapi({ description: 'Filter by seller ID' }),
+  productId: ResourceIdSchema.optional().openapi({ description: 'Filter by product ID' }),
+  status: SubscriptionStatusSchema.optional().openapi({
+    description: 'Filter by subscription status',
+  }),
+}).openapi('GetSubscriptionsQuery');
+
+export const SubscriptionsListResponseSchema = z
+  .object({
+    data: z.array(SubscriptionDetailResponseSchema),
+    meta: PaginationMetadataSchema,
+  })
+  .openapi('SubscriptionsListResponse');
+
+export type GetSubscriptionsQuery = z.infer<typeof GetSubscriptionsQuerySchema>;
 export type UpdateSubscriptionStatusBody = z.infer<typeof UpdateSubscriptionStatusSchema>;

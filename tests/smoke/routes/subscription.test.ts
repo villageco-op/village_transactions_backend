@@ -21,4 +21,12 @@ describe('Subscriptions API - Smoke Tests', () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/subscriptions should not return a 500 error', async () => {
+    const res = await authedRequest(`/api/subscriptions?page=1&limit=10`, {
+      method: 'GET',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });
