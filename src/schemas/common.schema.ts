@@ -150,4 +150,11 @@ export const PaginationMetadataSchema = z
   })
   .openapi('PaginationMetadata');
 
+export const UserBasicInfoSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  location: LocationSchema.nullable().optional(),
+});
+
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;

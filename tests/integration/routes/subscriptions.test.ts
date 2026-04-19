@@ -10,6 +10,7 @@ import {
 import { users, produce, subscriptions } from '../../../src/db/schema.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import * as stripeService from '../../../src/services/stripe.service.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
 
 vi.spyOn(stripeService, 'updateStripeSubscriptionStatus').mockResolvedValue(undefined);
 
@@ -17,11 +18,13 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
   const BUYER_ID = 'buyer_integration_sub_test';
   const SELLER_ID = 'seller_integration_sub_test';
+  const RANDOM_USER_ID = 'random_user_test';
   let testSubscriptionId: string;
 
   beforeAll(() => {
     testDb = getTestDb();
     subscriptionRepository.setDb(testDb);
+    userRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -35,6 +38,7 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
     await testDb.insert(users).values([
       { id: BUYER_ID, email: 'buyer.sub@example.com', name: 'Sub Buyer' },
       { id: SELLER_ID, email: 'seller.sub@example.com', name: 'Sub Seller' },
+      { id: RANDOM_USER_ID, email: 'random.user@example.com', name: 'Random User' },
     ]);
 
     const [testProduce] = await testDb
@@ -66,57 +70,133 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
     testSubscriptionId = insertedSub.id;
   });
 
-  it('PUT /api/subscriptions/:id/status should return 401 if unauthorized', async () => {
-    const res = await authedRequest(
-      `/api/subscriptions/${testSubscriptionId}/status`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'paused' }),
-      },
-      { id: '' }, // Unauthenticated override
-    );
+  describe('Update Subscription Status', () => {
+    it('PUT /api/subscriptions/:id/status should return 401 if unauthorized', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions/${testSubscriptionId}/status`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'paused' }),
+        },
+        { id: '' }, // Unauthenticated override
+      );
 
-    expect(res.status).toBe(401);
+      expect(res.status).toBe(401);
+    });
+
+    it('PUT /api/subscriptions/:id/status should return 404 if subscription not found or owned by another user', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions/${testSubscriptionId}/status`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'paused' }),
+        },
+        { id: 'wrong_buyer_id' },
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('PUT /api/subscriptions/:id/status should return 200, update DB, and call Stripe mock when successful', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions/${testSubscriptionId}/status`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'paused' }),
+        },
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.success).toBe(true);
+
+      const [dbSub] = await testDb
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, testSubscriptionId));
+
+      expect(dbSub.status).toBe('paused');
+
+      expect(stripeService.updateStripeSubscriptionStatus).toHaveBeenCalledWith(
+        'stripe_sub_int_123',
+        'paused',
+      );
+    });
   });
 
-  it('PUT /api/subscriptions/:id/status should return 404 if subscription not found or owned by another user', async () => {
-    const res = await authedRequest(
-      `/api/subscriptions/${testSubscriptionId}/status`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'paused' }),
-      },
-      { id: 'wrong_buyer_id' },
-    );
+  describe('Subscriptions Details', () => {
+    it('GET /api/subscriptions/:id should return 401 if unauthorized', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions/${testSubscriptionId}`,
+        { method: 'GET' },
+        { id: '' }, // Unauthenticated
+      );
 
-    expect(res.status).toBe(404);
-  });
+      expect(res.status).toBe(401);
+    });
 
-  it('PUT /api/subscriptions/:id/status should return 200, update DB, and call Stripe mock when successful', async () => {
-    const res = await authedRequest(
-      `/api/subscriptions/${testSubscriptionId}/status`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'paused' }),
-      },
-      { id: BUYER_ID },
-    );
+    it('GET /api/subscriptions/:id should return 404 if the user is neither the buyer nor seller', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions/${testSubscriptionId}`,
+        { method: 'GET' },
+        { id: RANDOM_USER_ID }, // Exists, but has no relation to the sub
+      );
 
-    expect(res.status).toBe(200);
+      expect(res.status).toBe(404);
+    });
 
-    const body = await res.json();
-    expect(body.success).toBe(true);
+    it('GET /api/subscriptions/:id should return 404 if subscription does not exist', async () => {
+      const fakeId = '00000000-0000-0000-0000-000000000000';
+      const res = await authedRequest(
+        `/api/subscriptions/${fakeId}`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
 
-    const [dbSub] = await testDb
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.id, testSubscriptionId));
+      expect(res.status).toBe(404);
+    });
 
-    expect(dbSub.status).toBe('paused');
+    it('GET /api/subscriptions/:id should return 200 and subscription details when called by the buyer', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions/${testSubscriptionId}`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
 
-    expect(stripeService.updateStripeSubscriptionStatus).toHaveBeenCalledWith(
-      'stripe_sub_int_123',
-      'paused',
-    );
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.id).toBe(testSubscriptionId);
+      expect(body.buyerId).toBe(BUYER_ID);
+      expect(body.quantityOz).toBe('10.00');
+      expect(body.stripeSubscriptionId).toBeUndefined(); // Should be stripped
+
+      // Assert that populated nested entities exist
+      expect(body.product).toBeDefined();
+      expect(body.product.title).toBe('Weekly Tomatoes');
+      console.log(JSON.stringify(body));
+      expect(body.buyer).toBeDefined();
+      expect(body.buyer.name).toBe('Sub Buyer');
+
+      expect(body.seller).toBeDefined();
+      expect(body.seller.name).toBe('Sub Seller');
+    });
+
+    it('GET /api/subscriptions/:id should return 200 and subscription details when called by the seller', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions/${testSubscriptionId}`,
+        { method: 'GET' },
+        { id: SELLER_ID },
+      );
+
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.id).toBe(testSubscriptionId);
+      expect(body.buyerId).toBe(BUYER_ID);
+      expect(body.product.title).toBe('Weekly Tomatoes');
+    });
   });
 });
