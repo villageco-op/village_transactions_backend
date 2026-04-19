@@ -127,6 +127,13 @@
       "when": 1776551643951,
       "tag": "0017_stiff_night_nurse",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1776606183479,
+      "tag": "0018_nasty_tusk",
+      "breakpoints": true
     }
   ]
 }

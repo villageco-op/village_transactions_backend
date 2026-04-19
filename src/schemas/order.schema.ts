@@ -5,10 +5,10 @@ import { orders } from '../db/schema.js';
 
 import {
   IsoDateTimeSchema,
-  LocationSchema,
   OrderStatusSchema,
   PaginationQuerySchema,
   ResourceIdSchema,
+  UserBasicInfoSchema,
 } from './common.schema.js';
 import { createPaginatedResponseSchema } from './util/pagination.js';
 
@@ -61,13 +61,6 @@ export const OrdersListResponseSchema = createPaginatedResponseSchema(
 
 export const GetOrderParamsSchema = z.object({
   id: ResourceIdSchema,
-});
-
-export const UserBasicInfoSchema = z.object({
-  id: z.string(),
-  name: z.string().nullable().optional(),
-  email: z.string().nullable().optional(),
-  location: LocationSchema.nullable().optional(),
 });
 
 export const OrderItemDetailSchema = z.object({

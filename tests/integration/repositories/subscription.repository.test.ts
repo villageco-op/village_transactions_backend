@@ -339,4 +339,56 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
       expect(results).toEqual([]);
     });
   });
+
+  describe('getSubscriptionDetailsById', () => {
+    it('should return combined subscription and produce details including sellerId', async () => {
+      const sellerId = 'seller_get_test';
+      const buyerId = 'buyer_get_test';
+
+      await testDb.insert(users).values([
+        { id: sellerId, name: 'Seller', email: 'seller@test.com' },
+        { id: buyerId, name: 'Buyer', email: 'buyer@test.com' },
+      ]);
+
+      const [product] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Fresh Berries',
+          pricePerOz: '2.50',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      const [subscription] = await testDb
+        .insert(subscriptions)
+        .values({
+          buyerId,
+          productId: product.id,
+          quantityOz: '10.00',
+          status: 'active',
+          fulfillmentType: 'delivery',
+        })
+        .returning();
+
+      const result = await subscriptionRepository.getSubscriptionDetailsById(subscription.id);
+
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(subscription.id);
+      expect(result?.buyerId).toBe(buyerId);
+      expect(result?.sellerId).toBe(sellerId);
+      expect(result?.product).toBeDefined();
+      expect(result?.product?.title).toBe('Fresh Berries');
+    });
+
+    it('should return null if the subscription ID does not exist', async () => {
+      const fakeUuid = '00000000-0000-0000-0000-000000000000';
+      const result = await subscriptionRepository.getSubscriptionDetailsById(fakeUuid);
+
+      expect(result).toBeNull();
+    });
+  });
 });

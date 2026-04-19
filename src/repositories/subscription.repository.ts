@@ -81,4 +81,28 @@ export const subscriptionRepository = {
       .from(subscriptions)
       .where(and(inArray(subscriptions.productId, productIds), eq(subscriptions.status, 'active')));
   },
+
+  /**
+   * Retrieves a subscription with its associated product details to determine the seller.
+   * @param subscriptionId - The UUID of the subscription.
+   * @returns The combined subscription and product object, including sellerId, or null.
+   */
+  async getSubscriptionDetailsById(subscriptionId: string) {
+    const [result] = await this.db
+      .select({
+        subscription: subscriptions,
+        product: produce,
+      })
+      .from(subscriptions)
+      .innerJoin(produce, eq(subscriptions.productId, produce.id))
+      .where(eq(subscriptions.id, subscriptionId));
+
+    if (!result) return null;
+
+    return {
+      ...result.subscription,
+      product: result.product,
+      sellerId: result.product.sellerId,
+    };
+  },
 };

@@ -7,10 +7,59 @@ import {
   ErrorResponseSchema,
   SuccessResponseSchema,
 } from '../schemas/common.schema.js';
-import { UpdateSubscriptionStatusSchema } from '../schemas/subscription.schema.js';
-import { updateSubscriptionStatus } from '../services/subscription.service.js';
+import {
+  SubscriptionDetailResponseSchema,
+  UpdateSubscriptionStatusSchema,
+} from '../schemas/subscription.schema.js';
+import {
+  getSubscriptionDetails,
+  updateSubscriptionStatus,
+} from '../services/subscription.service.js';
 
 export const subscriptionsRoute = new OpenAPIHono();
+
+subscriptionsRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}',
+    operationId: 'getSubscriptionById',
+    description:
+      'Get detailed information for a specific subscription by ID. Accessible only by the buyer or seller associated with the subscription.',
+    tags: [TAGS.SUBSCRIPTIONS],
+    middleware: [verifyAuth()],
+    request: {
+      params: EntityParamSchema,
+    },
+    responses: {
+      200: {
+        description: 'Subscription details successfully retrieved',
+        content: { 'application/json': { schema: SubscriptionDetailResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized - User not logged in',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Not Found - Subscription does not exist or user lacks permission to view it',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id } = c.req.valid('param');
+
+    const subscriptionDetails = await getSubscriptionDetails(id, userId);
+
+    return c.json(subscriptionDetails, 200);
+  },
+);
 
 subscriptionsRoute.openapi(
   createRoute({

@@ -48,6 +48,8 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('IsoDate', Common.IsoDateSchema);
   app.openAPIRegistry.register('PaginationMetadata', Common.PaginationMetadataSchema);
 
+  app.openAPIRegistry.register('UserBasicInfo', Common.UserBasicInfoSchema);
+
   // Produce Request Payloads
   app.openAPIRegistry.register('CreateProducePayload', Produce.CreateProduceSchema);
   app.openAPIRegistry.register('UpdateProducePayload', Produce.UpdateProduceSchema);
@@ -77,7 +79,6 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('Order', Orders.OrderSchema);
   app.openAPIRegistry.register('OrderDetailResponse', Orders.OrderDetailResponseSchema);
   app.openAPIRegistry.register('OrderItemDetail', Orders.OrderItemDetailSchema);
-  app.openAPIRegistry.register('UserBasicInfo', Orders.UserBasicInfoSchema);
   app.openAPIRegistry.register('OrdersListResponse', Orders.OrdersListResponseSchema);
 
   // Order Payloads & Params

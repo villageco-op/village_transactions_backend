@@ -1,19 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
-import { updateSubscriptionStatus } from '../../../src/services/subscription.service.js';
+import {
+  getSubscriptionDetails,
+  updateSubscriptionStatus,
+} from '../../../src/services/subscription.service.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { updateStripeSubscriptionStatus } from '../../../src/services/stripe.service.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
 
 vi.mock('../../../src/repositories/subscription.repository.js', () => ({
   subscriptionRepository: {
     getBuyerSubscription: vi.fn(),
     updateStatus: vi.fn(),
+    getSubscriptionDetailsById: vi.fn(),
   },
 }));
 
 vi.mock('../../../src/services/stripe.service.js', () => ({
   updateStripeSubscriptionStatus: vi.fn(),
+}));
+
+vi.mock('../../../src/repositories/user.repository.js', () => ({
+  userRepository: {
+    findById: vi.fn(),
+  },
 }));
 
 describe('SubscriptionService - updateSubscriptionStatus', () => {
@@ -51,5 +62,105 @@ describe('SubscriptionService - updateSubscriptionStatus', () => {
 
     expect(updateStripeSubscriptionStatus).toHaveBeenCalledWith('stripe_sub_999', 'canceled');
     expect(subscriptionRepository.updateStatus).toHaveBeenCalledWith('sub_123', 'canceled');
+  });
+});
+
+describe('SubscriptionService - getSubscriptionDetails', () => {
+  const mockSubscriptionId = '123e4567-e89b-12d3-a456-426614174000';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should throw 404 if the subscription does not exist', async () => {
+    vi.mocked(subscriptionRepository.getSubscriptionDetailsById).mockResolvedValueOnce(null);
+
+    await expect(getSubscriptionDetails(mockSubscriptionId, 'buyer_1')).rejects.toThrow(
+      new HTTPException(404, { message: 'Subscription not found' }),
+    );
+  });
+
+  it('should throw 404 if the requesting user is neither the buyer nor the seller', async () => {
+    vi.mocked(subscriptionRepository.getSubscriptionDetailsById).mockResolvedValueOnce({
+      id: mockSubscriptionId,
+      buyerId: 'buyer_1',
+      sellerId: 'seller_1',
+      productId: 'prod_1',
+    } as any);
+
+    await expect(getSubscriptionDetails(mockSubscriptionId, 'unauthorized_user')).rejects.toThrow(
+      new HTTPException(404, { message: 'Subscription not found' }),
+    );
+  });
+
+  it('should return sanitized subscription details when requested by the buyer', async () => {
+    vi.mocked(subscriptionRepository.getSubscriptionDetailsById).mockResolvedValueOnce({
+      id: mockSubscriptionId,
+      buyerId: 'buyer_1',
+      sellerId: 'seller_1',
+      stripeSubscriptionId: 'secret_stripe_id',
+      status: 'active',
+    } as any);
+
+    vi.mocked(userRepository.findById).mockImplementation(async (id: string) => {
+      if (id === 'buyer_1') return { id: 'buyer_1', name: 'Buyer', email: 'buyer@test.com' } as any;
+      if (id === 'seller_1')
+        return { id: 'seller_1', name: 'Seller', email: 'seller@test.com' } as any;
+      return null;
+    });
+
+    const result = await getSubscriptionDetails(mockSubscriptionId, 'buyer_1');
+
+    // Ensure stripeSubscriptionId is stripped
+    expect(result).not.toHaveProperty('stripeSubscriptionId');
+    expect(result.id).toBe(mockSubscriptionId);
+    expect(result.status).toBe('active');
+
+    // Check sanitized user info
+    expect(result.buyer).toEqual({
+      id: 'buyer_1',
+      name: 'Buyer',
+      email: 'buyer@test.com',
+      location: {
+        lat: null,
+        lng: null,
+        address: null,
+        city: null,
+        state: null,
+        country: null,
+        zip: null,
+      },
+    });
+
+    expect(result.seller).toEqual({
+      id: 'seller_1',
+      name: 'Seller',
+      email: 'seller@test.com',
+      location: {
+        lat: null,
+        lng: null,
+        address: null,
+        city: null,
+        state: null,
+        country: null,
+        zip: null,
+      },
+    });
+  });
+
+  it('should return sanitized subscription details when requested by the seller', async () => {
+    vi.mocked(subscriptionRepository.getSubscriptionDetailsById).mockResolvedValueOnce({
+      id: mockSubscriptionId,
+      buyerId: 'buyer_1',
+      sellerId: 'seller_1',
+    } as any);
+
+    vi.mocked(userRepository.findById).mockResolvedValue(null);
+
+    const result = await getSubscriptionDetails(mockSubscriptionId, 'seller_1');
+
+    // Should return null for buyer/seller if user lookup yields nothing
+    expect(result.buyer).toBeNull();
+    expect(result.seller).toBeNull();
   });
 });
