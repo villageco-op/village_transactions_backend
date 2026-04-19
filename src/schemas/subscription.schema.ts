@@ -18,7 +18,7 @@ export const UpdateSubscriptionStatusSchema = z
 
 export const SubscriptionDetailResponseSchema = z
   .object({
-    id: z.string(),
+    id: ResourceIdSchema,
     buyerId: UserIdSchema,
     productId: ResourceIdSchema,
     sellerId: UserIdSchema,
@@ -35,9 +35,9 @@ export const SubscriptionDetailResponseSchema = z
   .openapi('SubscriptionDetailResponse');
 
 export const GetSubscriptionsQuerySchema = PaginationQuerySchema.extend({
-  buyerId: z.string().optional().openapi({ description: 'Filter by buyer ID' }),
-  sellerId: z.string().optional().openapi({ description: 'Filter by seller ID' }),
-  productId: z.string().uuid().optional().openapi({ description: 'Filter by product ID' }),
+  buyerId: UserIdSchema.optional().openapi({ description: 'Filter by buyer ID' }),
+  sellerId: UserIdSchema.optional().openapi({ description: 'Filter by seller ID' }),
+  productId: ResourceIdSchema.optional().openapi({ description: 'Filter by product ID' }),
   status: SubscriptionStatusSchema.optional().openapi({
     description: 'Filter by subscription status',
   }),
