@@ -1,27 +1,37 @@
 import { HTTPException } from 'hono/http-exception';
 
 import type { User } from '../db/types.js';
+import { produceRepository } from '../repositories/produce.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import type { GetSubscriptionsQuery } from '../schemas/subscription.schema.js';
 
-import { updateStripeSubscriptionStatus } from './stripe.service.js';
+import { sendPushNotification } from './notification.service.js';
+import {
+  updateStripeSubscriptionQuantity,
+  updateStripeSubscriptionStatus,
+} from './stripe.service.js';
 
 /**
- * Updates the status of a specific buyer subscription.
- * This function performs a local check to ensure the subscription exists,
- * synchronizes the status change with Stripe (if a Stripe ID exists),
- * and finally persists the change in the local database.
- * @param buyerId - The unique identifier of the buyer owning the subscription.
- * @param subscriptionId - The unique identifier of the subscription to update.
- * @param status - The new status to apply ('active', 'paused', or 'canceled').
- * @returns The updated subscription record from the database.
- * @throws {HTTPException} 404 error if the subscription does not exist for the given buyer.
+ * Updates a subscriptions fields in the DB and with Stripe. Sends a push notification to the other party.
+ * @param buyerId - The subscription buyers ID
+ * @param subscriptionId - The subscription ID
+ * @param updates - The new fields
+ * @param updates.status - The new status
+ * @param updates.quantityOz - The new quantity
+ * @param updates.fulfillmentType - The new fulfillment type
+ * @param updates.cancelReason - The reason for canceling or pausing
+ * @returns The updated subcription
  */
-export async function updateSubscriptionStatus(
+export async function updateSubscription(
   buyerId: string,
   subscriptionId: string,
-  status: 'active' | 'paused' | 'canceled',
+  updates: {
+    status?: 'active' | 'paused' | 'canceled';
+    quantityOz?: number;
+    fulfillmentType?: 'pickup' | 'delivery';
+    cancelReason?: string;
+  },
 ) {
   const subscription = await subscriptionRepository.getBuyerSubscription(buyerId, subscriptionId);
 
@@ -30,10 +40,32 @@ export async function updateSubscriptionStatus(
   }
 
   if (subscription.stripeSubscriptionId) {
-    await updateStripeSubscriptionStatus(subscription.stripeSubscriptionId, status);
+    if (updates.status && updates.status !== subscription.status) {
+      await updateStripeSubscriptionStatus(subscription.stripeSubscriptionId, updates.status);
+    }
+
+    if (updates.quantityOz && updates.quantityOz !== Number(subscription.quantityOz)) {
+      await updateStripeSubscriptionQuantity(subscription.stripeSubscriptionId, updates.quantityOz);
+    }
   }
 
-  return await subscriptionRepository.updateStatus(subscriptionId, status);
+  const updatedSub = await subscriptionRepository.updateSubscriptionData(subscriptionId, updates);
+
+  const product = await produceRepository.getById(subscription.productId);
+
+  if (product && product.sellerId) {
+    let message = 'A customer has updated their subscription details.';
+    if (updates.status === 'canceled')
+      message = `A customer canceled their subscription. Reason: ${updates.cancelReason || 'None provided'}`;
+    if (updates.status === 'paused')
+      message = `A customer paused their subscription. Reason: ${updates.cancelReason || 'None provided'}`;
+    if (updates.quantityOz)
+      message = `A customer updated their subscription quantity to ${updates.quantityOz}oz.`;
+
+    await sendPushNotification(product.sellerId, 'Subscription Updated 🔄', message);
+  }
+
+  return updatedSub;
 }
 
 /**
@@ -169,4 +201,44 @@ export async function getSubscriptions(
       totalPages,
     },
   };
+}
+
+/**
+ * Cancels all active or paused subscriptions for a specific product.
+ * Used when a seller deletes a product or stops offering it as a subscription.
+ * @param productId - The product causing the cancelation
+ * @param reason - The reason for the cancelation (from the canceling party)
+ */
+export async function batchCancelProductSubscriptions(productId: string, reason: string) {
+  const affectedSubscriptions = await subscriptionRepository.getSubscriptionsByProduct(productId, [
+    'active',
+    'paused',
+  ]);
+
+  if (affectedSubscriptions.length === 0) return;
+
+  const results = await Promise.allSettled(
+    affectedSubscriptions.map(async (sub) => {
+      if (sub.stripeSubscriptionId) {
+        await updateStripeSubscriptionStatus(sub.stripeSubscriptionId, 'canceled');
+      }
+
+      await subscriptionRepository.updateSubscriptionData(sub.id, {
+        status: 'canceled',
+        cancelReason: reason,
+      });
+
+      await sendPushNotification(
+        sub.buyerId,
+        'Subscription Canceled ⚠️',
+        `Your subscription was canceled because the farmer updated or removed the listing. Reason: ${reason}`,
+      );
+    }),
+  );
+
+  const failed = results.filter((r) => r.status === 'rejected');
+  if (failed.length > 0) {
+    console.error(`Batch cancel completed with ${failed.length} errors out of ${results.length}.`);
+    failed.forEach((err) => console.error('Reason:', err.reason));
+  }
 }

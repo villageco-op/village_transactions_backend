@@ -11,13 +11,13 @@ import {
   GetSubscriptionsQuerySchema,
   SubscriptionDetailResponseSchema,
   SubscriptionsListResponseSchema,
-  UpdateSubscriptionStatusSchema,
+  UpdateSubscriptionSchema,
 } from '../schemas/subscription.schema.js';
 import { getPaginationParams } from '../schemas/util/pagination.js';
 import {
   getSubscriptionDetails,
   getSubscriptions,
-  updateSubscriptionStatus,
+  updateSubscription,
 } from '../services/subscription.service.js';
 
 export const subscriptionsRoute = new OpenAPIHono();
@@ -67,24 +67,24 @@ subscriptionsRoute.openapi(
 
 subscriptionsRoute.openapi(
   createRoute({
-    method: 'put',
-    path: '/{id}/status',
-    operationId: 'updateSubscriptionStatus',
+    method: 'patch',
+    path: '/{id}',
+    operationId: 'updateSubscription',
     description:
-      'Manage recurring scheduled purchases. Integrates natively with Stripe to pause or cancel collections.',
+      'Update a subscription quantity, status (pause/cancel), or fulfillment type. Syncs natively with Stripe.',
     tags: [TAGS.SUBSCRIPTIONS],
     middleware: [verifyAuth()],
     request: {
       params: EntityParamSchema,
       body: {
         content: {
-          'application/json': { schema: UpdateSubscriptionStatusSchema },
+          'application/json': { schema: UpdateSubscriptionSchema },
         },
       },
     },
     responses: {
       200: {
-        description: 'Status updated',
+        description: 'Subscription updated',
         content: { 'application/json': { schema: SuccessResponseSchema } },
       },
       401: {
@@ -106,9 +106,9 @@ subscriptionsRoute.openapi(
     }
 
     const { id } = c.req.valid('param');
-    const { status } = c.req.valid('json');
+    const updates = c.req.valid('json');
 
-    await updateSubscriptionStatus(buyerId, id, status);
+    await updateSubscription(buyerId, id, updates);
 
     return c.json({ success: true }, 200);
   },

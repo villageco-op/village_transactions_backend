@@ -134,6 +134,13 @@
       "when": 1776606183479,
       "tag": "0018_nasty_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1776701323569,
+      "tag": "0019_fixed_abomination",
+      "breakpoints": true
     }
   ]
 }

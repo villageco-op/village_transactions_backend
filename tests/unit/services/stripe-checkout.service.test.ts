@@ -35,13 +35,14 @@ describe('StripeService - createCheckoutSession', () => {
   };
 
   const mockActiveCartItem = {
-    reservation: { id: 'res_1', quantityOz: '16' },
+    reservation: { id: 'res_1', quantityOz: '16', isSubscription: false },
     product: {
       id: 'prod_1',
       title: 'Carrots',
       status: 'active',
       totalOzInventory: '100',
       pricePerOz: '0.50',
+      harvestFrequencyDays: 7, // Used for subscription recurring interval
     },
     seller: { id: 'seller_123', name: 'Farmer John' },
   };
@@ -78,18 +79,6 @@ describe('StripeService - createCheckoutSession', () => {
     );
   });
 
-  it('should throw a 400 if inventory is insufficient', async () => {
-    const invalidItem = {
-      ...mockActiveCartItem,
-      product: { ...mockActiveCartItem.product, totalOzInventory: '10' }, // Less than reserved 16
-    };
-    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([invalidItem as any]);
-
-    await expect(createCheckoutSession(buyerId, validPayload)).rejects.toThrow(
-      /Insufficient inventory/,
-    );
-  });
-
   it('should throw a 400 if the seller is missing stripe settings', async () => {
     vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([mockActiveCartItem as any]);
     vi.mocked(userRepository.findById).mockResolvedValueOnce({
@@ -102,7 +91,7 @@ describe('StripeService - createCheckoutSession', () => {
     );
   });
 
-  it('should successfully create a checkout session and return the url', async () => {
+  it('should successfully create a checkout session for a one-time payment and return the url', async () => {
     vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([mockActiveCartItem as any]);
     vi.mocked(userRepository.findById).mockResolvedValueOnce(mockSellerUser as any);
 
@@ -114,17 +103,63 @@ describe('StripeService - createCheckoutSession', () => {
         {
           price_data: {
             currency: 'usd',
-            product_data: { name: 'Carrots', description: '16 oz' },
-            unit_amount: 800, // 0.50 * 16 * 100
+            product_data: { name: 'Carrots', description: 'One-time order' },
+            unit_amount: 50, // Math.round(0.50 * 100)
           },
-          quantity: 1,
+          quantity: 16,
         },
       ],
       mode: 'payment',
       success_url: 'http://localhost:3000/checkout/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'http://localhost:3000/cart',
       payment_intent_data: {
-        application_fee_amount: 200,
+        application_fee_amount: 16, // Math.round((50 * 16) * 0.02)
+        transfer_data: { destination: 'acct_stripe123' },
+      },
+      metadata: {
+        buyerId,
+        sellerId: 'seller_123',
+        reservationIds: 'res_1',
+        fulfillmentType: 'pickup',
+        scheduledTime: validPayload.scheduledTime,
+      },
+    });
+
+    expect(url).toBe('https://checkout.stripe.com/test_url');
+  });
+
+  it('should successfully create a checkout session for a subscription and return the url', async () => {
+    const subscriptionItem = {
+      ...mockActiveCartItem,
+      reservation: { ...mockActiveCartItem.reservation, isSubscription: true },
+    };
+
+    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([subscriptionItem as any]);
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockSellerUser as any);
+
+    const url = await createCheckoutSession(buyerId, validPayload);
+
+    expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: { name: 'Carrots', description: 'Recurring CSA Subscription' },
+            unit_amount: 50,
+            recurring: {
+              interval: 'day',
+              interval_count: 7, // Derived from item.product.harvestFrequencyDays
+            },
+          },
+          quantity: 16,
+        },
+      ],
+      mode: 'subscription',
+      success_url: 'http://localhost:3000/checkout/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: 'http://localhost:3000/cart',
+      subscription_data: {
+        application_fee_percent: 2, // 0.02 * 100
         transfer_data: { destination: 'acct_stripe123' },
       },
       metadata: {

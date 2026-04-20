@@ -47,6 +47,33 @@ export async function cancelOrder(orderId: string, reason: string, requestingUse
 }
 
 /**
+ * Finds all pending orders containing a specific product and cancels them.
+ * Used when a seller deletes a product or marks it unavailable before fulfilling orders.
+ * @param productId - The ID of the affected product
+ * @param reason - The cancellation reason
+ * @param requestingUserId - The seller's ID initiating the cancellation
+ */
+export async function batchCancelPendingOrders(
+  productId: string,
+  reason: string,
+  requestingUserId: string,
+) {
+  const pendingOrderIds = await orderRepository.getPendingOrdersByProductId(productId);
+
+  const results = await Promise.allSettled(
+    pendingOrderIds.map((orderId) => cancelOrder(orderId, reason, requestingUserId)),
+  );
+
+  // Check for any stragglers that didn't cancel correctly
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    console.error(
+      `Batch cancellation completed with ${failures.length} failures out of ${pendingOrderIds.length} orders.`,
+    );
+  }
+}
+
+/**
  * Reschedules an order to a new time and sends a notification to the other party.
  * @param orderId - The ID of the order to reschedule
  * @param newTime - The new scheduled time string (ISO 8601)

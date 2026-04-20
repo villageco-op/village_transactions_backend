@@ -170,4 +170,61 @@ export const subscriptionRepository = {
       total: Number(totalResult.value),
     };
   },
+
+  /**
+   * Persists general updates to a subscription in the database.
+   * @param subscriptionId - The subscription ID
+   * @param data - New values for fields
+   * @param data.status - New subscription status
+   * @param data.quantityOz - New order quantity
+   * @param data.fulfillmentType - New fulfillment type
+   * @param data.cancelReason - The cancel reason if status was updated to canceled or paused
+   * @returns The updated subscription
+   */
+  async updateSubscriptionData(
+    subscriptionId: string,
+    data: {
+      status?: 'active' | 'paused' | 'canceled';
+      quantityOz?: number;
+      fulfillmentType?: 'pickup' | 'delivery';
+      cancelReason?: string;
+    },
+  ) {
+    const updatePayload: {
+      status?: 'active' | 'paused' | 'canceled';
+      quantityOz?: string;
+      fulfillmentType?: 'pickup' | 'delivery';
+      cancelReason?: string;
+      updatedAt: Date;
+    } = { updatedAt: new Date() };
+
+    if (data.status) updatePayload.status = data.status;
+    if (data.quantityOz) updatePayload.quantityOz = data.quantityOz.toString();
+    if (data.fulfillmentType) updatePayload.fulfillmentType = data.fulfillmentType;
+    if (data.cancelReason !== undefined) updatePayload.cancelReason = data.cancelReason;
+
+    const [updated] = await this.db
+      .update(subscriptions)
+      .set(updatePayload)
+      .where(eq(subscriptions.id, subscriptionId))
+      .returning();
+
+    return updated;
+  },
+
+  /**
+   * Fetches subscriptions for a specific product filtered by multiple statuses.
+   * @param productId - The unique ID of the product.
+   * @param statuses - An array of statuses to include (e.g., ['active', 'paused']).
+   * @returns A list of subscriptions that include the product
+   */
+  async getSubscriptionsByProduct(
+    productId: string,
+    statuses: ('active' | 'paused' | 'canceled')[],
+  ) {
+    return await this.db
+      .select()
+      .from(subscriptions)
+      .where(and(eq(subscriptions.productId, productId), inArray(subscriptions.status, statuses)));
+  },
 };

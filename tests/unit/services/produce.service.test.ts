@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+import * as orderService from '../../../src/services/order.service.js';
 import {
   createProduceListing,
   deleteProduceListing,
@@ -10,6 +11,7 @@ import {
   getSellerProduceListings,
   updateProduceListing,
 } from '../../../src/services/produce.service.js';
+import * as subscriptionService from '../../../src/services/subscription.service.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
@@ -102,9 +104,19 @@ describe('ProduceService - updateProduceListing', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(subscriptionService, 'batchCancelProductSubscriptions').mockResolvedValue(undefined);
+    vi.spyOn(orderService, 'batchCancelPendingOrders').mockResolvedValue(undefined);
   });
 
   it('should successfully update a produce listing and return the updated data', async () => {
+    const mockOldProduce = {
+      id: mockId,
+      sellerId: mockSellerId,
+      status: 'active',
+      isSubscribable: true,
+      harvestFrequencyDays: 7,
+    };
+
     const mockUpdatedDbProduce = {
       id: mockId,
       sellerId: mockSellerId,
@@ -122,31 +134,48 @@ describe('ProduceService - updateProduceListing', () => {
       updatedAt: new Date(),
     };
 
+    vi.mocked(produceRepository.getById).mockResolvedValueOnce(mockOldProduce as any);
     vi.mocked(produceRepository.update).mockResolvedValueOnce(mockUpdatedDbProduce as any);
 
     const result = await updateProduceListing(mockId, mockSellerId, mockUpdatePayload);
 
     expect(result).toEqual(mockUpdatedDbProduce);
+    expect(produceRepository.getById).toHaveBeenCalledWith(mockId);
     expect(produceRepository.update).toHaveBeenCalledWith(mockId, mockSellerId, mockUpdatePayload);
+
+    expect(subscriptionService.batchCancelProductSubscriptions).toHaveBeenCalled();
+    expect(orderService.batchCancelPendingOrders).toHaveBeenCalled();
   });
 
-  it('should return undefined if listing is not found or unauthorized', async () => {
-    vi.mocked(produceRepository.update).mockResolvedValueOnce(undefined);
+  it('should return null if listing is not found or unauthorized', async () => {
+    vi.mocked(produceRepository.getById).mockResolvedValueOnce(null as any);
 
     const result = await updateProduceListing(mockId, mockSellerId, mockUpdatePayload);
 
-    expect(result).toBeUndefined();
-    expect(produceRepository.update).toHaveBeenCalledWith(mockId, mockSellerId, mockUpdatePayload);
+    expect(result).toBeNull();
+    expect(produceRepository.getById).toHaveBeenCalledWith(mockId);
+    expect(produceRepository.update).not.toHaveBeenCalled();
   });
 
   it('should propagate repository errors upward', async () => {
+    const mockOldProduce = {
+      id: mockId,
+      sellerId: mockSellerId,
+      status: 'active',
+      isSubscribable: true,
+      harvestFrequencyDays: 7,
+    };
+
     const dbError = new Error('Database Connection Lost');
+
+    vi.mocked(produceRepository.getById).mockResolvedValueOnce(mockOldProduce as any);
     vi.mocked(produceRepository.update).mockRejectedValueOnce(dbError);
 
     await expect(updateProduceListing(mockId, mockSellerId, mockUpdatePayload)).rejects.toThrow(
       'Database Connection Lost',
     );
 
+    expect(produceRepository.getById).toHaveBeenCalledWith(mockId);
     expect(produceRepository.update).toHaveBeenCalledTimes(1);
   });
 });
@@ -155,26 +184,39 @@ describe('ProduceService - deleteProduceListing', () => {
   const mockId = '123e4567-e89b-12d3-a456-426614174000';
   const mockSellerId = 'user_123';
 
+  const batchSubSpy = vi
+    .spyOn(subscriptionService, 'batchCancelProductSubscriptions')
+    .mockImplementation(() => Promise.resolve());
+  const batchOrderSpy = vi
+    .spyOn(orderService, 'batchCancelPendingOrders')
+    .mockImplementation(() => Promise.resolve());
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should successfully soft delete a produce listing and return true', async () => {
+  it('should successfully soft delete and trigger batch cancellations', async () => {
     vi.mocked(produceRepository.softDelete).mockResolvedValueOnce(true);
 
     const result = await deleteProduceListing(mockId, mockSellerId);
 
     expect(result).toBe(true);
     expect(produceRepository.softDelete).toHaveBeenCalledWith(mockId, mockSellerId);
+
+    expect(batchSubSpy).toHaveBeenCalled();
+    expect(batchOrderSpy).toHaveBeenCalled();
   });
 
-  it('should return false if the listing is not found or unauthorized', async () => {
+  it('should return false and NOT trigger cancellations if delete fails', async () => {
     vi.mocked(produceRepository.softDelete).mockResolvedValueOnce(false);
 
     const result = await deleteProduceListing(mockId, mockSellerId);
 
     expect(result).toBe(false);
     expect(produceRepository.softDelete).toHaveBeenCalledWith(mockId, mockSellerId);
+
+    expect(batchSubSpy).not.toHaveBeenCalled();
+    expect(batchOrderSpy).not.toHaveBeenCalled();
   });
 });
 

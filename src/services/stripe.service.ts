@@ -11,7 +11,7 @@ import { updateInternalStripeAccountId } from './user.service.js';
 
 type StripeClient = Pick<
   Stripe,
-  'accounts' | 'accountLinks' | 'checkout' | 'subscriptions' | 'refunds'
+  'accounts' | 'accountLinks' | 'checkout' | 'subscriptions' | 'subscriptionItems' | 'refunds'
 >;
 
 let stripe: StripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
@@ -85,65 +85,63 @@ export async function createCheckoutSession(
     throw new HTTPException(400, { message: 'No active reservations found for this seller.' });
   }
 
-  for (const item of sellerItems) {
+  const isSubscription = sellerItems.some((item) => item.reservation.isSubscription);
+
+  let totalCartAmountCents = 0;
+
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = sellerItems.map((item) => {
     if (item.product.status !== 'active') {
       throw new HTTPException(400, {
         message: `Product is no longer available: ${item.product.title}`,
       });
     }
 
-    if (Number(item.product.totalOzInventory) < Number(item.reservation.quantityOz)) {
-      throw new HTTPException(400, {
-        message: `Insufficient inventory for product: ${item.product.title}`,
-      });
-    }
-  }
+    const priceCents = Math.round(Number(item.product.pricePerOz) * 100);
+    const qty = Math.round(Number(item.reservation.quantityOz));
 
-  const seller = await userRepository.findById(payload.sellerId);
-  if (!seller) {
-    throw new HTTPException(404, { message: 'Seller not found.' });
-  }
+    totalCartAmountCents += priceCents * qty;
 
-  if (!seller.stripeAccountId || !seller.stripeOnboardingComplete) {
-    throw new HTTPException(400, {
-      message: 'Seller is not properly configured to receive payments.',
-    });
-  }
-
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = sellerItems.map((item) => {
-    const priceCents = Number(item.product.pricePerOz) * 100;
-    const qty = Number(item.reservation.quantityOz);
-    const totalLineItemAmountCents = Math.round(priceCents * qty);
+    const isItemSub = item.reservation.isSubscription;
 
     return {
       price_data: {
         currency: 'usd',
         product_data: {
           name: item.product.title,
-          description: `${item.reservation.quantityOz} oz`,
+          description: isItemSub ? 'Recurring CSA Subscription' : 'One-time order',
         },
-        unit_amount: totalLineItemAmountCents,
+        unit_amount: priceCents,
+        ...(isItemSub && item.product.harvestFrequencyDays
+          ? {
+              recurring: {
+                interval: 'day',
+                interval_count: item.product.harvestFrequencyDays,
+              },
+            }
+          : {}),
       },
-      quantity: 1,
+      quantity: qty,
     };
   });
 
+  const seller = await userRepository.findById(payload.sellerId);
+  if (!seller || !seller.stripeAccountId || !seller.stripeOnboardingComplete) {
+    throw new HTTPException(400, {
+      message: 'Seller is not properly configured to receive payments.',
+    });
+  }
+
   const reservationIds = sellerItems.map((item) => item.reservation.id).join(',');
-  const applicationFeeAmount = 200; // Flat 200 cents ($2.00) cut
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-  const session = await stripe.checkout.sessions.create({
+  const PLATFORM_FEE_PERCENT = 0.02;
+
+  const sessionConfig: Stripe.Checkout.SessionCreateParams = {
     payment_method_types: ['card'],
     line_items: lineItems,
-    mode: 'payment',
+    mode: isSubscription ? 'subscription' : 'payment',
     success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/cart`,
-    payment_intent_data: {
-      application_fee_amount: applicationFeeAmount,
-      transfer_data: {
-        destination: seller.stripeAccountId,
-      },
-    },
     metadata: {
       buyerId,
       sellerId: payload.sellerId,
@@ -151,7 +149,22 @@ export async function createCheckoutSession(
       fulfillmentType: payload.fulfillmentType,
       scheduledTime: payload.scheduledTime,
     },
-  });
+  };
+
+  if (isSubscription) {
+    sessionConfig.subscription_data = {
+      transfer_data: { destination: seller.stripeAccountId },
+      application_fee_percent: PLATFORM_FEE_PERCENT * 100,
+    };
+  } else {
+    const calculatedFeeCents = Math.round(totalCartAmountCents * PLATFORM_FEE_PERCENT);
+    sessionConfig.payment_intent_data = {
+      application_fee_amount: calculatedFeeCents,
+      transfer_data: { destination: seller.stripeAccountId },
+    };
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionConfig);
 
   if (!session.url) {
     throw new HTTPException(500, { message: 'Failed to create checkout session URL.' });
@@ -271,6 +284,29 @@ export async function updateStripeSubscriptionStatus(
       pause_collection: '',
     });
   }
+}
+
+/**
+ * Updates the quantity of a subscription in Stripe.
+ * Disables proration so the buyer isn't charged immediately mid-cycle.
+ * @param stripeSubscriptionId - The Stripe subscription ID
+ * @param newQuantityOz - The new quantity
+ */
+export async function updateStripeSubscriptionQuantity(
+  stripeSubscriptionId: string,
+  newQuantityOz: number,
+) {
+  const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+
+  // One product per subscription
+  const subscriptionItemId = subscription.items.data[0].id;
+
+  const safeQuantity = Math.round(newQuantityOz);
+
+  await stripe.subscriptionItems.update(subscriptionItemId, {
+    quantity: safeQuantity,
+    proration_behavior: 'none', // Prevents immediate fractional billing mid-week
+  });
 }
 
 /**

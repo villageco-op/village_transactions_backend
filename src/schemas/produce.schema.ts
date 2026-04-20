@@ -59,6 +59,10 @@ export const CreateProduceSchema = ProduceFields.extend({
 export const UpdateProduceSchema = ProduceFields.partial()
   .extend({
     status: ProduceStatusSchema.optional(),
+    cancelExistingSubscriptions: z.boolean().optional().openapi({
+      description:
+        'If true, forces cancellation of all active subscriptions. Required if frequency changes.',
+    }),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided for update',

@@ -410,4 +410,19 @@ export const orderRepository = {
       items,
     };
   },
+
+  /**
+   * Retrieves all pending order IDs that contain a specific product.
+   * @param productId - The UUID of the product.
+   * @returns An array of order IDs.
+   */
+  async getPendingOrdersByProductId(productId: string): Promise<string[]> {
+    const affectedOrders = await this.db
+      .selectDistinct({ orderId: orders.id })
+      .from(orders)
+      .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .where(and(eq(orderItems.productId, productId), eq(orders.status, 'pending')));
+
+    return affectedOrders.map((o) => o.orderId);
+  },
 };

@@ -13,6 +13,7 @@ import * as stripeService from '../../../src/services/stripe.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 
 vi.spyOn(stripeService, 'updateStripeSubscriptionStatus').mockResolvedValue(undefined);
+vi.spyOn(stripeService, 'updateStripeSubscriptionQuantity').mockResolvedValue(undefined);
 
 describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -70,12 +71,12 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
     testSubscriptionId = insertedSub.id;
   });
 
-  describe('Update Subscription Status', () => {
-    it('PUT /api/subscriptions/:id/status should return 401 if unauthorized', async () => {
+  describe('Update Subscription', () => {
+    it('PATCH /api/subscriptions/:id should return 401 if unauthorized', async () => {
       const res = await authedRequest(
-        `/api/subscriptions/${testSubscriptionId}/status`,
+        `/api/subscriptions/${testSubscriptionId}`,
         {
-          method: 'PUT',
+          method: 'PATCH',
           body: JSON.stringify({ status: 'paused' }),
         },
         { id: '' }, // Unauthenticated override
@@ -84,11 +85,11 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(401);
     });
 
-    it('PUT /api/subscriptions/:id/status should return 404 if subscription not found or owned by another user', async () => {
+    it('PATCH /api/subscriptions/:id should return 404 if subscription not found or owned by another user', async () => {
       const res = await authedRequest(
-        `/api/subscriptions/${testSubscriptionId}/status`,
+        `/api/subscriptions/${testSubscriptionId}`,
         {
-          method: 'PUT',
+          method: 'PATCH',
           body: JSON.stringify({ status: 'paused' }),
         },
         { id: 'wrong_buyer_id' },
@@ -97,11 +98,11 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(404);
     });
 
-    it('PUT /api/subscriptions/:id/status should return 200, update DB, and call Stripe mock when successful', async () => {
+    it('PATCH /api/subscriptions/:id should return 200, update DB, and call Stripe mock when status is updated', async () => {
       const res = await authedRequest(
-        `/api/subscriptions/${testSubscriptionId}/status`,
+        `/api/subscriptions/${testSubscriptionId}`,
         {
-          method: 'PUT',
+          method: 'PATCH',
           body: JSON.stringify({ status: 'paused' }),
         },
         { id: BUYER_ID },
@@ -123,6 +124,30 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
         'stripe_sub_int_123',
         'paused',
       );
+    });
+
+    it('PATCH /api/subscriptions/:id should return 200 and update other fields like quantity and fulfillmentType', async () => {
+      const res = await authedRequest(
+        `/api/subscriptions/${testSubscriptionId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ quantityOz: 20, fulfillmentType: 'delivery' }),
+        },
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.success).toBe(true);
+
+      const [dbSub] = await testDb
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, testSubscriptionId));
+
+      expect(dbSub.quantityOz).toBe('20.00');
+      expect(dbSub.fulfillmentType).toBe('delivery');
     });
   });
 
