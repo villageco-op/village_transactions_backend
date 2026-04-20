@@ -4,12 +4,18 @@ import { HTTPException } from 'hono/http-exception';
 import {
   getSubscriptionDetails,
   getSubscriptions,
-  updateSubscriptionStatus,
+  updateSubscription,
+  batchCancelProductSubscriptions,
 } from '../../../src/services/subscription.service.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
-import { updateStripeSubscriptionStatus } from '../../../src/services/stripe.service.js';
+import { sendPushNotification } from '../../../src/services/notification.service.js';
+import {
+  updateStripeSubscriptionQuantity,
+  updateStripeSubscriptionStatus,
+} from '../../../src/services/stripe.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { GetSubscriptionsQuery } from '../../../src/schemas/subscription.schema.js';
+import { produceRepository } from '../../../src/repositories/produce.repository.js';
 
 vi.mock('../../../src/repositories/subscription.repository.js', () => ({
   subscriptionRepository: {
@@ -17,11 +23,14 @@ vi.mock('../../../src/repositories/subscription.repository.js', () => ({
     updateStatus: vi.fn(),
     getSubscriptionDetailsById: vi.fn(),
     querySubscriptions: vi.fn(),
+    getSubscriptionsByProduct: vi.fn(),
+    updateSubscriptionData: vi.fn(),
   },
 }));
 
 vi.mock('../../../src/services/stripe.service.js', () => ({
   updateStripeSubscriptionStatus: vi.fn(),
+  updateStripeSubscriptionQuantity: vi.fn(),
 }));
 
 vi.mock('../../../src/repositories/user.repository.js', () => ({
@@ -30,41 +39,116 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
   },
 }));
 
-describe('SubscriptionService - updateSubscriptionStatus', () => {
+vi.mock('../../../src/repositories/produce.repository.js', () => ({
+  produceRepository: {
+    getById: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/services/notification.service.js', () => ({
+  sendPushNotification: vi.fn(),
+}));
+
+describe('SubscriptionService - updateSubscription', () => {
+  const mockBuyerId = 'buyer_123';
+  const mockSubId = 'sub_456';
+  const mockProductId = 'prod_789';
+  const mockSellerId = 'seller_000';
+
+  const mockSubscription = {
+    id: mockSubId,
+    productId: mockProductId,
+    buyerId: mockBuyerId,
+    status: 'active',
+    quantityOz: 16,
+    stripeSubscriptionId: 'si_stripe_123',
+  };
+
+  const mockProduct = {
+    id: mockProductId,
+    sellerId: mockSellerId,
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(subscriptionRepository.getBuyerSubscription).mockResolvedValue(
+      mockSubscription as any,
+    );
+    vi.mocked(produceRepository.getById).mockResolvedValue(mockProduct as any);
   });
 
-  it('should throw 404 if the subscription does not exist or belong to buyer', async () => {
+  it('should throw 404 if the subscription does not exist', async () => {
     vi.mocked(subscriptionRepository.getBuyerSubscription).mockResolvedValueOnce(null);
 
-    await expect(updateSubscriptionStatus('buyer_1', 'sub_123', 'paused')).rejects.toThrow(
+    await expect(updateSubscription(mockBuyerId, mockSubId, { status: 'paused' })).rejects.toThrow(
       new HTTPException(404, { message: 'Subscription not found' }),
     );
   });
 
-  it('should only update local DB if there is no linked Stripe Subscription ID', async () => {
+  it('should update Stripe status and quantity if they change', async () => {
+    const updates = { status: 'paused' as const, quantityOz: 32 };
+
+    await updateSubscription(mockBuyerId, mockSubId, updates);
+
+    expect(updateStripeSubscriptionStatus).toHaveBeenCalledWith('si_stripe_123', 'paused');
+    expect(updateStripeSubscriptionQuantity).toHaveBeenCalledWith('si_stripe_123', 32);
+    expect(subscriptionRepository.updateSubscriptionData).toHaveBeenCalledWith(mockSubId, updates);
+  });
+
+  it('should NOT call Stripe if values are the same as current state', async () => {
+    const updates = { status: 'active' as const, quantityOz: 16 }; // Same as mockSubscription
+
+    await updateSubscription(mockBuyerId, mockSubId, updates);
+
+    expect(updateStripeSubscriptionStatus).not.toHaveBeenCalled();
+    expect(updateStripeSubscriptionQuantity).not.toHaveBeenCalled();
+  });
+
+  it('should NOT call Stripe if stripeSubscriptionId is missing', async () => {
     vi.mocked(subscriptionRepository.getBuyerSubscription).mockResolvedValueOnce({
-      id: 'sub_123',
+      ...mockSubscription,
       stripeSubscriptionId: null,
     } as any);
 
-    await updateSubscriptionStatus('buyer_1', 'sub_123', 'paused');
+    await updateSubscription(mockBuyerId, mockSubId, { status: 'canceled' });
 
     expect(updateStripeSubscriptionStatus).not.toHaveBeenCalled();
-    expect(subscriptionRepository.updateStatus).toHaveBeenCalledWith('sub_123', 'paused');
+    expect(subscriptionRepository.updateSubscriptionData).toHaveBeenCalled();
   });
 
-  it('should update Stripe and local DB when cancelling an active subscription', async () => {
-    vi.mocked(subscriptionRepository.getBuyerSubscription).mockResolvedValueOnce({
-      id: 'sub_123',
-      stripeSubscriptionId: 'stripe_sub_999',
-    } as any);
+  describe('Notifications', () => {
+    it('should send "canceled" message when status is canceled', async () => {
+      await updateSubscription(mockBuyerId, mockSubId, {
+        status: 'canceled',
+        cancelReason: 'Too expensive',
+      });
 
-    await updateSubscriptionStatus('buyer_1', 'sub_123', 'canceled');
+      expect(sendPushNotification).toHaveBeenCalledWith(
+        mockSellerId,
+        'Subscription Updated 🔄',
+        expect.stringContaining('canceled their subscription. Reason: Too expensive'),
+      );
+    });
 
-    expect(updateStripeSubscriptionStatus).toHaveBeenCalledWith('stripe_sub_999', 'canceled');
-    expect(subscriptionRepository.updateStatus).toHaveBeenCalledWith('sub_123', 'canceled');
+    it('should send "quantity" message when quantity is updated', async () => {
+      await updateSubscription(mockBuyerId, mockSubId, { quantityOz: 64 });
+
+      expect(sendPushNotification).toHaveBeenCalledWith(
+        mockSellerId,
+        'Subscription Updated 🔄',
+        'A customer updated their subscription quantity to 64oz.',
+      );
+    });
+
+    it('should send default message for other updates (e.g., fulfillmentType)', async () => {
+      await updateSubscription(mockBuyerId, mockSubId, { fulfillmentType: 'delivery' });
+
+      expect(sendPushNotification).toHaveBeenCalledWith(
+        mockSellerId,
+        'Subscription Updated 🔄',
+        'A customer has updated their subscription details.',
+      );
+    });
   });
 });
 
@@ -225,5 +309,76 @@ describe('SubscriptionService - getSubscriptions', () => {
       name: 'Buyer',
       email: 'b@test.com',
     });
+  });
+});
+
+describe('SubscriptionService - batchCancelProductSubscriptions', () => {
+  const mockProductId = 'prod_123';
+  const mockReason = 'The farmer removed an item in this order from their shop.';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return early if no subscriptions are found', async () => {
+    vi.mocked(subscriptionRepository.getSubscriptionsByProduct).mockResolvedValueOnce([]);
+
+    await batchCancelProductSubscriptions(mockProductId, mockReason);
+
+    expect(subscriptionRepository.getSubscriptionsByProduct).toHaveBeenCalledWith(mockProductId, [
+      'active',
+      'paused',
+    ]);
+    expect(subscriptionRepository.updateSubscriptionData).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+  });
+
+  it('should process cancellations, skipping Stripe if no ID exists', async () => {
+    const mockSubs = [
+      { id: 'sub_stripe', buyerId: 'buyer_1', stripeSubscriptionId: 'si_999' },
+      { id: 'sub_no_stripe', buyerId: 'buyer_2', stripeSubscriptionId: null },
+    ];
+
+    vi.mocked(subscriptionRepository.getSubscriptionsByProduct).mockResolvedValueOnce(
+      mockSubs as any,
+    );
+    vi.mocked(subscriptionRepository.updateSubscriptionData).mockResolvedValue(true as any);
+
+    await batchCancelProductSubscriptions(mockProductId, mockReason);
+
+    expect(updateStripeSubscriptionStatus).toHaveBeenCalledTimes(1);
+    expect(updateStripeSubscriptionStatus).toHaveBeenCalledWith('si_999', 'canceled');
+
+    expect(subscriptionRepository.updateSubscriptionData).toHaveBeenCalledTimes(2);
+    expect(subscriptionRepository.updateSubscriptionData).toHaveBeenCalledWith('sub_stripe', {
+      status: 'canceled',
+      cancelReason: mockReason,
+    });
+
+    expect(sendPushNotification).toHaveBeenCalledTimes(2);
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      'buyer_1',
+      'Subscription Canceled ⚠️',
+      expect.stringContaining(mockReason),
+    );
+  });
+
+  it('should handle partial failures gracefully using Promise.allSettled', async () => {
+    const mockSubs = [
+      { id: 'sub_1', buyerId: 'buyer_1', stripeSubscriptionId: null },
+      { id: 'sub_2', buyerId: 'buyer_2', stripeSubscriptionId: null },
+    ];
+
+    vi.mocked(subscriptionRepository.getSubscriptionsByProduct).mockResolvedValueOnce(
+      mockSubs as any,
+    );
+
+    vi.mocked(subscriptionRepository.updateSubscriptionData)
+      .mockResolvedValueOnce(true as any)
+      .mockRejectedValueOnce(new Error('Database Timeout'));
+
+    await expect(batchCancelProductSubscriptions(mockProductId, mockReason)).resolves.not.toThrow();
+
+    expect(subscriptionRepository.updateSubscriptionData).toHaveBeenCalledTimes(2);
   });
 });

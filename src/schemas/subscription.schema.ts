@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import {
+  FulfillmentTypeSchema,
   PaginationMetadataSchema,
   PaginationQuerySchema,
   ResourceIdSchema,
@@ -10,11 +11,18 @@ import {
 } from './common.schema.js';
 import { ProduceSchema } from './produce.schema.js';
 
-export const UpdateSubscriptionStatusSchema = z
+export const UpdateSubscriptionSchema = z
   .object({
-    status: SubscriptionStatusSchema,
+    status: SubscriptionStatusSchema.optional(),
+    quantityOz: z.number().positive().optional(),
+    fulfillmentType: FulfillmentTypeSchema.optional(),
+    cancelReason: z
+      .string()
+      .max(255)
+      .optional()
+      .openapi({ description: 'Reason for canceling or pausing.' }),
   })
-  .openapi('UpdateSubscriptionStatusPayload');
+  .openapi('UpdateSubscriptionPayload');
 
 export const SubscriptionDetailResponseSchema = z
   .object({
@@ -24,6 +32,7 @@ export const SubscriptionDetailResponseSchema = z
     sellerId: UserIdSchema,
     quantityOz: z.string(),
     status: SubscriptionStatusSchema,
+    cancelReason: z.string().nullable(),
     fulfillmentType: z.string(),
     nextDeliveryDate: z.string().nullable(),
     createdAt: z.string().nullable(),
@@ -51,4 +60,4 @@ export const SubscriptionsListResponseSchema = z
   .openapi('SubscriptionsListResponse');
 
 export type GetSubscriptionsQuery = z.infer<typeof GetSubscriptionsQuerySchema>;
-export type UpdateSubscriptionStatusBody = z.infer<typeof UpdateSubscriptionStatusSchema>;
+export type UpdateSubscriptionBody = z.infer<typeof UpdateSubscriptionSchema>;

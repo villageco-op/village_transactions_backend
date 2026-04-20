@@ -204,6 +204,7 @@ export const subscriptions = pgTable('subscriptions', {
   status: subscriptionStatusEnum('status').notNull().default('active'),
   fulfillmentType: fulfillmentTypeEnum('fulfillment_type').notNull(),
   nextDeliveryDate: timestamp('next_delivery_date'),
+  cancelReason: text('cancel_reason'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

@@ -5,13 +5,16 @@ import type Stripe from 'stripe';
 import {
   __setStripeClient,
   generateStripeOnboardLink,
+  refundCheckoutSession,
+  processStripeWebhookEvent,
+  updateStripeSubscriptionQuantity,
+  createCheckoutSession,
 } from '../../../src/services/stripe.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { updateInternalStripeAccountId } from '../../../src/services/user.service.js';
-import { processStripeWebhookEvent } from '../../../src/services/stripe.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
-import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
+import { cartRepository } from '../../../src/repositories/cart.repository.js';
 
 const mockStripe = {
   accounts: {
@@ -23,6 +26,12 @@ const mockStripe = {
   subscriptions: {
     update: vi.fn(),
     cancel: vi.fn(),
+    retrieve: vi.fn().mockResolvedValue({
+      items: { data: [{ id: 'si_item_123' }] },
+    }),
+  },
+  subscriptionItems: {
+    update: vi.fn(),
   },
   checkout: {
     sessions: {
@@ -36,6 +45,7 @@ const mockStripe = {
           },
         },
       }),
+      create: vi.fn().mockResolvedValue({ url: 'https://stripe.com/checkout/session_123' }),
     },
   },
   refunds: {
@@ -56,6 +66,12 @@ vi.mock('../../../src/services/user.service.js', () => ({
 vi.mock('../../../src/repositories/order.repository.js', () => ({
   orderRepository: {
     fulfillCheckoutSession: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/cart.repository.js', () => ({
+  cartRepository: {
+    getActiveCart: vi.fn(),
   },
 }));
 
@@ -250,5 +266,183 @@ describe('StripeService - refundCheckoutSession', () => {
 
     await expect(refundCheckoutSession('cs_123')).rejects.toThrow(HTTPException);
     expect(mockStripe.refunds.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('StripeService - updateStripeSubscriptionQuantity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should retrieve the subscription, find the item ID, and update quantity safely without proration', async () => {
+    await updateStripeSubscriptionQuantity('sub_abc123', 15.6); // 15.6 should round to 16
+
+    expect(mockStripe.subscriptions.retrieve).toHaveBeenCalledWith('sub_abc123');
+    expect(mockStripe.subscriptionItems.update).toHaveBeenCalledWith('si_item_123', {
+      quantity: 16,
+      proration_behavior: 'none',
+    });
+  });
+});
+
+describe('StripeService - createCheckoutSession', () => {
+  const mockBuyerId = 'buyer_123';
+  const mockPayload = {
+    sellerId: 'seller_1',
+    fulfillmentType: 'pickup',
+    scheduledTime: '2026-05-15T12:00:00Z',
+  };
+
+  const mockValidSeller = {
+    id: 'seller_1',
+    stripeAccountId: 'acct_seller123',
+    stripeOnboardingComplete: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    vi.mocked(userRepository.findById).mockResolvedValue(mockValidSeller as any);
+  });
+
+  it('should throw 400 if no active reservations exist for the requested seller', async () => {
+    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+      { seller: { id: 'seller_2' } } as any, // Different seller
+    ]);
+
+    await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
+      new HTTPException(400, { message: 'No active reservations found for this seller.' }),
+    );
+  });
+
+  it('should throw 400 if an item in the cart is no longer active', async () => {
+    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+      {
+        seller: { id: 'seller_1' },
+        product: { title: 'Tomatoes', status: 'paused' },
+        reservation: { isSubscription: false },
+      } as any,
+    ]);
+
+    await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
+      new HTTPException(400, { message: 'Product is no longer available: Tomatoes' }),
+    );
+  });
+
+  it('should throw 400 if the seller is not fully configured for Stripe payments', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      ...mockValidSeller,
+      stripeOnboardingComplete: false,
+    } as any);
+
+    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+      {
+        seller: { id: 'seller_1' },
+        product: { title: 'Tomatoes', status: 'active', pricePerOz: 1.0 },
+        reservation: { id: 'res_1', quantityOz: 10, isSubscription: false },
+      } as any,
+    ]);
+
+    await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
+      new HTTPException(400, { message: 'Seller is not properly configured to receive payments.' }),
+    );
+  });
+
+  it('should create a ONE-TIME payment checkout session correctly calculating platform fees', async () => {
+    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+      {
+        seller: { id: 'seller_1' },
+        product: { title: 'Apples', status: 'active', pricePerOz: 0.5 }, // $0.50
+        reservation: { id: 'res_1', quantityOz: 32, isSubscription: false }, // 32oz = $16.00
+      } as any,
+    ]);
+
+    const url = await createCheckoutSession(mockBuyerId, mockPayload);
+
+    expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: { name: 'Apples', description: 'One-time order' },
+              unit_amount: 50, // 50 cents
+            },
+            quantity: 32,
+          },
+        ],
+        payment_intent_data: {
+          application_fee_amount: 32, // 2% of $16.00 (1600 cents) = 32 cents
+          transfer_data: { destination: 'acct_seller123' },
+        },
+        metadata: {
+          buyerId: mockBuyerId,
+          sellerId: 'seller_1',
+          reservationIds: 'res_1',
+          fulfillmentType: 'pickup',
+          scheduledTime: '2026-05-15T12:00:00Z',
+        },
+      }),
+    );
+    expect(url).toBe('https://stripe.com/checkout/session_123');
+  });
+
+  it('should create a SUBSCRIPTION checkout session applying recurring interval and fee percent', async () => {
+    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+      {
+        seller: { id: 'seller_1' },
+        product: {
+          title: 'Weekly Veggie Box',
+          status: 'active',
+          pricePerOz: 2.0,
+          harvestFrequencyDays: 7,
+        },
+        reservation: { id: 'res_2', quantityOz: 10, isSubscription: true },
+      } as any,
+    ]);
+
+    await createCheckoutSession(mockBuyerId, mockPayload);
+
+    expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'subscription',
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: 'Weekly Veggie Box',
+                description: 'Recurring CSA Subscription',
+              },
+              unit_amount: 200,
+              recurring: { interval: 'day', interval_count: 7 }, // Subscription-specific field
+            },
+            quantity: 10,
+          },
+        ],
+        subscription_data: {
+          application_fee_percent: 2.0, // 2% platform fee
+          transfer_data: { destination: 'acct_seller123' },
+        },
+      }),
+    );
+  });
+
+  it('should throw a 500 if Stripe fails to return a session URL', async () => {
+    vi.mocked(mockStripe.checkout.sessions.create).mockResolvedValueOnce({ url: null } as any);
+
+    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+      {
+        seller: { id: 'seller_1' },
+        product: { title: 'Carrots', status: 'active', pricePerOz: 0.75 },
+        reservation: { id: 'res_1', quantityOz: 16, isSubscription: false },
+      } as any,
+    ]);
+
+    await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
+      new HTTPException(500, { message: 'Failed to create checkout session URL.' }),
+    );
   });
 });

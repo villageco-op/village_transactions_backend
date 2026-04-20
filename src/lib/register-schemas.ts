@@ -104,10 +104,7 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('RegisterFcmTokenPayload', Users.RegisterFcmTokenSchema);
 
   // Subscriptions
-  app.openAPIRegistry.register(
-    'UpdateSubscriptionStatusPayload',
-    Subscriptions.UpdateSubscriptionStatusSchema,
-  );
+  app.openAPIRegistry.register('UpdateSubscriptionPayload', Subscriptions.UpdateSubscriptionSchema);
   app.openAPIRegistry.register(
     'SubscriptionDetailResponse',
     Subscriptions.SubscriptionDetailResponseSchema,

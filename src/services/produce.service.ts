@@ -3,6 +3,9 @@ import { produceRepository } from '../repositories/produce.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import type { CreateProducePayload, UpdateProducePayload } from '../schemas/produce.schema.js';
 
+import { batchCancelPendingOrders } from './order.service.js';
+import { batchCancelProductSubscriptions } from './subscription.service.js';
+
 /**
  * Creates a new produce listing for the authenticated user.
  * @param sellerId - User's unique ID injected by auth session
@@ -14,7 +17,7 @@ export async function createProduceListing(sellerId: string, data: CreateProduce
 }
 
 /**
- * Updates an existing produce listing.
+ * Updates an existing produce listing and deletes subscriptions and pending orders if necessary.
  * @param id - The ID of the listing to update
  * @param sellerId - User's unique ID injected by auth session
  * @param data - The partial update payload from the request body
@@ -25,17 +28,64 @@ export async function updateProduceListing(
   sellerId: string,
   data: UpdateProducePayload,
 ) {
-  return await produceRepository.update(id, sellerId, data);
+  const oldProduce = await produceRepository.getById(id);
+  if (!oldProduce || oldProduce.sellerId !== sellerId) return null;
+
+  const { cancelExistingSubscriptions, ...dbPayload } = data;
+
+  const updatedProduce = await produceRepository.update(id, sellerId, dbPayload);
+
+  const frequencyChanged =
+    data.harvestFrequencyDays !== undefined &&
+    data.harvestFrequencyDays !== oldProduce.harvestFrequencyDays;
+  const subscriptionTurnedOff = data.isSubscribable === false && oldProduce.isSubscribable === true;
+  const statusChangedToDeleted = data.status === 'deleted' || data.status === 'paused';
+
+  const shouldCancelSubs =
+    cancelExistingSubscriptions ||
+    frequencyChanged ||
+    subscriptionTurnedOff ||
+    statusChangedToDeleted;
+
+  if (shouldCancelSubs) {
+    let reason =
+      'The farmer made a significant update to this listing, requiring you to re-subscribe.';
+    if (subscriptionTurnedOff)
+      reason = 'This item is no longer available for recurring subscriptions.';
+    if (frequencyChanged) reason = 'The farmer changed the harvest frequency for this item.';
+    if (statusChangedToDeleted) reason = 'This item is currently unavailable.';
+
+    batchCancelProductSubscriptions(id, reason).catch(console.error);
+  }
+
+  if (statusChangedToDeleted) {
+    batchCancelPendingOrders(id, 'An item in your order is no longer available.', sellerId).catch(
+      console.error,
+    );
+  }
+
+  return updatedProduce;
 }
 
 /**
- * Soft deletes an existing produce listing.
+ * Soft deletes an existing produce listing and cancels all related subscriptions.
  * @param id - The ID of the listing to delete
  * @param sellerId - User's unique ID injected by auth session
  * @returns A boolean representing success
  */
 export async function deleteProduceListing(id: string, sellerId: string): Promise<boolean> {
-  return await produceRepository.softDelete(id, sellerId);
+  const success = await produceRepository.softDelete(id, sellerId);
+
+  if (success) {
+    const reason = 'The farmer removed an item in this order from their shop.';
+
+    Promise.allSettled([
+      batchCancelProductSubscriptions(id, reason),
+      batchCancelPendingOrders(id, reason, sellerId),
+    ]).catch(console.error);
+  }
+
+  return success;
 }
 
 /**

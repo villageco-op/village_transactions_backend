@@ -7,6 +7,7 @@ import {
   getOrders,
   getSellerPayouts,
   rescheduleOrder,
+  batchCancelPendingOrders,
 } from '../../../src/services/order.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
@@ -21,6 +22,7 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
     getOrders: vi.fn(),
     getPayoutHistory: vi.fn(),
     getOrderWithItemsById: vi.fn(),
+    getPendingOrdersByProductId: vi.fn(),
   },
 }));
 
@@ -117,6 +119,65 @@ describe('OrderService - cancelOrder', () => {
     );
 
     expect(orderRepository.updateOrderToCanceled).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrderService - batchCancelPendingOrders', () => {
+  const mockProductId = 'prod_123';
+  const mockReason = 'The farmer removed an item in this order from their shop.';
+  const mockSellerId = 'seller_123';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should find pending orders and trigger cancellation for each', async () => {
+    const mockOrderIds = ['order_1', 'order_2', 'order_3'];
+    vi.mocked(orderRepository.getPendingOrdersByProductId).mockResolvedValueOnce(mockOrderIds);
+
+    vi.mocked(orderRepository.getOrderById).mockImplementation(
+      async (id) =>
+        ({
+          id,
+          status: 'pending',
+          sellerId: mockSellerId,
+          buyerId: 'buyer_123',
+          stripeSessionId: 'cs_test',
+        }) as any,
+    );
+
+    vi.mocked(orderRepository.updateOrderToCanceled).mockResolvedValue({} as any);
+
+    await batchCancelPendingOrders(mockProductId, mockReason, mockSellerId);
+
+    expect(orderRepository.getPendingOrdersByProductId).toHaveBeenCalledWith(mockProductId);
+
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenCalledTimes(3);
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenNthCalledWith(1, 'order_1', mockReason);
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenNthCalledWith(2, 'order_2', mockReason);
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenNthCalledWith(3, 'order_3', mockReason);
+  });
+
+  it('should continue processing the batch even if one cancellation fails', async () => {
+    const mockOrderIds = ['order_success', 'order_fail'];
+    vi.mocked(orderRepository.getPendingOrdersByProductId).mockResolvedValueOnce(mockOrderIds);
+
+    vi.mocked(orderRepository.getOrderById)
+      .mockResolvedValueOnce({
+        id: 'order_success',
+        status: 'pending',
+        sellerId: mockSellerId,
+        buyerId: 'buyer_123',
+        stripeSessionId: 'cs_test',
+      } as any)
+      .mockRejectedValueOnce(new Error('Database Failure'));
+
+    await expect(
+      batchCancelPendingOrders(mockProductId, mockReason, mockSellerId),
+    ).resolves.toBeUndefined();
+
+    expect(orderRepository.getOrderById).toHaveBeenCalledTimes(2);
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenCalledTimes(1);
   });
 });
 
