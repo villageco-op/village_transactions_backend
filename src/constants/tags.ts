@@ -14,4 +14,5 @@ export const TAGS = {
   CONTACT: 'Contact',
   REVIEWS: 'Reviews',
   UPLOAD: 'Upload',
+  GROWERS: 'GROWERS',
 } as const;

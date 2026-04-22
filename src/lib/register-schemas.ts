@@ -6,6 +6,7 @@ import * as Cart from '../schemas/cart.schema.js';
 import * as Checkout from '../schemas/checkout.schema.js';
 import * as Common from '../schemas/common.schema.js';
 import * as Contact from '../schemas/contact.schema.js';
+import * as Growers from '../schemas/grower.schema.js';
 import * as Messaging from '../schemas/messaging.schema.js';
 import * as Orders from '../schemas/order.schema.js';
 import * as Produce from '../schemas/produce.schema.js';
@@ -170,4 +171,9 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('SellerEarningsResponse', Seller.SellerEarningsResponseSchema);
   app.openAPIRegistry.register('EarningsByProduce', Seller.EarningsByProduceSchema);
   app.openAPIRegistry.register('SellerDashboardResponse', Seller.SellerDashboardResponseSchema);
+
+  // Growers Map
+  app.openAPIRegistry.register('MapGrowersQuery', Growers.MapGrowersQuerySchema);
+  app.openAPIRegistry.register('MapGrower', Growers.MapGrowerSchema);
+  app.openAPIRegistry.register('MapGrowersResponse', Growers.MapGrowersResponseSchema);
 }
