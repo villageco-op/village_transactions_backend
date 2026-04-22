@@ -52,10 +52,17 @@ export const GetSubscriptionsQuerySchema = PaginationQuerySchema.extend({
   }),
 }).openapi('GetSubscriptionsQuery');
 
+export const SubscriptionsPaginationMetadataSchema = PaginationMetadataSchema.extend({
+  activeCount: z.number().openapi({
+    example: 12,
+    description: 'Total number of active subscriptions matching the current base filters',
+  }),
+}).openapi('SubscriptionsPaginationMetadata');
+
 export const SubscriptionsListResponseSchema = z
   .object({
     data: z.array(SubscriptionDetailResponseSchema),
-    meta: PaginationMetadataSchema,
+    meta: SubscriptionsPaginationMetadataSchema,
   })
   .openapi('SubscriptionsListResponse');
 

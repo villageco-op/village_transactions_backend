@@ -196,6 +196,7 @@ export async function getSubscriptions(
     data: formattedData,
     meta: {
       total: result.total,
+      activeCount: result.activeCount,
       page: query.page,
       limit: query.limit,
       totalPages,

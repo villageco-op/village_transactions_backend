@@ -400,14 +400,12 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
     let product2: any;
 
     beforeEach(async () => {
-      // 1. Setup Users
       await testDb.insert(users).values([
         { id: buyer1Id, email: 'bq1@test.com' },
         { id: buyer2Id, email: 'bq2@test.com' },
         { id: seller1Id, email: 'sq1@test.com' },
       ]);
 
-      // 2. Setup Products
       const products = await testDb
         .insert(produce)
         .values([
@@ -435,7 +433,6 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
       product1 = products[0];
       product2 = products[1];
 
-      // 3. Setup Subscriptions
       await testDb.insert(subscriptions).values([
         {
           buyerId: buyer1Id,
@@ -469,6 +466,7 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
       );
 
       expect(result.total).toBe(2);
+      expect(result.activeCount).toBe(1);
       expect(result.data).toHaveLength(2);
       expect(result.data[0].buyer?.id).toBe(buyer1Id);
     });
@@ -481,26 +479,27 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
       );
 
       expect(result.total).toBe(1);
+      expect(result.activeCount).toBe(2);
       expect(result.data[0].subscription.status).toBe('paused');
       expect(result.data[0].subscription.productId).toBe(product2.id);
     });
 
     it('should correctly paginate results using limit and offset', async () => {
-      // Page 1
       const page1 = await subscriptionRepository.querySubscriptions(
         seller1Id,
         { sellerId: seller1Id, page: 1, limit: 2 },
         0,
       );
       expect(page1.total).toBe(3);
+      expect(page1.activeCount).toBe(2);
       expect(page1.data).toHaveLength(2);
 
-      // Page 2
       const page2 = await subscriptionRepository.querySubscriptions(
         seller1Id,
         { sellerId: seller1Id, page: 2, limit: 2 },
         2,
       );
+      expect(page2.activeCount).toBe(2);
       expect(page2.data).toHaveLength(1);
     });
 
@@ -513,6 +512,7 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
       );
 
       expect(result.total).toBe(1);
+      expect(result.activeCount).toBe(1);
       expect(result.data[0].subscription.buyerId).toBe(buyer2Id);
       expect(result.data.every((row) => row.subscription.buyerId === buyer2Id)).toBe(true);
     });
