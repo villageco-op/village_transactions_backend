@@ -50,10 +50,17 @@ buyerRoute.openapi(
       throw new HTTPException(401, { message: 'Unauthorized' });
     }
 
-    const { page, limit } = c.req.valid('query');
+    const { page, limit, search, maxDistance } = c.req.valid('query');
     const { offset } = getPaginationParams(page, limit);
 
-    const paginatedGrowers = await getGrowersForBuyer(userId, page, limit, offset);
+    const paginatedGrowers = await getGrowersForBuyer(
+      userId,
+      page,
+      limit,
+      offset,
+      search,
+      maxDistance,
+    );
 
     return c.json(paginatedGrowers, 200);
   },

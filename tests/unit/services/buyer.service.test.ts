@@ -5,6 +5,7 @@ import {
   getBuyerDashboardMetrics,
 } from '../../../src/services/buyer.service.js';
 import { buyerRepository } from '../../../src/repositories/buyer.repository.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 
 vi.mock('../../../src/repositories/buyer.repository.js', () => ({
@@ -12,6 +13,12 @@ vi.mock('../../../src/repositories/buyer.repository.js', () => ({
     getGrowersByBuyerId: vi.fn(),
     getBuyerWithOrdersForSummary: vi.fn(),
     getDashboardMetrics: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/user.repository.js', () => ({
+  userRepository: {
+    findById: vi.fn(),
   },
 }));
 
@@ -27,7 +34,7 @@ describe('BuyerService - Unit Tests', () => {
   });
 
   describe('getGrowersForBuyer', () => {
-    it('should correctly transform paginated repository data', async () => {
+    it('should correctly transform paginated repository data and include unpaginated cities', async () => {
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
 
       vi.mocked(buyerRepository.getGrowersByBuyerId).mockResolvedValueOnce({
@@ -39,12 +46,16 @@ describe('BuyerService - Unit Tests', () => {
             lat: 0.0,
             lng: 10.0,
             city: 'Chicago',
+            state: 'IL',
+            country: 'USA',
+            zip: '12345',
             produceTypesOrdered: ['spinach'],
             amountThisMonthOz: 16,
             firstOrderDate: tenDaysAgo,
           },
         ],
         total: 25,
+        cities: ['Chicago'],
       });
 
       const result = await getGrowersForBuyer('buyer_123', 2, 20, 20);
@@ -53,6 +64,8 @@ describe('BuyerService - Unit Tests', () => {
       expect(result.data[0].amountOrderedThisMonthLbs).toBe(1); // 16 oz = 1 lb
       expect(result.data[0].daysSinceFirstOrder).toBe(10);
 
+      expect(result.cities).toEqual(['Chicago']);
+
       expect(result.meta).toEqual({
         total: 25,
         page: 2,
@@ -60,7 +73,42 @@ describe('BuyerService - Unit Tests', () => {
         totalPages: 2,
       });
 
-      expect(buyerRepository.getGrowersByBuyerId).toHaveBeenCalledWith('buyer_123', 20, 20);
+      // Assert repository was called without filters
+      expect(buyerRepository.getGrowersByBuyerId).toHaveBeenCalledWith(
+        'buyer_123',
+        20,
+        20,
+        undefined,
+        undefined,
+      );
+    });
+
+    it('should query the buyer and format distance parameters if maxDistance is provided', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: 'buyer_123',
+        lat: 40.7128,
+        lng: -74.006,
+      } as any);
+
+      vi.mocked(buyerRepository.getGrowersByBuyerId).mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        cities: [],
+      });
+
+      await getGrowersForBuyer('buyer_123', 1, 10, 0, 'apples', 25);
+
+      // Verify the user was fetched to get Lat/Lng
+      expect(userRepository.findById).toHaveBeenCalledWith('buyer_123');
+
+      // Verify repository was called correctly
+      expect(buyerRepository.getGrowersByBuyerId).toHaveBeenCalledWith(
+        'buyer_123',
+        10,
+        0,
+        'apples', // search property
+        { lat: 40.7128, lng: -74.006, maxDistance: 25 }, // formatted distance lookup property
+      );
     });
   });
 

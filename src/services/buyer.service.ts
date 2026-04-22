@@ -1,5 +1,6 @@
 import { buyerRepository } from '../repositories/buyer.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
+import { userRepository } from '../repositories/user.repository.js';
 import type {
   BillingSummaryResponse,
   BuyerDashboardResponse,
@@ -13,6 +14,8 @@ import type { PaginationMetadata } from '../schemas/common.schema.js';
  * @param page - Current page number
  * @param limit - Max results per page
  * @param offset - Offset index
+ * @param search - String search for products and sellers
+ * @param maxDistance - Max search distance
  * @returns Paginated grower responses
  */
 export async function getGrowersForBuyer(
@@ -20,8 +23,29 @@ export async function getGrowersForBuyer(
   page: number,
   limit: number,
   offset: number,
-): Promise<{ data: GrowerResponse[]; meta: PaginationMetadata }> {
-  const { items, total } = await buyerRepository.getGrowersByBuyerId(buyerId, limit, offset);
+  search?: string,
+  maxDistance?: number,
+): Promise<{ data: GrowerResponse[]; meta: PaginationMetadata; cities: string[] }> {
+  let distanceFilter;
+
+  if (maxDistance !== undefined) {
+    const buyer = await userRepository.findById(buyerId);
+    if (buyer?.lat != null && buyer?.lng != null) {
+      distanceFilter = {
+        lat: buyer.lat,
+        lng: buyer.lng,
+        maxDistance,
+      };
+    }
+  }
+
+  const { items, total, cities } = await buyerRepository.getGrowersByBuyerId(
+    buyerId,
+    limit,
+    offset,
+    search,
+    distanceFilter,
+  );
 
   const data = items.map((g) => {
     const firstOrderDate = g.firstOrderDate ? new Date(g.firstOrderDate) : new Date();
@@ -58,6 +82,7 @@ export async function getGrowersForBuyer(
       limit,
       totalPages: Math.ceil(total / (limit || 1)),
     },
+    cities: cities || [],
   };
 }
 
