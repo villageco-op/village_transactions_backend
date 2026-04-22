@@ -10,7 +10,16 @@ import {
 } from './common.schema.js';
 import { createPaginatedResponseSchema } from './util/pagination.js';
 
-export const GetGrowersQuerySchema = PaginationQuerySchema.openapi('GetGrowersQuery');
+export const GetGrowersQuerySchema = PaginationQuerySchema.extend({
+  search: z.string().optional().openapi({
+    example: 'spinach',
+    description: 'Regex/text check to filter by produce type or grower name',
+  }),
+  maxDistance: z.coerce
+    .number()
+    .optional()
+    .openapi({ example: 25, description: 'Maximum distance in miles from the buyer address' }),
+}).openapi('GetGrowersQuery');
 
 export const GrowerSchema = z
   .object({
@@ -37,7 +46,17 @@ export const GrowerSchema = z
   })
   .openapi('Grower');
 
-export const GrowersResponseSchema = createPaginatedResponseSchema(GrowerSchema, 'GrowersResponse');
+export const GrowersResponseSchema = createPaginatedResponseSchema(GrowerSchema, 'GrowersResponse')
+  .and(
+    z.object({
+      cities: z.array(z.string()).openapi({
+        example: ['San Francisco', 'Oakland'],
+        description:
+          'A complete unpaginated list of all cities the filtered growers are located in.',
+      }),
+    }),
+  )
+  .openapi('GrowersResponse');
 
 export const BillingSummaryResponseSchema = z
   .object({

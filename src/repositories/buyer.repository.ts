@@ -20,20 +20,54 @@ export const buyerRepository = {
    * @param buyerId - The unique user ID of the buyer.
    * @param limit - Number of records to return.
    * @param offset - Number of records to skip.
+   * @param search - Produce type or user name text search.
+   * @param distanceFilter - The buyers location and a max search distance.
+   * @param distanceFilter.lat - The buyers latitude
+   * @param distanceFilter.lng - The buyers longitude
+   * @param distanceFilter.maxDistance - The maximum distance from the buyer
    * @returns An object containing items and total count.
    */
-  async getGrowersByBuyerId(buyerId: string, limit: number, offset: number) {
+  async getGrowersByBuyerId(
+    buyerId: string,
+    limit: number,
+    offset: number,
+    search?: string,
+    distanceFilter?: { lat: number; lng: number; maxDistance: number },
+  ) {
+    const conditions = [eq(orders.buyerId, buyerId), eq(orders.status, 'completed')];
+
+    if (search) {
+      conditions.push(
+        sql`(${produce.produceType} ILIKE ${`%${search}%`} OR ${users.name} ILIKE ${`%${search}%`})`,
+      );
+    }
+
+    if (distanceFilter) {
+      conditions.push(
+        sql`ST_Distance(
+          ST_MakePoint(${users.lng}, ${users.lat})::geography, 
+          ST_MakePoint(${distanceFilter.lng}, ${distanceFilter.lat})::geography
+        ) <= ${distanceFilter.maxDistance * 1609.34}`,
+      );
+    }
+
+    const whereClause = and(...conditions);
+
     const [totalCountResult] = await this.db
       .select({
         count: sql<number>`count(distinct ${users.id})::int`,
+        cities: sql<
+          string[]
+        >`array_agg(distinct ${users.city}) FILTER (WHERE ${users.city} IS NOT NULL)`,
       })
       .from(users)
       .innerJoin(orders, eq(users.id, orders.sellerId))
       .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
       .innerJoin(produce, eq(orderItems.productId, produce.id))
-      .where(and(eq(orders.buyerId, buyerId), eq(orders.status, 'completed')));
+      .where(whereClause);
 
     const total = totalCountResult?.count || 0;
+    const cities = totalCountResult?.cities || [];
 
     const items = await this.db
       .select({
@@ -58,12 +92,12 @@ export const buyerRepository = {
       .innerJoin(orders, eq(users.id, orders.sellerId))
       .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
       .innerJoin(produce, eq(orderItems.productId, produce.id))
-      .where(and(eq(orders.buyerId, buyerId), eq(orders.status, 'completed')))
+      .where(whereClause)
       .groupBy(users.id)
       .limit(limit)
       .offset(offset);
 
-    return { items, total };
+    return { items, total, cities };
   },
 
   /**
