@@ -46,7 +46,10 @@ export const GrowerSchema = z
   })
   .openapi('Grower');
 
-export const GrowersResponseSchema = createPaginatedResponseSchema(GrowerSchema, 'GrowersResponse')
+export const GrowersResponseSchema = createPaginatedResponseSchema(
+  GrowerSchema,
+  'GrowersResponseBase',
+)
   .and(
     z.object({
       cities: z.array(z.string()).openapi({
