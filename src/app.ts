@@ -14,6 +14,7 @@ import { cartRoute } from './routes/cart.js';
 import { checkoutRoute } from './routes/checkout.js';
 import { contactRoute } from './routes/contact.js';
 import { cronRoute } from './routes/cron.js';
+import { growersRoute } from './routes/growers.js';
 import { messagingRoute } from './routes/messaging.js';
 import { ordersRoute } from './routes/orders.js';
 import { produceRoute } from './routes/produce.js';
@@ -85,6 +86,7 @@ app.route('/api/messages', messagingRoute.messagesRoute);
 app.route('/api/seller', sellerRoute);
 app.route('/api/buyer', buyerRoute);
 app.route('/api/reviews', reviewsRoute);
+app.route('/api/growers', growersRoute);
 app.route('/api/cron', cronRoute);
 app.route('/api/contact', contactRoute);
 
