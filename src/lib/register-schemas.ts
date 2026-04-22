@@ -114,6 +114,10 @@ export function registerSharedSchemas(app: OpenAPIHono) {
     'SubscriptionsListResponse',
     Subscriptions.SubscriptionsListResponseSchema,
   );
+  app.openAPIRegistry.register(
+    'SubscriptionsPaginationMetadata',
+    Subscriptions.SubscriptionsPaginationMetadataSchema,
+  );
 
   // Stripe
   app.openAPIRegistry.register('StripeOnboardingResponse', Stripe.StripeOnboardingResponseSchema);

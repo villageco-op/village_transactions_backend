@@ -276,6 +276,7 @@ describe('SubscriptionService - getSubscriptions', () => {
   it('should correctly format repository output and calculate pagination meta', async () => {
     vi.mocked(subscriptionRepository.querySubscriptions).mockResolvedValueOnce({
       total: 25,
+      activeCount: 15,
       data: [
         {
           subscription: { id: 'sub_1', stripeSubscriptionId: 'stripe_1', status: 'active' } as any,
@@ -293,6 +294,7 @@ describe('SubscriptionService - getSubscriptions', () => {
 
     expect(result.meta).toEqual({
       total: 25,
+      activeCount: 15,
       page: 2,
       limit: 10,
       totalPages: 3, // Math.ceil(25 / 10)

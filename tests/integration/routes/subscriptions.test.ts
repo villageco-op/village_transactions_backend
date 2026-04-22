@@ -227,7 +227,6 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
 
   describe('Get Subscriptions List', () => {
     beforeEach(async () => {
-      // Seed an extra subscription so we have multiple items to paginate
       const [testProduce] = await testDb
         .select()
         .from(produce)
@@ -251,7 +250,7 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
       const res = await authedRequest(
         `/api/subscriptions?buyerId=${BUYER_ID}`,
         { method: 'GET' },
-        { id: RANDOM_USER_ID }, // Acting as random user
+        { id: RANDOM_USER_ID },
       );
       expect(res.status).toBe(403);
     });
@@ -277,6 +276,7 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
 
       expect(body.meta).toEqual({
         total: 2,
+        activeCount: 1,
         page: 1,
         limit: 10,
         totalPages: 1,
@@ -300,6 +300,7 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
       const body = await res.json();
 
       expect(body.meta.total).toBe(1);
+      expect(body.meta.activeCount).toBe(1);
       expect(body.data).toHaveLength(1);
       expect(body.data[0].status).toBe('paused');
     });
