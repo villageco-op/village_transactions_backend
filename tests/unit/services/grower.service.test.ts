@@ -25,7 +25,7 @@ describe('MapService - Unit Tests', () => {
           specialties: ['Apples'],
           image: 'https://example.com/img.jpg',
           rating: '4.6666666666666667',
-          distanceMiles: '5.26789', // Postgres driver might return strings for calculations
+          distanceMiles: '5.26789',
         },
         {
           sellerId: 'user_456',

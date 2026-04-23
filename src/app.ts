@@ -20,6 +20,7 @@ import { ordersRoute } from './routes/orders.js';
 import { produceRoute } from './routes/produce.js';
 import { reviewsRoute } from './routes/reviews.js';
 import { sellerRoute } from './routes/seller.js';
+import { sourceMapRoute } from './routes/source-map.js';
 import { stripeRoute } from './routes/stripe.js';
 import { subscriptionsRoute } from './routes/subscriptions.js';
 import { uploadRoute } from './routes/upload.js';
@@ -87,6 +88,7 @@ app.route('/api/seller', sellerRoute);
 app.route('/api/buyer', buyerRoute);
 app.route('/api/reviews', reviewsRoute);
 app.route('/api/growers', growersRoute);
+app.route('/api/source-map', sourceMapRoute);
 app.route('/api/cron', cronRoute);
 app.route('/api/contact', contactRoute);
 
