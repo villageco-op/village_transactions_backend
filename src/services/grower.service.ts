@@ -24,5 +24,8 @@ export async function getMapGrowers(filters: {
     lng: g.lng as number,
     image: g.image,
     rating: Number(Number(g.rating).toFixed(1)),
+    specialties: g.specialties || [],
+    city: g.city,
+    distanceMiles: g.distanceMiles ? Number(Number(g.distanceMiles).toFixed(1)) : null,
   }));
 }

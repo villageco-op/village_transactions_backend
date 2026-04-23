@@ -69,7 +69,16 @@ export const growerRepository = {
         lat: users.lat,
         lng: users.lng,
         image: users.image,
+        specialties: users.specialties,
         rating: sql<number | string>`COALESCE(AVG(${reviews.rating}), 0)`,
+        city: users.city,
+        distanceMiles:
+          filters.lat !== undefined && filters.lng !== undefined
+            ? sql<number>`ST_Distance(
+              ${users.location}, 
+              ST_MakePoint(${filters.lng}, ${filters.lat})::geography
+            ) / 1609.344` // Convert meters to miles
+            : sql<number>`NULL`,
       })
       .from(users)
       .leftJoin(reviews, eq(users.id, reviews.sellerId))
