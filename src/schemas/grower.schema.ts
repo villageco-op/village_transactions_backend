@@ -50,7 +50,7 @@ export const MapGrowerSchema = z
       example: 'Nashville',
       description: 'The growers city.',
     }),
-    distanceMiles: z.number().openapi({
+    distanceMiles: z.number().nullable().openapi({
       example: 2.5,
       description: 'Distance from the buyer to the grower.',
     }),
