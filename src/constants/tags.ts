@@ -14,5 +14,6 @@ export const TAGS = {
   CONTACT: 'Contact',
   REVIEWS: 'Reviews',
   UPLOAD: 'Upload',
-  GROWERS: 'GROWERS',
+  GROWERS: 'Growers',
+  SOURCE_MAP: 'SourceMap',
 } as const;

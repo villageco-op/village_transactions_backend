@@ -12,6 +12,7 @@ import * as Orders from '../schemas/order.schema.js';
 import * as Produce from '../schemas/produce.schema.js';
 import * as Reviews from '../schemas/review.schema.js';
 import * as Seller from '../schemas/seller.schema.js';
+import * as SourceMap from '../schemas/source-map.schema.js';
 import * as Stripe from '../schemas/stripe.schema.js';
 import * as Subscriptions from '../schemas/subscription.schema.js';
 import * as Users from '../schemas/user.schema.js';
@@ -19,8 +20,8 @@ import * as Users from '../schemas/user.schema.js';
 /**
  * Registers shared Zod schemas as OpenAPI Components ($ref).
  * This prevents Orval from generating duplicate inline types.
- @param app - Open Api Hono instance
-*/
+ * @param app - Open Api Hono instance
+ */
 export function registerSharedSchemas(app: OpenAPIHono) {
   // Responses & Params
   app.openAPIRegistry.register('ErrorResponse', Common.ErrorResponseSchema);
@@ -176,4 +177,13 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('MapGrowersQuery', Growers.MapGrowersQuerySchema);
   app.openAPIRegistry.register('MapGrower', Growers.MapGrowerSchema);
   app.openAPIRegistry.register('MapGrowersResponse', Growers.MapGrowersResponseSchema);
+
+  // Source Map
+  app.openAPIRegistry.register('SourceMapQuery', SourceMap.SourceMapQuerySchema);
+  app.openAPIRegistry.register('SourceMapNode', SourceMap.SourceMapNodeSchema);
+  app.openAPIRegistry.register('SourceMapNodesResponse', SourceMap.SourceMapNodesResponseSchema);
+  app.openAPIRegistry.register(
+    'SourceMapAnalyticsResponse',
+    SourceMap.SourceMapAnalyticsResponseSchema,
+  );
 }
