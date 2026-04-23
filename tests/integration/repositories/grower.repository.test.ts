@@ -47,6 +47,8 @@ describe('GrowerRepository - Integration', { timeout: 60_000 }, () => {
       {
         id: SELLER_CHICAGO_ID,
         name: 'Chicago Farm',
+        city: 'Chicago',
+        specialties: ['Microgreens', 'Urban Agriculture'],
         lat: 41.8819, // Very close to buyer
         lng: -87.6231,
         image: 'chicago.jpg',
@@ -56,6 +58,8 @@ describe('GrowerRepository - Integration', { timeout: 60_000 }, () => {
       {
         id: SELLER_EVANSTON_ID,
         name: 'Evanston Farm',
+        city: 'Evanston',
+        specialties: ['Honey', 'Beeswax'],
         lat: 42.0451, // ~12 miles away
         lng: -87.6877,
         image: 'evanston.jpg',
@@ -65,6 +69,8 @@ describe('GrowerRepository - Integration', { timeout: 60_000 }, () => {
       {
         id: SELLER_SPRINGFIELD_ID,
         name: 'Springfield Farm',
+        city: 'Springfield',
+        specialties: ['Corn', 'Soybeans'],
         lat: 39.7817, // ~200 miles away
         lng: -89.6501,
         location: sql`ST_SetSRID(ST_MakePoint(-89.6501, 39.7817), 4326)`,
@@ -127,6 +133,9 @@ describe('GrowerRepository - Integration', { timeout: 60_000 }, () => {
 
     const chicagoFarm = results.find((r) => r.sellerId === SELLER_CHICAGO_ID);
     expect(chicagoFarm?.name).toBe('Chicago Farm');
+    expect(chicagoFarm?.city).toBe('Chicago');
+    expect(chicagoFarm?.specialties).toEqual(['Microgreens', 'Urban Agriculture']);
+    expect(chicagoFarm?.distanceMiles).toBeNull(); // No location filters passed
     expect(Number(chicagoFarm?.rating)).toBe(4.5); // (5 + 4) / 2
 
     const evanstonFarm = results.find((r) => r.sellerId === SELLER_EVANSTON_ID);
@@ -142,7 +151,7 @@ describe('GrowerRepository - Integration', { timeout: 60_000 }, () => {
     expect(sellerIds).toEqual([SELLER_CHICAGO_ID, SELLER_SPRINGFIELD_ID].sort());
   });
 
-  it('should filter growers by maxDistance', async () => {
+  it('should filter growers by maxDistance and calculate distanceMiles', async () => {
     const filters = {
       lat: 41.8781,
       lng: -87.6298, // Chicago Center
@@ -157,6 +166,11 @@ describe('GrowerRepository - Integration', { timeout: 60_000 }, () => {
     const sellerIds = results.map((r) => r.sellerId);
     expect(sellerIds).not.toContain(SELLER_SPRINGFIELD_ID);
     expect(sellerIds).toContain(SELLER_EVANSTON_ID);
+
+    // Verify distance calculation logic works correctly
+    const evanstonFarm = results.find((r) => r.sellerId === SELLER_EVANSTON_ID);
+    expect(Number(evanstonFarm?.distanceMiles)).toBeGreaterThan(11);
+    expect(Number(evanstonFarm?.distanceMiles)).toBeLessThan(13);
   });
 
   it('should apply both distance and buyerId filters simultaneously', async () => {

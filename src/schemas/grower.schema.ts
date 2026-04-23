@@ -39,6 +39,21 @@ export const MapGrowerSchema = z
       example: 4.8,
       description: 'Average star rating',
     }),
+    specialties: z
+      .array(z.string())
+      .default([])
+      .openapi({
+        example: ['Heirloom Tomatoes', 'Organic Honey'],
+        description: 'A list of the growers specialties',
+      }),
+    city: z.string().nullable().openapi({
+      example: 'Nashville',
+      description: 'The growers city.',
+    }),
+    distanceMiles: z.number().nullable().openapi({
+      example: 2.5,
+      description: 'Distance from the buyer to the grower.',
+    }),
   })
   .openapi('MapGrower');
 

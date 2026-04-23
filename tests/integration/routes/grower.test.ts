@@ -29,6 +29,8 @@ describe('Growers API Integration', { timeout: 60_000 }, () => {
       {
         id: 'map_seller_1',
         name: 'Local Map Seller',
+        city: 'Fresno',
+        specialties: ['Grapes', 'Almonds'],
         lat: 36.05,
         lng: -119.0,
         location: sql`ST_SetSRID(ST_MakePoint(-119.0, 36.05), 4326)`,
@@ -50,18 +52,26 @@ describe('Growers API Integration', { timeout: 60_000 }, () => {
       expect(marker).toHaveProperty('sellerId', 'map_seller_1');
       expect(marker).toHaveProperty('lat', 36.05);
       expect(marker).toHaveProperty('lng', -119.0);
+      expect(marker).toHaveProperty('city', 'Fresno');
+      expect(marker).toHaveProperty('specialties', ['Grapes', 'Almonds']);
+      expect(marker).toHaveProperty('distanceMiles', null); // Null because no lat/lng passed
       expect(marker).toHaveProperty('rating');
       expect(marker).not.toHaveProperty('location'); // Raw db geography shouldn't leak
       expect(marker).not.toHaveProperty('address');
     });
 
-    it('should allow valid complete geographic filtering', async () => {
+    it('should allow valid complete geographic filtering and return distanceMiles', async () => {
       const url = `/api/growers/growers-map?lat=36.0&lng=-119.0&maxDistance=10`;
       const res = await authedRequest(url, { method: 'GET' }, {});
 
       expect(res.status).toBe(200);
       const data = (await res.json()) as any;
       expect(data).toHaveLength(1); // 36.05 is within 10 miles of 36.0
+
+      const marker = data[0];
+      expect(marker).toHaveProperty('distanceMiles');
+      expect(typeof marker.distanceMiles).toBe('number');
+      expect(marker.distanceMiles).toBeGreaterThan(0);
     });
 
     it('should return 400 Bad Request if missing one of the location parameters', async () => {
