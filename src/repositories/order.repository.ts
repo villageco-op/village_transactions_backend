@@ -9,7 +9,7 @@ import {
   subscriptions,
   users,
 } from '../db/schema.js';
-import type { DbClient } from '../db/types.js';
+import type { DbClient, OrderStatus } from '../db/types.js';
 
 export const orderRepository = {
   db: defaultDb as unknown as DbClient,
@@ -319,7 +319,7 @@ export const orderRepository = {
   async getOrders(params: {
     userId: string;
     role: 'buyer' | 'seller';
-    status?: 'pending' | 'completed' | 'canceled';
+    status?: OrderStatus;
     timeframeDays?: number;
     limit: number;
     offset: number;

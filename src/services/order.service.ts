@@ -1,5 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 
+import type { OrderStatus } from '../db/types.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
@@ -129,7 +130,7 @@ export async function rescheduleOrder(orderId: string, newTime: string, requesti
 export async function getOrders(
   userId: string,
   role: 'buyer' | 'seller',
-  status: 'pending' | 'completed' | 'canceled' | undefined,
+  status: OrderStatus | undefined,
   timeframe: string | undefined,
   page: number,
   limit: number,

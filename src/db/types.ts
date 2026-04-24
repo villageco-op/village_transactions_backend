@@ -8,3 +8,4 @@ export type NewUser = InferInsertModel<typeof schema.users>;
 export type DbClient = NeonHttpDatabase<typeof schema>;
 export type Subscription = InferSelectModel<typeof schema.subscriptions>;
 export type ScheduleType = InferEnum<typeof schema.fulfillmentTypeEnum>;
+export type OrderStatus = InferEnum<typeof schema.orderStatusEnum>;
