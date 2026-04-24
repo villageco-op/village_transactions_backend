@@ -1,4 +1,4 @@
-import { eq, inArray, and, gt, desc, gte, sql } from 'drizzle-orm';
+import { eq, inArray, and, gt, desc, gte, sql, lt, notInArray } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import {
@@ -87,6 +87,7 @@ export const orderRepository = {
           fulfillmentType: payload.fulfillmentType,
           scheduledTime: payload.scheduledTime,
           totalAmount: payload.totalAmount.toString(),
+          status: 'paid',
         })
         .returning();
 
@@ -126,6 +127,102 @@ export const orderRepository = {
 
       return newOrder;
     });
+  },
+
+  /**
+   * Processes a recurring Stripe invoice. Finds the matching internal subscription,
+   * creates a new 'paid' order, deducts inventory, and advances the nextDeliveryDate.
+   * @param payload - The data payload
+   * @param payload.stripeSubscriptionId - The Stripe subscription Id
+   * @param payload.stripeInvoiceId - The Stripe invoice Id
+   * @param payload.stripeReceiptUrl - The Stripe receipt Url
+   * @param payload.totalAmount - The total payment amount
+   * @returns The new order created
+   */
+  async fulfillRecurringSubscription(payload: {
+    stripeSubscriptionId: string;
+    stripeInvoiceId: string;
+    stripeReceiptUrl: string;
+    totalAmount: number;
+  }) {
+    return await this.db.transaction(async (tx) => {
+      // Check idempotency (did Stripe send this webhook twice?)
+      const [existing] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.stripeInvoiceId, payload.stripeInvoiceId));
+      if (existing) return existing;
+
+      const [subRecord] = await tx
+        .select({ sub: subscriptions, product: produce })
+        .from(subscriptions)
+        .innerJoin(produce, eq(subscriptions.productId, produce.id))
+        .where(eq(subscriptions.stripeSubscriptionId, payload.stripeSubscriptionId));
+
+      if (!subRecord) throw new Error('Subscription not found.');
+
+      const { sub, product } = subRecord;
+
+      const [newOrder] = await tx
+        .insert(orders)
+        .values({
+          buyerId: sub.buyerId,
+          sellerId: product.sellerId,
+          stripeInvoiceId: payload.stripeInvoiceId,
+          stripeReceiptUrl: payload.stripeReceiptUrl,
+          paymentMethod: 'card',
+          fulfillmentType: sub.fulfillmentType,
+          scheduledTime: sub.nextDeliveryDate || new Date(),
+          status: 'paid',
+          totalAmount: payload.totalAmount.toString(),
+        })
+        .returning();
+
+      await tx.insert(orderItems).values({
+        orderId: newOrder.id,
+        productId: product.id,
+        quantityOz: sub.quantityOz,
+        pricePerOz: product.pricePerOz,
+      });
+
+      const newInventory = Math.max(0, Number(product.totalOzInventory) - Number(sub.quantityOz));
+      await tx
+        .update(produce)
+        .set({ totalOzInventory: newInventory.toString() })
+        .where(eq(produce.id, product.id));
+
+      // Advance the Subscription's next delivery date
+      if (sub.nextDeliveryDate && product.harvestFrequencyDays) {
+        const nextDate = new Date(sub.nextDeliveryDate);
+        nextDate.setDate(nextDate.getDate() + product.harvestFrequencyDays);
+
+        await tx
+          .update(subscriptions)
+          .set({ nextDeliveryDate: nextDate })
+          .where(eq(subscriptions.id, sub.id));
+      }
+
+      return newOrder;
+    });
+  },
+
+  /**
+   * The "Janitor" worker function. Finds orders that are 'paid' but their
+   * scheduled fulfillment time passed 24+ hours ago, and marks them 'completed'.
+   * @returns The updated order
+   */
+  async autoCompletePassedOrders() {
+    const bufferTime = new Date();
+    bufferTime.setHours(bufferTime.getHours() - 24);
+
+    return await this.db
+      .update(orders)
+      .set({
+        status: 'completed',
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.status, 'paid'), lt(orders.scheduledTime, bufferTime)))
+      .returning();
   },
 
   /**
@@ -421,7 +518,12 @@ export const orderRepository = {
       .selectDistinct({ orderId: orders.id })
       .from(orders)
       .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
-      .where(and(eq(orderItems.productId, productId), eq(orders.status, 'pending')));
+      .where(
+        and(
+          eq(orderItems.productId, productId),
+          notInArray(orders.status, ['canceled', 'refund_pending', 'completed']),
+        ),
+      );
 
     return affectedOrders.map((o) => o.orderId);
   },

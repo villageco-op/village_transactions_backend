@@ -1,4 +1,4 @@
-import { and, eq, type SQL, sql } from 'drizzle-orm';
+import { and, eq, notInArray, type SQL, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { orderItems, orders, produce, users } from '../db/schema.js';
@@ -46,7 +46,10 @@ export const sourceMapRepository = {
    * @returns List of nodes representing sellers and produce
    */
   async getNodes(filters: { buyerId: string; produceType?: string; season?: string }) {
-    let baseConditions = and(eq(orders.buyerId, filters.buyerId), eq(orders.status, 'completed'));
+    let baseConditions = and(
+      eq(orders.buyerId, filters.buyerId),
+      notInArray(orders.status, ['canceled', 'refund_pending']),
+    );
 
     if (filters.produceType) {
       baseConditions = and(baseConditions, eq(produce.produceType, filters.produceType));
@@ -88,7 +91,10 @@ export const sourceMapRepository = {
    * @returns A set of general totals and a produce order quantity breakdown
    */
   async getAnalytics(filters: { buyerId: string; produceType?: string; season?: string }) {
-    let baseConditions = and(eq(orders.buyerId, filters.buyerId), eq(orders.status, 'completed'));
+    let baseConditions = and(
+      eq(orders.buyerId, filters.buyerId),
+      notInArray(orders.status, ['canceled', 'refund_pending']),
+    );
 
     if (filters.produceType) {
       baseConditions = and(baseConditions, eq(produce.produceType, filters.produceType));
