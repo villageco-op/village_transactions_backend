@@ -15,6 +15,7 @@ import * as subscriptionService from '../../../src/services/subscription.service
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { ProduceType } from '../../../src/db/types.js';
 
 vi.mock('../../../src/repositories/produce.repository.js', () => ({
   produceRepository: {
@@ -44,7 +45,7 @@ vi.mock('../../../src/repositories/subscription.repository.js', () => ({
 describe('ProduceService - createProduceListing', () => {
   const mockPayload = {
     title: 'Organic Carrots',
-    produceType: 'vegetable',
+    produceType: 'root_vegetables' as ProduceType,
     pricePerOz: 0.5,
     totalOzInventory: 100,
     harvestFrequencyDays: 7,
@@ -63,7 +64,7 @@ describe('ProduceService - createProduceListing', () => {
       id: 'prod_123',
       sellerId: 'user_123',
       title: 'Organic Carrots',
-      produceType: 'vegetable',
+      produceType: 'root_vegetables',
       pricePerOz: '0.50',
       totalOzInventory: '100',
       harvestFrequencyDays: 7,
@@ -121,7 +122,7 @@ describe('ProduceService - updateProduceListing', () => {
       id: mockId,
       sellerId: mockSellerId,
       title: 'Organic Carrots',
-      produceType: 'vegetable',
+      produceType: 'root_vegetables',
       pricePerOz: '0.50',
       totalOzInventory: '50',
       harvestFrequencyDays: 7,
@@ -592,7 +593,7 @@ describe('ProduceService - getProduceListing', () => {
       id: 'prod_123',
       sellerId: 'user_123',
       title: 'Organic Carrots',
-      produceType: 'vegetable',
+      produceType: 'root_vegetables',
       pricePerOz: '0.50',
       totalOzInventory: '100',
       seller: {

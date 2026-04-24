@@ -49,7 +49,7 @@ describe('BuyerService - Unit Tests', () => {
             state: 'IL',
             country: 'USA',
             zip: '12345',
-            produceTypesOrdered: ['spinach'],
+            produceTypesOrdered: ['leafy_greens'],
             amountThisMonthOz: 16,
             firstOrderDate: tenDaysAgo,
           },

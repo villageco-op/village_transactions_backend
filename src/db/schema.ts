@@ -19,6 +19,31 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
+export const produceTypeEnum = pgEnum('produce_type', [
+  'leafy_greens',
+  'cruciferous',
+  'root_vegetables',
+  'tubers',
+  'alliums',
+  'nightshades',
+  'cucurbits',
+  'winter_squash',
+  'legumes',
+  'stalks_stems',
+  'mushrooms',
+  'fresh_herbs',
+  'pome_fruits',
+  'stone_fruits',
+  'citrus',
+  'berries',
+  'melons',
+  'tropical_fruits',
+  'eggs',
+  'raw_honey',
+  'nuts_seeds',
+  'microgreens',
+  'grains_pulses',
+]);
 export const paymentMethodEnum = pgEnum('payment_method', ['card', 'snap']);
 export const fulfillmentTypeEnum = pgEnum('fulfillment_type', ['pickup', 'delivery']);
 export const orderStatusEnum = pgEnum('order_status', [
@@ -138,7 +163,7 @@ export const produce = pgTable('produce', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
-  produceType: text('produce_type'),
+  produceType: produceTypeEnum('produce_type'),
   pricePerOz: numeric('price_per_oz', { precision: 10, scale: 2 }).notNull(),
   totalOzInventory: numeric('total_oz_inventory', { precision: 10, scale: 2 }).notNull(),
   availableBy: timestamp('available_by').defaultNow().notNull(),

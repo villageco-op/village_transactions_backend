@@ -148,6 +148,13 @@
       "when": 1777041303556,
       "tag": "0020_material_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1777054554035,
+      "tag": "0021_round_demogoblin",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+import type { ProduceType } from '../db/types.js';
 import { sourceMapRepository } from '../repositories/source-map.repository.js';
 
 /**
@@ -10,7 +11,7 @@ import { sourceMapRepository } from '../repositories/source-map.repository.js';
  */
 export async function getSourceMapNodes(filters: {
   buyerId: string;
-  produceType?: string;
+  produceType?: ProduceType;
   season?: string;
 }) {
   const rawNodes = await sourceMapRepository.getNodes(filters);
@@ -41,7 +42,7 @@ export async function getSourceMapNodes(filters: {
  */
 export async function getSourceMapAnalytics(filters: {
   buyerId: string;
-  produceType?: string;
+  produceType?: ProduceType;
   season?: string;
 }) {
   const { totals, breakdown } = await sourceMapRepository.getAnalytics(filters);
@@ -51,7 +52,7 @@ export async function getSourceMapAnalytics(filters: {
   const produceBreakdown = breakdown
     .filter((b) => b.produceType !== null)
     .map((b) => ({
-      produceType: b.produceType as string,
+      produceType: b.produceType as ProduceType,
       volumeOz: Number(b.volumeOz),
       percentage: totalVolumeOz > 0 ? (Number(b.volumeOz) / totalVolumeOz) * 100 : 0,
     }));

@@ -14,6 +14,7 @@ import {
   PaginationQuerySchema,
   PriceDollarsSchema,
   ProduceStatusSchema,
+  ProduceTypeSchema,
   ResourceIdSchema,
   UserIdSchema,
   WeightOzSchema,
@@ -25,10 +26,7 @@ const ProduceFields = z.object({
     example: 'Organic Honeycrisp Apples',
     description: 'The public title of the produce listing',
   }),
-  produceType: z.string().optional().openapi({
-    example: 'fruit',
-    description: 'Category of the produce (e.g., vegetable, fruit, herb)',
-  }),
+  produceType: ProduceTypeSchema.optional(),
   pricePerOz: PriceDollarsSchema,
   totalOzInventory: WeightOzSchema,
   availableBy: z.coerce.date().optional().openapi({
@@ -113,7 +111,7 @@ export const ProduceMapQuerySchema = z.object({
     description: 'Search radius in miles',
     example: 25,
   }),
-  produceType: z.string().optional().openapi({ example: 'spinach' }),
+  produceType: ProduceTypeSchema.optional(),
   hasDelivery: z.enum(['true', 'false']).optional(),
   maxPrice: z.coerce.number().optional().openapi({
     description: 'Filter for items under a specific price point',

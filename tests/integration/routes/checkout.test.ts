@@ -101,7 +101,7 @@ describe('Checkout API Integration', { timeout: 60_000 }, () => {
       .values({
         sellerId: SELLER_ID,
         title: 'Tomatoes',
-        produceType: 'vegetable',
+        produceType: 'nightshades',
         pricePerOz: '0.50',
         totalOzInventory: '100',
         harvestFrequencyDays: 7,

@@ -7,6 +7,7 @@ import {
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { users, produce, orderItems, orders } from '../../../src/db/schema.js';
 import { eq, sql } from 'drizzle-orm';
+import { CreateProducePayload } from '../../../src/schemas/produce.schema.js';
 
 describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -48,9 +49,9 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   it('should create and retrieve a produce listing successfully', async () => {
-    const payload = {
+    const payload: CreateProducePayload = {
       title: 'Fresh Strawberries',
-      produceType: 'fruit',
+      produceType: 'berries',
       pricePerOz: 1.25,
       totalOzInventory: 500,
       harvestFrequencyDays: 3,
@@ -66,7 +67,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     expect(newProduce.id).toBeDefined();
     expect(newProduce.sellerId).toBe(TEST_SELLER_ID);
     expect(newProduce.title).toBe('Fresh Strawberries');
-    expect(newProduce.produceType).toBe('fruit');
+    expect(newProduce.produceType).toBe('berries');
 
     expect(newProduce.pricePerOz).toBe('1.25');
     expect(newProduce.totalOzInventory).toBe('500.00');
@@ -83,9 +84,9 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   it('should throw an error if the sellerId does not exist (Foreign Key Constraint)', async () => {
-    const payload = {
+    const payload: CreateProducePayload = {
       title: 'Ghost Apples',
-      produceType: 'fruit',
+      produceType: 'stone_fruits',
       pricePerOz: 2.0,
       totalOzInventory: 100,
       harvestFrequencyDays: 7,
@@ -99,9 +100,9 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   it('should update an existing produce listing successfully', async () => {
-    const createPayload = {
+    const createPayload: CreateProducePayload = {
       title: 'Watermelons',
-      produceType: 'fruit',
+      produceType: 'melons',
       pricePerOz: 0.1,
       totalOzInventory: 1000,
       harvestFrequencyDays: 14,
@@ -131,9 +132,9 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   it('should return undefined when trying to update a listing owned by another seller', async () => {
-    const createPayload = {
+    const createPayload: CreateProducePayload = {
       title: 'Golden Potatoes',
-      produceType: 'vegetable',
+      produceType: 'root_vegetables',
       pricePerOz: 0.05,
       totalOzInventory: 2000,
       harvestFrequencyDays: 30,
@@ -156,9 +157,9 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   it('should soft delete an existing produce listing successfully', async () => {
-    const createPayload = {
+    const createPayload: CreateProducePayload = {
       title: 'Peaches',
-      produceType: 'fruit',
+      produceType: 'pome_fruits',
       pricePerOz: 0.2,
       totalOzInventory: 300,
       harvestFrequencyDays: 5,
@@ -181,9 +182,9 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   it('should return false when trying to soft delete a listing owned by another seller', async () => {
-    const createPayload = {
+    const createPayload: CreateProducePayload = {
       title: 'Onions',
-      produceType: 'vegetable',
+      produceType: 'root_vegetables',
       pricePerOz: 0.08,
       totalOzInventory: 1000,
       harvestFrequencyDays: 30,
@@ -212,7 +213,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: TEST_SELLER_ID,
           title: 'Joe Carrots (Expensive, Close)',
-          produceType: 'vegetable',
+          produceType: 'root_vegetables',
           pricePerOz: '1.00',
           totalOzInventory: '50',
           harvestFrequencyDays: 3,
@@ -224,7 +225,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: OTHER_SELLER_ID,
           title: 'Jane Carrots (Cheap, Far)',
-          produceType: 'vegetable',
+          produceType: 'root_vegetables',
           pricePerOz: '0.25',
           totalOzInventory: '500',
           harvestFrequencyDays: 3,
@@ -290,9 +291,9 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   it('should retrieve a specific produce listing by ID with seller details', async () => {
-    const createPayload = {
+    const createPayload: CreateProducePayload = {
       title: 'Heirloom Tomatoes',
-      produceType: 'vegetable',
+      produceType: 'nightshades',
       pricePerOz: 0.3,
       totalOzInventory: 400,
       harvestFrequencyDays: 2,
@@ -309,7 +310,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     expect(item).toBeDefined();
     expect(item?.id).toBe(created.id);
     expect(item?.title).toBe('Heirloom Tomatoes');
-    expect(item?.produceType).toBe('vegetable');
+    expect(item?.produceType).toBe('nightshades');
 
     // Check joined seller details
     expect(item?.seller).toBeDefined();
@@ -330,7 +331,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: TEST_SELLER_ID, // Madison (-89.4012, 43.0731)
           title: 'Joe Carrots',
-          produceType: 'vegetable',
+          produceType: 'root_vegetables',
           pricePerOz: '1.00',
           totalOzInventory: '50',
           harvestFrequencyDays: 3,
@@ -342,7 +343,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: OTHER_SELLER_ID, // Chicago (-87.6298, 41.8781)
           title: 'Jane Apples',
-          produceType: 'fruit',
+          produceType: 'stone_fruits',
           pricePerOz: '0.25',
           totalOzInventory: '500',
           harvestFrequencyDays: 3,
@@ -388,7 +389,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         lat: 42.0,
         lng: -88.0,
         radiusMiles: 500,
-        produceType: 'vegetable', // Jane's fruit apples should be excluded
+        produceType: 'root_vegetables', // Jane's fruit apples should be excluded
       });
 
       expect(result).toHaveLength(1);
@@ -427,7 +428,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         .values({
           sellerId: TEST_SELLER_ID,
           title: 'Giant Pumpkins',
-          produceType: 'vegetable',
+          produceType: 'melons',
           pricePerOz: '0.05',
           totalOzInventory: '5000',
           harvestFrequencyDays: 30,

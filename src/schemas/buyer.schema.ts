@@ -5,6 +5,7 @@ import {
   LocationSchema,
   PaginationQuerySchema,
   PriceDollarsSchema,
+  ProduceTypeSchema,
   ResourceIdSchema,
   UserIdSchema,
 } from './common.schema.js';
@@ -30,7 +31,7 @@ export const GrowerSchema = z
     }),
     location: LocationSchema.nullable(),
     city: z.string().nullable(),
-    produceTypesOrdered: z.array(z.string()).openapi({
+    produceTypesOrdered: z.array(ProduceTypeSchema).openapi({
       example: ['spinach', 'carrots'],
       description: 'List of produce categories previously purchased from this grower',
     }),

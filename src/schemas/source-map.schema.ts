@@ -1,12 +1,10 @@
 import { z } from '@hono/zod-openapi';
 
-import { UserIdSchema } from './common.schema.js';
+import { ProduceTypeSchema, UserIdSchema } from './common.schema.js';
 
 export const SourceMapQuerySchema = z
   .object({
-    produceType: z.string().optional().openapi({
-      description: 'Filter map and analytics by a specific produce type.',
-    }),
+    produceType: ProduceTypeSchema.optional(),
     season: z.enum(['all', 'spring', 'summer', 'winter', 'fall']).optional().openapi({
       description: 'Filter map and analytics by the season an order occurred.',
     }),
@@ -36,7 +34,7 @@ export const SourceMapNodesResponseSchema = z
 
 export const ProduceBreakdownSchema = z
   .object({
-    produceType: z.string(),
+    produceType: ProduceTypeSchema,
     volumeOz: z.number(),
     percentage: z.number(),
   })

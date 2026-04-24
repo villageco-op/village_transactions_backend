@@ -37,7 +37,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_1_ID,
           title: 'Fresh Apples',
-          produceType: 'Apples',
+          produceType: 'stone_fruits',
           pricePerOz: '0.50',
           totalOzInventory: '1000',
           harvestFrequencyDays: 7,
@@ -47,7 +47,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_2_ID,
           title: 'Organic Carrots',
-          produceType: 'Carrots',
+          produceType: 'root_vegetables',
           pricePerOz: '0.20',
           totalOzInventory: '2000',
           harvestFrequencyDays: 14,
@@ -159,7 +159,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
       expect(Number(analytics.totals.totalSpend)).toBe(80); // 50 + 20 + 10
 
       expect(analytics.breakdown).toHaveLength(2);
-      const applesBreakdown = analytics.breakdown.find((b) => b.produceType === 'Apples');
+      const applesBreakdown = analytics.breakdown.find((b) => b.produceType === 'stone_fruits');
       expect(Number(applesBreakdown?.volumeOz)).toBe(120); // 100 + 20
     });
 
@@ -173,7 +173,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
       // Only order1 should be counted
       expect(Number(springAnalytics.totals.totalOrders)).toBe(1);
       expect(Number(springAnalytics.totals.totalVolumeOz)).toBe(100);
-      expect(springAnalytics.breakdown[0].produceType).toBe('Apples');
+      expect(springAnalytics.breakdown[0].produceType).toBe('stone_fruits');
     });
   });
 });

@@ -35,6 +35,7 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('OrderStatus', Common.OrderStatusSchema);
   app.openAPIRegistry.register('FulfillmentType', Common.FulfillmentTypeSchema);
   app.openAPIRegistry.register('SubscriptionStatus', Common.SubscriptionStatusSchema);
+  app.openAPIRegistry.register('ProduceType', Common.ProduceTypeSchema);
 
   // Scalars & Specific Fields
   app.openAPIRegistry.register('UserId', Common.UserIdSchema);
