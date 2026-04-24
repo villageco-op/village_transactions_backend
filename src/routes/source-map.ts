@@ -44,10 +44,11 @@ sourceMapRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { produceType } = c.req.valid('query');
+    const { produceType, season } = c.req.valid('query');
     const nodes = await getSourceMapNodes({
       buyerId: userId,
       produceType: produceType,
+      season,
     });
     return c.json(nodes, 200);
   },
@@ -85,10 +86,11 @@ sourceMapRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { produceType } = c.req.valid('query');
+    const { produceType, season } = c.req.valid('query');
     const analytics = await getSourceMapAnalytics({
       buyerId: userId,
       produceType: produceType,
+      season,
     });
     return c.json(analytics, 200);
   },

@@ -7,6 +7,9 @@ export const SourceMapQuerySchema = z
     produceType: z.string().optional().openapi({
       description: 'Filter map and analytics by a specific produce type.',
     }),
+    season: z.enum(['all', 'spring', 'summer', 'winter', 'fall']).optional().openapi({
+      description: 'Filter map and analytics by the season an order occurred.',
+    }),
   })
   .openapi('SourceMapQuery');
 

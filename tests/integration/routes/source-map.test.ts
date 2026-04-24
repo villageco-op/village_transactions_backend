@@ -58,6 +58,7 @@ describe('Source Map API Integration', { timeout: 60_000 }, () => {
           fulfillmentType: 'delivery',
           scheduledTime: new Date(),
           totalAmount: '10.00',
+          createdAt: new Date('2024-04-15T10:00:00Z'), // Spring
         },
       ])
       .returning();
@@ -89,6 +90,26 @@ describe('Source Map API Integration', { timeout: 60_000 }, () => {
       expect(node.totalVolumeOz).toBe(100);
       expect(node.primaryProduceType).toBe('Corn');
       expect(node.produceCategories).toEqual(['Corn']);
+    });
+
+    it('should accept the season query parameter filter', async () => {
+      const resSpring = await authedRequest(
+        `/api/source-map/nodes?season=spring`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
+      expect(resSpring.status).toBe(200);
+      const dataSpring = await resSpring.json();
+      expect(dataSpring).toHaveLength(1);
+
+      const resFall = await authedRequest(
+        `/api/source-map/nodes?season=fall`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
+      expect(resFall.status).toBe(200);
+      const dataFall = await resFall.json();
+      expect(dataFall).toHaveLength(0);
     });
   });
 
@@ -137,6 +158,27 @@ describe('Source Map API Integration', { timeout: 60_000 }, () => {
       );
       expect(resApples.status).toBe(200);
       data = await resApples.json();
+      expect(data.totalVolumeOz).toBe(0);
+      expect(data.produceBreakdown).toHaveLength(0);
+    });
+
+    it('should accept the season query parameter filter', async () => {
+      const resSpring = await authedRequest(
+        `/api/source-map/analytics?season=spring`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
+      expect(resSpring.status).toBe(200);
+      let data = await resSpring.json();
+      expect(data.totalVolumeOz).toBe(100);
+
+      const resFall = await authedRequest(
+        `/api/source-map/analytics?season=fall`,
+        { method: 'GET' },
+        { id: BUYER_ID },
+      );
+      expect(resFall.status).toBe(200);
+      data = await resFall.json();
       expect(data.totalVolumeOz).toBe(0);
       expect(data.produceBreakdown).toHaveLength(0);
     });
