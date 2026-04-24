@@ -1,3 +1,4 @@
+import type { ProduceType } from '../db/types.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
@@ -149,7 +150,7 @@ export async function getProduceMap(params: {
   lat: number;
   lng: number;
   radiusMiles?: number;
-  produceType?: string;
+  produceType?: ProduceType;
   hasDelivery?: 'true' | 'false';
   maxPrice?: number;
 }) {

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."produce_type" AS ENUM('leafy_greens', 'cruciferous', 'root_vegetables', 'tubers', 'alliums', 'nightshades', 'cucurbits', 'winter_squash', 'legumes', 'stalks_stems', 'mushrooms', 'fresh_herbs', 'pome_fruits', 'stone_fruits', 'citrus', 'berries', 'melons', 'tropical_fruits', 'eggs', 'raw_honey', 'nuts_seeds', 'microgreens', 'grains_pulses');--> statement-breakpoint
+ALTER TABLE "produce" ALTER COLUMN "produce_type" SET DATA TYPE "public"."produce_type" USING "produce_type"::"public"."produce_type";

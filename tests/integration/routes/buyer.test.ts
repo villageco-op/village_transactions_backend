@@ -10,6 +10,7 @@ import { buyerRepository } from '../../../src/repositories/buyer.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { users, produce, orders, orderItems } from '../../../src/db/schema.js';
 import { sql } from 'drizzle-orm';
+import { GrowerResponse } from '../../../src/schemas/buyer.schema.js';
 
 describe('Buyer API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -69,7 +70,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_1_ID,
           title: 'Spinach Bag',
-          produceType: 'spinach',
+          produceType: 'leafy_greens',
           pricePerOz: '1',
           totalOzInventory: '100',
           harvestFrequencyDays: 7,
@@ -79,7 +80,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_1_ID,
           title: 'Carrots Pack',
-          produceType: 'carrots',
+          produceType: 'root_vegetables',
           pricePerOz: '1',
           totalOzInventory: '100',
           harvestFrequencyDays: 7,
@@ -89,7 +90,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_2_ID,
           title: 'Apples',
-          produceType: 'apples',
+          produceType: 'stone_fruits',
           pricePerOz: '1',
           totalOzInventory: '100',
           harvestFrequencyDays: 7,
@@ -168,13 +169,16 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
       expect(meta.total).toBe(1);
       expect(cities).toEqual(['Ruraltown']);
 
-      const seller1Stats = data[0];
+      const seller1Stats: GrowerResponse = data[0];
 
       expect(seller1Stats.sellerId).toBe(SELLER_1_ID);
       expect(seller1Stats.name).toBe('Farm One');
       expect(seller1Stats.location?.address).toBe('456 Dirt Rd, Ruraltown, CA 90000');
 
-      expect(seller1Stats.produceTypesOrdered.sort()).toEqual(['carrots', 'spinach'].sort());
+      expect(seller1Stats.produceTypesOrdered).toEqual(
+        expect.arrayContaining(['root_vegetables', 'leafy_greens']),
+      );
+      expect(seller1Stats.produceTypesOrdered).toHaveLength(2);
 
       expect(seller1Stats.amountOrderedThisMonthLbs).toBe(2);
 

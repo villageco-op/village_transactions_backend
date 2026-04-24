@@ -2,7 +2,7 @@ import { eq, and, sql, ne } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { users, orders, orderItems, produce } from '../db/schema.js';
-import type { DbClient } from '../db/types.js';
+import type { DbClient, ProduceType } from '../db/types.js';
 
 export const buyerRepository = {
   db: defaultDb as unknown as DbClient,
@@ -38,7 +38,7 @@ export const buyerRepository = {
 
     if (search) {
       conditions.push(
-        sql`(${produce.produceType} ILIKE ${`%${search}%`} OR ${users.name} ILIKE ${`%${search}%`})`,
+        sql`(${produce.title} ILIKE ${`%${search}%`} OR ${users.name} ILIKE ${`%${search}%`})`,
       );
     }
 
@@ -80,9 +80,13 @@ export const buyerRepository = {
         state: users.state,
         country: users.country,
         zip: users.zip,
-        produceTypesOrdered: sql<
-          string[]
-        >`array_agg(DISTINCT ${produce.produceType}) FILTER (WHERE ${produce.produceType} IS NOT NULL)`,
+        produceTypesOrdered: sql<ProduceType[]>`
+          COALESCE(
+            json_agg(DISTINCT ${produce.produceType}) 
+            FILTER (WHERE ${produce.produceType} IS NOT NULL), 
+            '[]'
+          )
+        `,
         amountThisMonthOz: sql<
           number | string
         >`COALESCE(SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE) THEN ${orderItems.quantityOz} ELSE 0 END), 0)`,

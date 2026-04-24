@@ -2,7 +2,7 @@ import { and, eq, notInArray, type SQL, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { orderItems, orders, produce, users } from '../db/schema.js';
-import type { DbClient } from '../db/types.js';
+import type { DbClient, ProduceType } from '../db/types.js';
 
 export const sourceMapRepository = {
   db: defaultDb as unknown as DbClient,
@@ -45,7 +45,7 @@ export const sourceMapRepository = {
    * @param filters.season - Optional season filter
    * @returns List of nodes representing sellers and produce
    */
-  async getNodes(filters: { buyerId: string; produceType?: string; season?: string }) {
+  async getNodes(filters: { buyerId: string; produceType?: ProduceType; season?: string }) {
     let baseConditions = and(
       eq(orders.buyerId, filters.buyerId),
       notInArray(orders.status, ['canceled', 'refund_pending']),
@@ -66,13 +66,15 @@ export const sourceMapRepository = {
         name: users.name,
         lat: users.lat,
         lng: users.lng,
-        // Calculate aggregate volume and spend per seller
         totalVolumeOz: sql<number>`COALESCE(SUM(${orderItems.quantityOz}), 0)`,
         totalSpend: sql<number>`COALESCE(SUM(${orderItems.quantityOz} * ${orderItems.pricePerOz}), 0)`,
-        // Aggregate array of unique produce types purchased from this seller
-        produceCategories: sql<
-          string[]
-        >`ARRAY_REMOVE(ARRAY_AGG(DISTINCT ${produce.produceType}), NULL)`,
+        produceCategories: sql<ProduceType[]>`
+          COALESCE(
+            json_agg(DISTINCT ${produce.produceType}) 
+            FILTER (WHERE ${produce.produceType} IS NOT NULL), 
+            '[]'
+          )
+        `,
       })
       .from(orders)
       .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
@@ -90,7 +92,7 @@ export const sourceMapRepository = {
    * @param filters.season - Optional season filter
    * @returns A set of general totals and a produce order quantity breakdown
    */
-  async getAnalytics(filters: { buyerId: string; produceType?: string; season?: string }) {
+  async getAnalytics(filters: { buyerId: string; produceType?: ProduceType; season?: string }) {
     let baseConditions = and(
       eq(orders.buyerId, filters.buyerId),
       notInArray(orders.status, ['canceled', 'refund_pending']),

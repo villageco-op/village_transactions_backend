@@ -59,7 +59,7 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_1_ID,
           title: 'Spinach',
-          produceType: 'spinach',
+          produceType: 'leafy_greens',
           pricePerOz: '1.00',
           totalOzInventory: '100',
           harvestFrequencyDays: 7,
@@ -69,7 +69,7 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_1_ID,
           title: 'Carrots',
-          produceType: 'carrots',
+          produceType: 'root_vegetables',
           pricePerOz: '1.00',
           totalOzInventory: '100',
           harvestFrequencyDays: 7,
@@ -79,7 +79,7 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_2_ID,
           title: 'Apples',
-          produceType: 'apples',
+          produceType: 'stone_fruits',
           pricePerOz: '2.00',
           totalOzInventory: '100',
           harvestFrequencyDays: 7,

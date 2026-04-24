@@ -5,6 +5,7 @@ import {
   orderStatusEnum,
   fulfillmentTypeEnum,
   subscriptionStatusEnum,
+  produceTypeEnum,
 } from '../db/schema.js';
 
 /**
@@ -26,6 +27,11 @@ export const ResourceIdSchema = z.uuid().openapi('ResourceId', {
 export const ProduceStatusSchema = z.enum(produceStatusEnum.enumValues).openapi('ProduceStatus', {
   example: 'active',
   description: 'The status of the produce listing',
+});
+
+export const ProduceTypeSchema = z.enum(produceTypeEnum.enumValues).openapi('ProduceType', {
+  example: 'leafy_greans',
+  description: 'The category of the produce.',
 });
 
 export const OrderStatusSchema = z.enum(orderStatusEnum.enumValues).openapi('OrderStatus', {

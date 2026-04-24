@@ -2,7 +2,7 @@ import { and, asc, eq, isNotNull, sql, desc } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { orderItems, orders, produce, users } from '../db/schema.js';
-import type { DbClient } from '../db/types.js';
+import type { DbClient, ProduceType } from '../db/types.js';
 import type { CreateProducePayload, UpdateProducePayload } from '../schemas/produce.schema.js';
 
 type Produce = typeof produce.$inferSelect;
@@ -217,7 +217,7 @@ export const produceRepository = {
     lat: number;
     lng: number;
     radiusMiles?: number;
-    produceType?: string;
+    produceType?: ProduceType;
     hasDelivery?: 'true' | 'false';
     maxPrice?: number;
   }) {
