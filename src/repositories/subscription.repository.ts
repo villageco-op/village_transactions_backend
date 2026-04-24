@@ -223,6 +223,39 @@ export const subscriptionRepository = {
   },
 
   /**
+   * Persists status updates from Stripe to a subscription in the database.
+   * @param stripeSubscriptionId - The Stripe subscription ID
+   * @param data - New values for fields
+   * @param data.status - New subscription status
+   * @param data.cancelReason - The cancel reason if status was updated to canceled or paused
+   * @returns The updated subscription
+   */
+  async updateSubscriptionDataByStripeId(
+    stripeSubscriptionId: string,
+    data: {
+      status?: 'active' | 'paused' | 'canceled';
+      cancelReason?: string;
+    },
+  ) {
+    const updatePayload: {
+      status?: 'active' | 'paused' | 'canceled';
+      cancelReason?: string;
+      updatedAt: Date;
+    } = { updatedAt: new Date() };
+
+    if (data.status) updatePayload.status = data.status;
+    if (data.cancelReason !== undefined) updatePayload.cancelReason = data.cancelReason;
+
+    const [updated] = await this.db
+      .update(subscriptions)
+      .set(updatePayload)
+      .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId))
+      .returning();
+
+    return updated;
+  },
+
+  /**
    * Fetches subscriptions for a specific product filtered by multiple statuses.
    * @param productId - The unique ID of the product.
    * @param statuses - An array of statuses to include (e.g., ['active', 'paused']).

@@ -7,6 +7,7 @@ import {
 } from '../../test-utils/testcontainer-db.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { users, produce, subscriptions } from '../../../src/db/schema.js';
+import { eq } from 'drizzle-orm';
 
 describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -515,6 +516,241 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
       expect(result.activeCount).toBe(1);
       expect(result.data[0].subscription.buyerId).toBe(buyer2Id);
       expect(result.data.every((row) => row.subscription.buyerId === buyer2Id)).toBe(true);
+    });
+  });
+
+  describe('updateSubscriptionData', () => {
+    it('should update all provided fields and the updatedAt timestamp', async () => {
+      vi.useFakeTimers();
+      const initialDate = new Date('2024-01-01T10:00:00Z');
+      vi.setSystemTime(initialDate);
+
+      const sellerId = 'seller_1';
+      const buyerId = 'buyer_1';
+
+      await testDb.insert(users).values([
+        { id: sellerId, email: 's@test.com' },
+        { id: buyerId, email: 'b@test.com' },
+      ]);
+      const [product] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Apples',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      const [subscription] = await testDb
+        .insert(subscriptions)
+        .values({
+          buyerId,
+          productId: product.id,
+          quantityOz: '5.00',
+          status: 'active',
+          fulfillmentType: 'pickup',
+        })
+        .returning();
+
+      const newDate = new Date('2024-01-02T10:00:00Z');
+      vi.setSystemTime(newDate);
+
+      const updated = await subscriptionRepository.updateSubscriptionData(subscription.id, {
+        status: 'paused',
+        quantityOz: 15.5,
+        fulfillmentType: 'delivery',
+        cancelReason: 'Going on vacation',
+      });
+
+      expect(updated.status).toBe('paused');
+      expect(updated.quantityOz).toBe('15.50'); // DB stores as numeric string
+      expect(updated.fulfillmentType).toBe('delivery');
+      expect(updated.cancelReason).toBe('Going on vacation');
+      expect(updated.updatedAt?.toISOString()).toBe(newDate.toISOString());
+
+      vi.useRealTimers();
+    });
+
+    it('should perform a partial update without affecting other fields', async () => {
+      const buyerId = 'buyer_partial_test';
+      const sellerId = 'seller_partial_test';
+
+      await testDb.insert(users).values([
+        { id: sellerId, email: 's2@test.com' },
+        { id: buyerId, email: 'b2@test.com' },
+      ]);
+
+      const [product] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Oranges',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      const [subscription] = await testDb
+        .insert(subscriptions)
+        .values({
+          buyerId,
+          productId: product.id,
+          quantityOz: '10.00',
+          status: 'active',
+          fulfillmentType: 'pickup',
+        })
+        .returning();
+
+      await subscriptionRepository.updateSubscriptionData(subscription.id, {
+        quantityOz: 20,
+      });
+
+      const [retrieved] = await testDb
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscription.id));
+      expect(retrieved.quantityOz).toBe('20.00');
+      expect(retrieved.status).toBe('active');
+    });
+  });
+
+  describe('updateSubscriptionDataByStripeId', () => {
+    it('should update a subscription using the Stripe Subscription ID', async () => {
+      const stripeId = 'sub_12345';
+      const buyerId = 'buyer_stripe_test';
+      const sellerId = 'seller_stripe_test';
+
+      await testDb.insert(users).values([
+        { id: sellerId, email: 's3@test.com' },
+        { id: buyerId, email: 'b3@test.com' },
+      ]);
+
+      const [product] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Grapes',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      await testDb.insert(subscriptions).values({
+        buyerId,
+        productId: product.id,
+        stripeSubscriptionId: stripeId,
+        quantityOz: '10.00',
+        status: 'active',
+        fulfillmentType: 'pickup',
+      });
+
+      const updated = await subscriptionRepository.updateSubscriptionDataByStripeId(stripeId, {
+        status: 'canceled',
+        cancelReason: 'Payment failed',
+      });
+
+      expect(updated.stripeSubscriptionId).toBe(stripeId);
+      expect(updated.status).toBe('canceled');
+      expect(updated.cancelReason).toBe('Payment failed');
+    });
+  });
+
+  describe('getSubscriptionsByProduct', () => {
+    it('should return only subscriptions matching the productId and provided statuses', async () => {
+      const sellerId = 'seller_multi_test';
+
+      await testDb.insert(users).values([
+        { id: 'seller_multi_test', email: 's4@test.com' },
+        { id: 'b1', email: 'b1@test.com' },
+        { id: 'b2', email: 'b2@test.com' },
+        { id: 'b3', email: 'b3@test.com' },
+        { id: 'b4', email: 'b4@test.com' },
+      ]);
+
+      const [productA] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Product A',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      const [productB] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Product B',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      await testDb.insert(subscriptions).values([
+        {
+          buyerId: 'b1',
+          productId: productA.id,
+          status: 'active',
+          quantityOz: '1',
+          fulfillmentType: 'pickup',
+        },
+        {
+          buyerId: 'b2',
+          productId: productA.id,
+          status: 'paused',
+          quantityOz: '1',
+          fulfillmentType: 'pickup',
+        },
+        {
+          buyerId: 'b3',
+          productId: productA.id,
+          status: 'canceled',
+          quantityOz: '1',
+          fulfillmentType: 'pickup',
+        },
+        {
+          buyerId: 'b4',
+          productId: productB.id,
+          status: 'active',
+          quantityOz: '1',
+          fulfillmentType: 'pickup',
+        },
+      ]);
+
+      const results = await subscriptionRepository.getSubscriptionsByProduct(productA.id, [
+        'active',
+        'paused',
+      ]);
+
+      expect(results).toHaveLength(2);
+      expect(results.every((s) => s.productId === productA.id)).toBe(true);
+
+      const statuses = results.map((s) => s.status);
+      expect(['active', 'paused']).toEqual(expect.arrayContaining(statuses));
+    });
+
+    it('should return an empty array if no subscriptions match the criteria', async () => {
+      const results = await subscriptionRepository.getSubscriptionsByProduct(crypto.randomUUID(), [
+        'active',
+      ]);
+      expect(results).toEqual([]);
     });
   });
 });

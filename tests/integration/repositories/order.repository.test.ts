@@ -36,152 +36,161 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
     await truncateTables(testDb);
   });
 
-  it('should fulfill checkout session, deduct inventory, and create order records atomically', async () => {
-    const buyerId = 'buyer_repo_test';
-    const sellerId = 'seller_repo_test';
+  describe('OrderRepository - Fulfill Checkout Integration', () => {
+    it('should fulfill checkout session, deduct inventory, and create order records atomically', async () => {
+      const buyerId = 'buyer_repo_test';
+      const sellerId = 'seller_repo_test';
 
-    await testDb.insert(users).values([
-      { id: buyerId, email: 'buyer@test.com' },
-      { id: sellerId, email: 'seller@test.com' },
-    ]);
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'buyer@test.com' },
+        { id: sellerId, email: 'seller@test.com' },
+      ]);
 
-    const [testProduce] = await testDb
-      .insert(produce)
-      .values({
-        sellerId,
-        title: 'Test Carrots',
-        pricePerOz: '0.50',
-        totalOzInventory: '100',
-        harvestFrequencyDays: 14,
-        seasonStart: '2025-01-01',
-        seasonEnd: '2025-12-31',
-        isSubscribable: true,
-      })
-      .returning();
+      const [testProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Test Carrots',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 14,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+          isSubscribable: true,
+        })
+        .returning();
 
-    const [testReservation] = await testDb
-      .insert(cartReservations)
-      .values({
+      const [testReservation] = await testDb
+        .insert(cartReservations)
+        .values({
+          buyerId,
+          productId: testProduce.id,
+          quantityOz: '25.5',
+          isSubscription: true,
+          expiresAt: new Date(Date.now() + 1000 * 60 * 15),
+        })
+        .returning();
+
+      const scheduledTime = new Date('2026-06-01T10:00:00Z');
+
+      const newOrder = await orderRepository.fulfillCheckoutSession({
         buyerId,
-        productId: testProduce.id,
-        quantityOz: '25.5',
-        isSubscription: true,
-        expiresAt: new Date(Date.now() + 1000 * 60 * 15),
-      })
-      .returning();
+        sellerId,
+        stripeSessionId: 'cs_test_repo_123',
+        stripeSubscriptionId: 'sub_test_repo_123',
+        stripeReceiptUrl: 'fake_url',
+        totalAmount: 12.75,
+        fulfillmentType: 'pickup',
+        scheduledTime,
+        reservationIds: [testReservation.id],
+      });
 
-    const scheduledTime = new Date('2026-06-01T10:00:00Z');
+      expect(newOrder).toBeDefined();
+      expect(newOrder.stripeSessionId).toBe('cs_test_repo_123');
+      expect(newOrder.totalAmount).toBe('12.75');
+      expect(newOrder.status).toBe('paid');
 
-    const newOrder = await orderRepository.fulfillCheckoutSession({
-      buyerId,
-      sellerId,
-      stripeSessionId: 'cs_test_repo_123',
-      stripeSubscriptionId: 'sub_test_repo_123',
-      totalAmount: 12.75,
-      fulfillmentType: 'pickup',
-      scheduledTime,
-      reservationIds: [testReservation.id],
+      const items = await testDb
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, newOrder.id));
+      expect(items).toHaveLength(1);
+      expect(items[0].quantityOz).toBe('25.50');
+      expect(items[0].pricePerOz).toBe('0.50');
+
+      const subs = await testDb
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.buyerId, buyerId));
+      expect(subs).toHaveLength(1);
+      expect(subs[0].productId).toBe(testProduce.id);
+      expect(subs[0].quantityOz).toBe('25.50');
+      expect(subs[0].stripeSubscriptionId).toBe('sub_test_repo_123');
+
+      const [updatedProduce] = await testDb
+        .select()
+        .from(produce)
+        .where(eq(produce.id, testProduce.id));
+      expect(updatedProduce.totalOzInventory).toBe('74.50');
+
+      const reservations = await testDb
+        .select()
+        .from(cartReservations)
+        .where(eq(cartReservations.id, testReservation.id));
+      expect(reservations).toHaveLength(0);
     });
 
-    expect(newOrder).toBeDefined();
-    expect(newOrder.stripeSessionId).toBe('cs_test_repo_123');
-    expect(newOrder.totalAmount).toBe('12.75');
+    it('should throw an error and rollback if reservations are not found/expired', async () => {
+      const nonExistentId = '00000000-0000-0000-0000-000000000000';
 
-    const items = await testDb.select().from(orderItems).where(eq(orderItems.orderId, newOrder.id));
-    expect(items).toHaveLength(1);
-    expect(items[0].quantityOz).toBe('25.50');
-    expect(items[0].pricePerOz).toBe('0.50');
+      const promise = orderRepository.fulfillCheckoutSession({
+        buyerId: 'b1',
+        sellerId: 's1',
+        stripeSessionId: 'cs_test_missing',
+        stripeReceiptUrl: 'fake_url',
+        totalAmount: 10,
+        fulfillmentType: 'pickup',
+        scheduledTime: new Date(),
+        reservationIds: [nonExistentId],
+      });
 
-    const subs = await testDb
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.buyerId, buyerId));
-    expect(subs).toHaveLength(1);
-    expect(subs[0].productId).toBe(testProduce.id);
-    expect(subs[0].quantityOz).toBe('25.50');
-    expect(subs[0].stripeSubscriptionId).toBe('sub_test_repo_123');
-
-    const [updatedProduce] = await testDb
-      .select()
-      .from(produce)
-      .where(eq(produce.id, testProduce.id));
-    expect(updatedProduce.totalOzInventory).toBe('74.50');
-
-    const reservations = await testDb
-      .select()
-      .from(cartReservations)
-      .where(eq(cartReservations.id, testReservation.id));
-    expect(reservations).toHaveLength(0);
-  });
-
-  it('should throw an error and rollback if reservations are not found/expired', async () => {
-    const nonExistentId = '00000000-0000-0000-0000-000000000000';
-
-    const promise = orderRepository.fulfillCheckoutSession({
-      buyerId: 'b1',
-      sellerId: 's1',
-      stripeSessionId: 'cs_test_missing',
-      totalAmount: 10,
-      fulfillmentType: 'pickup',
-      scheduledTime: new Date(),
-      reservationIds: [nonExistentId],
+      await expect(promise).rejects.toThrow('Reservations expired or not found.');
     });
 
-    await expect(promise).rejects.toThrow('Reservations expired or not found.');
-  });
+    it('should throw an error if the reservation exists but the expiresAt date has passed', async () => {
+      const buyerId = 'buyer-123';
+      const sellerId = 'seller-123';
 
-  it('should throw an error if the reservation exists but the expiresAt date has passed', async () => {
-    const buyerId = 'buyer-123';
-    const sellerId = 'seller-123';
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'buyer_expired@test.com' },
+        { id: sellerId, email: 'seller_expired@test.com' },
+      ]);
 
-    await testDb.insert(users).values([
-      { id: buyerId, email: 'buyer_expired@test.com' },
-      { id: sellerId, email: 'seller_expired@test.com' },
-    ]);
+      const [testProduct] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: sellerId,
+          title: 'Test Kale',
+          pricePerOz: '1.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
 
-    const [testProduct] = await testDb
-      .insert(produce)
-      .values({
-        sellerId: sellerId,
-        title: 'Test Kale',
-        pricePerOz: '1.50',
-        totalOzInventory: '100',
-        harvestFrequencyDays: 7,
-        seasonStart: '2025-01-01',
-        seasonEnd: '2025-12-31',
-      })
-      .returning();
+      const expiredDate = new Date();
+      expiredDate.setHours(expiredDate.getHours() - 1);
 
-    const expiredDate = new Date();
-    expiredDate.setHours(expiredDate.getHours() - 1);
+      const [expiredReservation] = await testDb
+        .insert(cartReservations)
+        .values({
+          buyerId: buyerId,
+          productId: testProduct.id,
+          quantityOz: '10',
+          expiresAt: expiredDate,
+        })
+        .returning();
 
-    const [expiredReservation] = await testDb
-      .insert(cartReservations)
-      .values({
+      const promise = orderRepository.fulfillCheckoutSession({
         buyerId: buyerId,
-        productId: testProduct.id,
-        quantityOz: '10',
-        expiresAt: expiredDate,
-      })
-      .returning();
+        sellerId: sellerId,
+        stripeSessionId: 'cs_expired_test',
+        stripeReceiptUrl: 'fake_url',
+        totalAmount: 15.0,
+        fulfillmentType: 'pickup',
+        scheduledTime: new Date(),
+        reservationIds: [expiredReservation.id],
+      });
 
-    const promise = orderRepository.fulfillCheckoutSession({
-      buyerId: buyerId,
-      sellerId: sellerId,
-      stripeSessionId: 'cs_expired_test',
-      totalAmount: 15.0,
-      fulfillmentType: 'pickup',
-      scheduledTime: new Date(),
-      reservationIds: [expiredReservation.id],
+      await expect(promise).rejects.toThrow('Reservations expired or not found.');
+
+      const remaining = await testDb
+        .select()
+        .from(cartReservations)
+        .where(eq(cartReservations.id, expiredReservation.id));
+      expect(remaining.length).toBe(1);
     });
-
-    await expect(promise).rejects.toThrow('Reservations expired or not found.');
-
-    const remaining = await testDb
-      .select()
-      .from(cartReservations)
-      .where(eq(cartReservations.id, expiredReservation.id));
-    expect(remaining.length).toBe(1);
   });
 
   describe('OrderRepository - Cancellation Integration', () => {
@@ -820,6 +829,251 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       const nonExistentId = '00000000-0000-0000-0000-000000000000';
       const fetchedOrder = await orderRepository.getOrderWithItemsById(nonExistentId);
       expect(fetchedOrder).toBeNull();
+    });
+  });
+
+  describe('OrderRepository - getPendingOrdersByProductId', () => {
+    it('should retrieve order IDs that are not canceled, refund_pending, or completed', async () => {
+      const buyerId = 'b_pending_test';
+      const sellerId = 's_pending_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'pending_buyer@test.com' },
+        { id: sellerId, email: 'pending_seller@test.com' },
+      ]);
+
+      const [product] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Test Spinach',
+          pricePerOz: '1.00',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      const validOrders = [
+        { id: crypto.randomUUID(), status: 'paid' },
+        { id: crypto.randomUUID(), status: 'pending' },
+      ];
+      const excludedOrders = [
+        { id: crypto.randomUUID(), status: 'canceled' },
+        { id: crypto.randomUUID(), status: 'completed' },
+        { id: crypto.randomUUID(), status: 'refund_pending' },
+      ];
+
+      const allTestOrders = [...validOrders, ...excludedOrders];
+
+      for (const item of allTestOrders) {
+        await testDb.insert(orders).values({
+          id: item.id,
+          buyerId,
+          sellerId,
+          status: item.status,
+          totalAmount: '10.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        });
+
+        await testDb.insert(orderItems).values({
+          orderId: item.id,
+          productId: product.id,
+          quantityOz: '10',
+          pricePerOz: '1.00',
+        });
+      }
+
+      const pendingIds = await orderRepository.getPendingOrdersByProductId(product.id);
+
+      expect(pendingIds).toContain(validOrders[0].id);
+      expect(pendingIds).toContain(validOrders[1].id);
+
+      expect(pendingIds).not.toContain(excludedOrders[0].id);
+      expect(pendingIds).not.toContain(excludedOrders[1].id);
+      expect(pendingIds).not.toContain(excludedOrders[2].id);
+
+      expect(pendingIds).toHaveLength(2);
+    });
+
+    it('should return an empty array if no orders exist for the product', async () => {
+      const emptyProductId = crypto.randomUUID();
+      const results = await orderRepository.getPendingOrdersByProductId(emptyProductId);
+      expect(results).toEqual([]);
+    });
+  });
+
+  describe('OrderRepository - fulfillRecurringSubscription', () => {
+    it('should create a new order, deduct inventory, and advance subscription date', async () => {
+      const buyerId = 'b_sub_test';
+      const sellerId = 's_sub_test';
+      const productId = crypto.randomUUID();
+      const subId = crypto.randomUUID();
+      const stripeSubId = 'sub_12345';
+      const stripeInvoiceId = 'in_99999';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'sub_buyer@test.com' },
+        { id: sellerId, email: 'sub_seller@test.com' },
+      ]);
+
+      await testDb.insert(produce).values({
+        id: productId,
+        sellerId,
+        title: 'Subscription Greens',
+        pricePerOz: '2.00',
+        totalOzInventory: '100',
+        harvestFrequencyDays: 7,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+      });
+
+      const initialNextDelivery = new Date('2024-05-20T10:00:00Z');
+      await testDb.insert(subscriptions).values({
+        id: subId,
+        buyerId,
+        productId,
+        stripeSubscriptionId: stripeSubId,
+        quantityOz: '10',
+        fulfillmentType: 'delivery',
+        nextDeliveryDate: initialNextDelivery,
+      });
+
+      const result = await orderRepository.fulfillRecurringSubscription({
+        stripeSubscriptionId: stripeSubId,
+        stripeInvoiceId,
+        stripeReceiptUrl: 'https://stripe.com/receipt',
+        totalAmount: 20.0,
+      });
+
+      // Verify New Order
+      expect(result.status).toBe('paid');
+      expect(result.stripeInvoiceId).toBe(stripeInvoiceId);
+      expect(result.totalAmount).toBe('20.00');
+
+      // Verify Inventory Deduction
+      const [updatedProduct] = await testDb.select().from(produce).where(eq(produce.id, productId));
+      expect(updatedProduct.totalOzInventory).toBe('90.00');
+
+      // Verify Subscription date advanced by 7 days
+      const [updatedSub] = await testDb
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subId));
+      const expectedDate = new Date(initialNextDelivery);
+      expectedDate.setDate(expectedDate.getDate() + 7);
+      expect(updatedSub.nextDeliveryDate.toISOString()).toBe(expectedDate.toISOString());
+    });
+
+    it('should be idempotent and return existing order if invoice ID is already processed', async () => {
+      const buyerId = 'buyer_idempotent';
+      const sellerId = 'seller_idempotent';
+      const invoiceId = 'in_idempotent_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'idemp_b@test.com' },
+        { id: sellerId, email: 'idemp_s@test.com' },
+      ]);
+
+      await testDb.insert(orders).values({
+        id: crypto.randomUUID(),
+        buyerId,
+        sellerId,
+        stripeInvoiceId: invoiceId,
+        status: 'paid',
+        totalAmount: '10.00',
+        fulfillmentType: 'pickup',
+        scheduledTime: new Date(),
+        paymentMethod: 'card',
+      });
+
+      const result = await orderRepository.fulfillRecurringSubscription({
+        stripeSubscriptionId: 'any_sub_id', // Won't be looked up because existing check triggers first
+        stripeInvoiceId: invoiceId,
+        stripeReceiptUrl: 'url',
+        totalAmount: 10,
+      });
+
+      expect(result.stripeInvoiceId).toBe(invoiceId);
+
+      const allOrders = await testDb
+        .select()
+        .from(orders)
+        .where(eq(orders.stripeInvoiceId, invoiceId));
+
+      expect(allOrders).toHaveLength(1);
+    });
+  });
+
+  describe('OrderRepository - autoCompletePassedOrders', () => {
+    it('should mark "paid" orders as "completed" if they passed the 24-hour buffer', async () => {
+      const buyerId = 'b_janitor';
+      const sellerId = 's_janitor';
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'j_b@test.com' },
+        { id: sellerId, email: 'j_s@test.com' },
+      ]);
+
+      const now = new Date('2024-05-15T12:00:00Z');
+      vi.setSystemTime(now);
+
+      const oldTime = new Date(now);
+      oldTime.setHours(oldTime.getHours() - 25); // 25 hours ago (Eligible)
+
+      const recentTime = new Date(now);
+      recentTime.setHours(recentTime.getHours() - 23); // 23 hours ago (Ineligible)
+
+      const eligibleId = crypto.randomUUID();
+      const ineligibleId = crypto.randomUUID();
+      const wrongStatusId = crypto.randomUUID();
+
+      await testDb.insert(orders).values([
+        {
+          id: eligibleId,
+          buyerId,
+          sellerId,
+          status: 'paid',
+          scheduledTime: oldTime,
+          totalAmount: '10',
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+        },
+        {
+          id: ineligibleId,
+          buyerId,
+          sellerId,
+          status: 'paid',
+          scheduledTime: recentTime,
+          totalAmount: '10',
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+        },
+        {
+          id: wrongStatusId,
+          buyerId,
+          sellerId,
+          status: 'pending', // Not 'paid', so should be ignored even if old
+          scheduledTime: oldTime,
+          totalAmount: '10',
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+        },
+      ]);
+
+      const completedOrders = await orderRepository.autoCompletePassedOrders();
+
+      expect(completedOrders).toHaveLength(1);
+      expect(completedOrders[0].id).toBe(eligibleId);
+      expect(completedOrders[0].status).toBe('completed');
+
+      const [stillPaid] = await testDb.select().from(orders).where(eq(orders.id, ineligibleId));
+      expect(stillPaid.status).toBe('paid');
+
+      const [stillPending] = await testDb.select().from(orders).where(eq(orders.id, wrongStatusId));
+      expect(stillPending.status).toBe('pending');
     });
   });
 });

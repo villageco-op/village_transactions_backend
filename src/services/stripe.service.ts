@@ -4,6 +4,7 @@ import type { Mocked } from 'vitest';
 
 import { cartRepository } from '../repositories/cart.repository.js';
 import { orderRepository } from '../repositories/order.repository.js';
+import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
 import { sendPushNotification } from './notification.service.js';
@@ -189,8 +190,61 @@ export async function processStripeWebhookEvent(event: Stripe.Event) {
       await handleAccountUpdated(account);
       break;
     }
+    case 'invoice.paid': {
+      const invoice = event.data.object as Stripe.Invoice;
+      await handleInvoicePaid(invoice);
+      break;
+    }
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice;
+      const stripeSubscriptionId = invoice.lines.data[0]?.subscription;
+
+      if (typeof stripeSubscriptionId === 'string') {
+        await subscriptionRepository.updateSubscriptionDataByStripeId(stripeSubscriptionId, {
+          status: 'paused',
+          cancelReason: 'Payment failed',
+        });
+      }
+      break;
+    }
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object as Stripe.Subscription;
+      await subscriptionRepository.updateSubscriptionDataByStripeId(subscription.id, {
+        status: 'canceled',
+        cancelReason: 'Canceled by billing provider',
+      });
+      break;
+    }
     default:
       console.log(`Unhandled Stripe event type: ${event.type}`);
+  }
+}
+
+/**
+ * Creates an order for a paid invoice if associated with a subscription.
+ * @param invoice - The Stripe invoice
+ */
+export async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
+  const stripeSubscriptionId = invoice.lines.data[0]?.subscription;
+
+  if (!stripeSubscriptionId || typeof stripeSubscriptionId !== 'string') return;
+
+  if (invoice.billing_reason === 'subscription_create') {
+    return;
+  }
+
+  const totalAmount = invoice.amount_paid / 100;
+  const stripeReceiptUrl = invoice.hosted_invoice_url || '';
+
+  try {
+    await orderRepository.fulfillRecurringSubscription({
+      stripeSubscriptionId,
+      stripeInvoiceId: invoice.id,
+      stripeReceiptUrl,
+      totalAmount,
+    });
+  } catch (error) {
+    console.error(`Error fulfilling recurring invoice ${invoice.id}:`, error);
   }
 }
 

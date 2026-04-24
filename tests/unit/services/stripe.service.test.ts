@@ -9,12 +9,14 @@ import {
   processStripeWebhookEvent,
   updateStripeSubscriptionQuantity,
   createCheckoutSession,
+  handleInvoicePaid,
 } from '../../../src/services/stripe.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { updateInternalStripeAccountId } from '../../../src/services/user.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
 import { cartRepository } from '../../../src/repositories/cart.repository.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 
 const mockStripe = {
   accounts: {
@@ -66,6 +68,7 @@ vi.mock('../../../src/services/user.service.js', () => ({
 vi.mock('../../../src/repositories/order.repository.js', () => ({
   orderRepository: {
     fulfillCheckoutSession: vi.fn(),
+    fulfillRecurringSubscription: vi.fn(),
   },
 }));
 
@@ -77,6 +80,12 @@ vi.mock('../../../src/repositories/cart.repository.js', () => ({
 
 vi.mock('../../../src/services/notification.service.js', () => ({
   sendPushNotification: vi.fn(),
+}));
+
+vi.mock('../../../src/repositories/subscription.repository.js', () => ({
+  subscriptionRepository: {
+    updateSubscriptionDataByStripeId: vi.fn(),
+  },
 }));
 
 describe('StripeService - generateStripeOnboardLink', () => {
@@ -238,6 +247,92 @@ describe('StripeService - processStripeWebhookEvent', () => {
 
     expect(orderRepository.fulfillCheckoutSession).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
+  });
+
+  it('should process invoice.paid and fulfill recurring subscription', async () => {
+    const event = {
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'in_123',
+          amount_paid: 2000,
+          hosted_invoice_url: 'https://stripe.com/invoice_url',
+          billing_reason: 'subscription_cycle',
+          lines: {
+            data: [{ subscription: 'sub_test_paid' }],
+          },
+        },
+      },
+    } as unknown as Stripe.Event;
+
+    await processStripeWebhookEvent(event);
+
+    expect(orderRepository.fulfillRecurringSubscription).toHaveBeenCalledWith({
+      stripeSubscriptionId: 'sub_test_paid',
+      stripeInvoiceId: 'in_123',
+      stripeReceiptUrl: 'https://stripe.com/invoice_url',
+      totalAmount: 20,
+    });
+  });
+
+  it('should skip invoice.paid if billing reason is subscription_create', async () => {
+    const event = {
+      type: 'invoice.paid',
+      data: {
+        object: {
+          billing_reason: 'subscription_create',
+          lines: { data: [{ subscription: 'sub_test_initial' }] },
+        },
+      },
+    } as unknown as Stripe.Event;
+
+    await processStripeWebhookEvent(event);
+
+    expect(orderRepository.fulfillRecurringSubscription).not.toHaveBeenCalled();
+  });
+
+  it('should process invoice.payment_failed and pause subscription', async () => {
+    const event = {
+      type: 'invoice.payment_failed',
+      data: {
+        object: {
+          lines: {
+            data: [{ subscription: 'sub_failed_123' }],
+          },
+        },
+      },
+    } as unknown as Stripe.Event;
+
+    await processStripeWebhookEvent(event);
+
+    expect(subscriptionRepository.updateSubscriptionDataByStripeId).toHaveBeenCalledWith(
+      'sub_failed_123',
+      {
+        status: 'paused',
+        cancelReason: 'Payment failed',
+      },
+    );
+  });
+
+  it('should process customer.subscription.deleted and cancel subscription', async () => {
+    const event = {
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_deleted_123',
+        },
+      },
+    } as unknown as Stripe.Event;
+
+    await processStripeWebhookEvent(event);
+
+    expect(subscriptionRepository.updateSubscriptionDataByStripeId).toHaveBeenCalledWith(
+      'sub_deleted_123',
+      {
+        status: 'canceled',
+        cancelReason: 'Canceled by billing provider',
+      },
+    );
   });
 });
 
@@ -443,6 +538,98 @@ describe('StripeService - createCheckoutSession', () => {
 
     await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
       new HTTPException(500, { message: 'Failed to create checkout session URL.' }),
+    );
+  });
+});
+
+describe('StripeService - handleInvoicePaid', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully fulfill a recurring subscription for a valid invoice', async () => {
+    const mockInvoice = {
+      id: 'in_valid_123',
+      amount_paid: 5000, // $50.00
+      hosted_invoice_url: 'https://stripe.com/invoice/pdf',
+      billing_reason: 'subscription_cycle',
+      lines: {
+        data: [{ subscription: 'sub_stripe_123' }],
+      },
+    } as unknown as Stripe.Invoice;
+
+    await handleInvoicePaid(mockInvoice);
+
+    expect(orderRepository.fulfillRecurringSubscription).toHaveBeenCalledWith({
+      stripeSubscriptionId: 'sub_stripe_123',
+      stripeInvoiceId: 'in_valid_123',
+      stripeReceiptUrl: 'https://stripe.com/invoice/pdf',
+      totalAmount: 50,
+    });
+  });
+
+  it('should return early and do nothing if billing_reason is subscription_create', async () => {
+    const mockInvoice = {
+      billing_reason: 'subscription_create',
+      lines: { data: [{ subscription: 'sub_initial' }] },
+    } as unknown as Stripe.Invoice;
+
+    await handleInvoicePaid(mockInvoice);
+
+    expect(orderRepository.fulfillRecurringSubscription).not.toHaveBeenCalled();
+  });
+
+  it('should return early if subscription ID is missing in lines', async () => {
+    const mockInvoice = {
+      id: 'in_no_sub',
+      billing_reason: 'subscription_cycle',
+      lines: { data: [] }, // No lines = no subscription
+    } as unknown as Stripe.Invoice;
+
+    await handleInvoicePaid(mockInvoice);
+
+    expect(orderRepository.fulfillRecurringSubscription).not.toHaveBeenCalled();
+  });
+
+  it('should log an error but not throw if the repository call fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    vi.mocked(orderRepository.fulfillRecurringSubscription).mockRejectedValueOnce(
+      new Error('DB Timeout'),
+    );
+
+    const mockInvoice = {
+      id: 'in_fail_123',
+      amount_paid: 1000,
+      billing_reason: 'subscription_cycle',
+      lines: { data: [{ subscription: 'sub_trigger_error' }] },
+    } as unknown as Stripe.Invoice;
+
+    await expect(handleInvoicePaid(mockInvoice)).resolves.not.toThrow();
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error fulfilling recurring invoice in_fail_123:'),
+      expect.any(Error),
+    );
+
+    consoleSpy.mockRestore();
+  });
+
+  it('should use an empty string for receipt URL if hosted_invoice_url is missing', async () => {
+    const mockInvoice = {
+      id: 'in_no_url',
+      amount_paid: 2000,
+      billing_reason: 'subscription_cycle',
+      hosted_invoice_url: null,
+      lines: { data: [{ subscription: 'sub_123' }] },
+    } as unknown as Stripe.Invoice;
+
+    await handleInvoicePaid(mockInvoice);
+
+    expect(orderRepository.fulfillRecurringSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripeReceiptUrl: '',
+      }),
     );
   });
 });

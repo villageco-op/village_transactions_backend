@@ -21,7 +21,14 @@ import {
 export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
 export const paymentMethodEnum = pgEnum('payment_method', ['card', 'snap']);
 export const fulfillmentTypeEnum = pgEnum('fulfillment_type', ['pickup', 'delivery']);
-export const orderStatusEnum = pgEnum('order_status', ['pending', 'completed', 'canceled']);
+export const orderStatusEnum = pgEnum('order_status', [
+  'pending',
+  'paid',
+  'completed',
+  'refund_pending',
+  'disputed',
+  'canceled',
+]);
 export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'active',
   'paused',
@@ -169,6 +176,7 @@ export const orders = pgTable('orders', {
     .references(() => users.id),
   stripeSessionId: text('stripe_session_id').unique(),
   stripeReceiptUrl: text('stripe_receipt_url'),
+  stripeInvoiceId: text('stripe_invoice_id').unique(),
   paymentMethod: paymentMethodEnum('payment_method').notNull(),
   fulfillmentType: fulfillmentTypeEnum('fulfillment_type').notNull(),
   scheduledTime: timestamp('scheduled_time').notNull(),
