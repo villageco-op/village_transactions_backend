@@ -5,9 +5,14 @@ import { sourceMapRepository } from '../repositories/source-map.repository.js';
  * @param filters - Search filters
  * @param filters.buyerId - The buyer ID
  * @param filters.produceType - Optional produce type filter
+ * @param filters.season - Optional season filter
  * @returns List of nodes representing sellers and produce
  */
-export async function getSourceMapNodes(filters: { buyerId: string; produceType?: string }) {
+export async function getSourceMapNodes(filters: {
+  buyerId: string;
+  produceType?: string;
+  season?: string;
+}) {
   const rawNodes = await sourceMapRepository.getNodes(filters);
 
   return rawNodes.map((node) => {
@@ -31,9 +36,14 @@ export async function getSourceMapNodes(filters: { buyerId: string; produceType?
  * @param filters - Search filters
  * @param filters.buyerId - The buyer ID
  * @param filters.produceType - Optional produce type filter
+ * @param filters.season - Optional season filter
  * @returns A set of general totals and a produce order quantity breakdown
  */
-export async function getSourceMapAnalytics(filters: { buyerId: string; produceType?: string }) {
+export async function getSourceMapAnalytics(filters: {
+  buyerId: string;
+  produceType?: string;
+  season?: string;
+}) {
   const { totals, breakdown } = await sourceMapRepository.getAnalytics(filters);
 
   const totalVolumeOz = Number(totals.totalVolumeOz);

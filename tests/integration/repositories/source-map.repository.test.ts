@@ -69,6 +69,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
           fulfillmentType: 'pickup',
           scheduledTime: now,
           totalAmount: '50.00',
+          createdAt: new Date('2024-04-15T10:00:00Z'), // Spring (Month 4)
         },
         {
           buyerId: BUYER_ID,
@@ -78,6 +79,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
           fulfillmentType: 'delivery',
           scheduledTime: now,
           totalAmount: '20.00',
+          createdAt: new Date('2024-07-15T10:00:00Z'), // Summer (Month 7)
         },
         {
           buyerId: BUYER_ID,
@@ -87,6 +89,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
           fulfillmentType: 'pickup',
           scheduledTime: now,
           totalAmount: '10.00',
+          createdAt: new Date('2024-10-15T10:00:00Z'), // Fall (Month 10)
         },
       ])
       .returning();
@@ -132,6 +135,27 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
       expect(applesNodes).toHaveLength(1);
       expect(applesNodes[0].produceCategories).toContain('Apples');
     });
+
+    it('should filter nodes by season', async () => {
+      const springNodes = await sourceMapRepository.getNodes({
+        buyerId: BUYER_ID,
+        season: 'spring',
+      });
+      expect(springNodes).toHaveLength(1);
+      expect(springNodes[0].produceCategories).toContain('Apples');
+
+      const winterNodes = await sourceMapRepository.getNodes({
+        buyerId: BUYER_ID,
+        season: 'winter',
+      });
+      expect(winterNodes).toHaveLength(0);
+
+      const allNodes = await sourceMapRepository.getNodes({
+        buyerId: BUYER_ID,
+        season: 'all',
+      });
+      expect(allNodes).toHaveLength(2);
+    });
   });
 
   describe('getAnalytics', () => {
@@ -160,6 +184,26 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
 
       expect(analytics.breakdown).toHaveLength(1);
       expect(analytics.breakdown[0].produceType).toBe('Carrots');
+    });
+
+    it('should filter analytics correctly by season', async () => {
+      const summerAnalytics = await sourceMapRepository.getAnalytics({
+        buyerId: BUYER_ID,
+        season: 'summer',
+      });
+
+      expect(Number(summerAnalytics.totals.totalVolumeOz)).toBe(100);
+      expect(summerAnalytics.breakdown).toHaveLength(1);
+      expect(summerAnalytics.breakdown[0].produceType).toBe('Carrots');
+
+      const winterAnalytics = await sourceMapRepository.getAnalytics({
+        buyerId: BUYER_ID,
+        season: 'winter',
+      });
+
+      expect(Number(winterAnalytics.totals.totalVolumeOz)).toBe(0);
+      expect(Number(winterAnalytics.totals.totalSpend)).toBe(0);
+      expect(winterAnalytics.breakdown).toHaveLength(0);
     });
   });
 });

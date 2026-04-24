@@ -65,6 +65,17 @@ describe('SourceMap Service - Unit Tests', () => {
       expect(nodes[0].lng).toBeNull();
       expect(nodes[0].primaryProduceType).toBeNull();
     });
+
+    it('should pass the season parameter down to the repository', async () => {
+      vi.mocked(sourceMapRepository.getNodes).mockResolvedValueOnce([]);
+
+      await getSourceMapNodes({ buyerId: 'buyer_1', season: 'winter' });
+
+      expect(sourceMapRepository.getNodes).toHaveBeenCalledWith({
+        buyerId: 'buyer_1',
+        season: 'winter',
+      });
+    });
   });
 
   describe('getSourceMapAnalytics', () => {
@@ -110,6 +121,25 @@ describe('SourceMap Service - Unit Tests', () => {
 
       expect(analytics.foodMilesSaved).toBe(0);
       expect(analytics.produceBreakdown[0].percentage).toBe(0);
+    });
+
+    it('should pass the season parameter down to the repository', async () => {
+      vi.mocked(sourceMapRepository.getAnalytics).mockResolvedValueOnce({
+        totals: {
+          totalVolumeOz: '0',
+          totalSpend: '0',
+          uniqueGrowers: '0',
+          totalOrders: '0',
+        },
+        breakdown: [],
+      } as any);
+
+      await getSourceMapAnalytics({ buyerId: 'buyer_1', season: 'spring' });
+
+      expect(sourceMapRepository.getAnalytics).toHaveBeenCalledWith({
+        buyerId: 'buyer_1',
+        season: 'spring',
+      });
     });
   });
 });
