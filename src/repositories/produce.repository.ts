@@ -31,6 +31,14 @@ export const produceRepository = {
           id: users.id,
           name: users.name,
           image: users.image,
+          deliveryRangeMiles: users.deliveryRangeMiles,
+          lat: users.lat,
+          lng: users.lng,
+          address: users.address,
+          city: users.city,
+          state: users.state,
+          country: users.country,
+          zip: users.zip,
         },
       })
       .from(produce)
@@ -41,9 +49,26 @@ export const produceRepository = {
       return undefined;
     }
 
+    const range = item.seller.deliveryRangeMiles ? Number(item.seller.deliveryRangeMiles) : 0;
+
     return {
       ...item.produce,
-      seller: item.seller,
+      seller: {
+        id: item.seller.id,
+        name: item.seller.name,
+        image: item.seller.image,
+        deliveryRangeMiles: range,
+        canDeliver: range > 0,
+        location: {
+          lat: item.seller.lat,
+          lng: item.seller.lng,
+          address: item.seller.address,
+          city: item.seller.city,
+          state: item.seller.state,
+          country: item.seller.country,
+          zip: item.seller.zip,
+        },
+      },
     };
   },
 
