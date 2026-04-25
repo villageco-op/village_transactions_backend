@@ -34,6 +34,9 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         passwordHash: 'hashed_pw',
         // Location: Madison, WI (-89.4012, 43.0731)
         location: sql`ST_SetSRID(ST_MakePoint(-89.4012, 43.0731), 4326)`,
+        city: 'Madison',
+        state: 'WI',
+        country: 'USA',
         deliveryRangeMiles: '15',
       },
       {
@@ -315,7 +318,18 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     // Check joined seller details
     expect(item?.seller).toBeDefined();
     expect(item?.seller.id).toBe(TEST_SELLER_ID);
-    expect(item?.seller.name).toBe('Farmer Joe'); // Name matches the BeforeEach setup
+    expect(item?.seller.name).toBe('Farmer Joe');
+    expect(item?.seller.deliveryRangeMiles).toBe(15);
+    expect(item?.seller.canDeliver).toBe(true);
+    expect(item?.seller.location).toStrictEqual({
+      city: 'Madison',
+      state: 'WI',
+      country: 'USA',
+      lat: null,
+      lng: null,
+      address: null,
+      zip: null,
+    });
   });
 
   it('should return undefined when retrieving a non-existent produce ID', async () => {

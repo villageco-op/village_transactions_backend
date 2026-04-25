@@ -9,6 +9,7 @@ import {
   IsoDateSchema,
   IsoDateTimeSchema,
   LatitudeSchema,
+  LocationSchema,
   LongitudeSchema,
   OrderStatusSchema,
   PaginationQuerySchema,
@@ -203,6 +204,15 @@ export const ProduceDetailSchema = ProduceSchema.extend({
     id: UserIdSchema,
     name: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
     image: ImageUrlSchema.nullable(),
+    canDeliver: z
+      .boolean()
+      .default(false)
+      .openapi({ description: 'Does the seller do deliveries?' }),
+    deliveryRangeMiles: z
+      .number()
+      .nullable()
+      .openapi({ description: 'The sellers maximum delivery range.' }),
+    location: LocationSchema.nullable().openapi({ description: 'The sellers pickup location.' }),
   }),
 }).openapi('ProduceDetail');
 
