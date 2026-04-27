@@ -179,4 +179,91 @@ describe('CartRepository - Integration', { timeout: 60_000 }, () => {
     expect(remaining[0].quantityOz).toBe('3.00');
     expect(remaining[0].buyerId).toBe(BUYER_2_ID);
   });
+
+  it('should successfully update quantity and subscription, and reset expiration', async () => {
+    const oldDate = new Date(Date.now() + 5 * 60 * 1000); // 5 mins from now
+    const [reservation] = await testDb
+      .insert(cartReservations)
+      .values({
+        buyerId: BUYER_ID,
+        productId: product_id,
+        quantityOz: '5',
+        isSubscription: false,
+        expiresAt: oldDate,
+      })
+      .returning();
+
+    const payload = {
+      quantityOz: 12.5,
+      isSubscription: true,
+    };
+
+    const success = await cartRepository.updateCartItem(BUYER_ID, reservation.id, payload);
+    expect(success).toBe(true);
+
+    const [updated] = await testDb
+      .select()
+      .from(cartReservations)
+      .where(eq(cartReservations.id, reservation.id));
+
+    expect(updated.quantityOz).toBe('12.50');
+    expect(updated.isSubscription).toBe(true);
+
+    // Verify expiration was extended to ~15 mins from now
+    const now = new Date();
+    const diffMins = (updated.expiresAt.getTime() - now.getTime()) / (1000 * 60);
+    expect(diffMins).toBeGreaterThan(14);
+    expect(diffMins).toBeLessThan(16);
+  });
+
+  it('should allow partial updates (only quantity)', async () => {
+    const [reservation] = await testDb
+      .insert(cartReservations)
+      .values({
+        buyerId: BUYER_ID,
+        productId: product_id,
+        quantityOz: '5',
+        isSubscription: true,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      })
+      .returning();
+
+    const success = await cartRepository.updateCartItem(BUYER_ID, reservation.id, {
+      quantityOz: 20,
+    });
+    expect(success).toBe(true);
+
+    const [updated] = await testDb
+      .select()
+      .from(cartReservations)
+      .where(eq(cartReservations.id, reservation.id));
+
+    expect(updated.quantityOz).toBe('20.00');
+    expect(updated.isSubscription).toBe(true); // Should remain unchanged
+  });
+
+  it('should return false if updating a non-existent reservation', async () => {
+    const fakeUuid = '00000000-0000-0000-0000-000000000000';
+    const success = await cartRepository.updateCartItem(BUYER_ID, fakeUuid, { quantityOz: 10 });
+
+    expect(success).toBe(false);
+  });
+
+  it('should return false if updating a reservation belonging to another buyer', async () => {
+    const OTHER_BUYER = 'buyer_repo_999';
+    const [reservation] = await testDb
+      .insert(cartReservations)
+      .values({
+        buyerId: BUYER_ID,
+        productId: product_id,
+        quantityOz: '5',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      })
+      .returning();
+
+    const success = await cartRepository.updateCartItem(OTHER_BUYER, reservation.id, {
+      quantityOz: 10,
+    });
+    expect(success).toBe(false);
+  });
 });

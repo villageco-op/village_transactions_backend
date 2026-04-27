@@ -4,6 +4,7 @@ import {
   getCart,
   releaseExpiredCarts,
   removeFromCart,
+  updateCartItem,
 } from '../../../src/services/cart.service.js';
 import { cartRepository } from '../../../src/repositories/cart.repository.js';
 
@@ -13,6 +14,7 @@ vi.mock('../../../src/repositories/cart.repository.js', () => ({
     getActiveCart: vi.fn(),
     removeFromCart: vi.fn(),
     releaseExpiredCarts: vi.fn(),
+    updateCartItem: vi.fn(),
   },
 }));
 
@@ -214,5 +216,49 @@ describe('CartService - releaseExpiredCarts', () => {
     vi.mocked(cartRepository.releaseExpiredCarts).mockRejectedValueOnce(new Error('DB Error'));
 
     await expect(releaseExpiredCarts()).rejects.toThrow('DB Error');
+  });
+});
+
+describe('CartService - updateCartItem', () => {
+  const mockBuyerId = 'buyer_123';
+  const mockReservationId = '123e4567-e89b-12d3-a456-426614174000';
+  const mockPayload = { quantityOz: 15, isSubscription: true };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return true when a reservation is successfully updated', async () => {
+    vi.mocked(cartRepository.updateCartItem).mockResolvedValueOnce(true);
+
+    const result = await updateCartItem(mockBuyerId, mockReservationId, mockPayload);
+
+    expect(result).toBe(true);
+    expect(cartRepository.updateCartItem).toHaveBeenCalledWith(
+      mockBuyerId,
+      mockReservationId,
+      mockPayload,
+    );
+  });
+
+  it('should return false when a reservation does not exist or is expired', async () => {
+    vi.mocked(cartRepository.updateCartItem).mockResolvedValueOnce(false);
+
+    const result = await updateCartItem(mockBuyerId, mockReservationId, mockPayload);
+
+    expect(result).toBe(false);
+    expect(cartRepository.updateCartItem).toHaveBeenCalledWith(
+      mockBuyerId,
+      mockReservationId,
+      mockPayload,
+    );
+  });
+
+  it('should propagate errors from the repository', async () => {
+    vi.mocked(cartRepository.updateCartItem).mockRejectedValueOnce(new Error('DB Error'));
+
+    await expect(updateCartItem(mockBuyerId, mockReservationId, mockPayload)).rejects.toThrow(
+      'DB Error',
+    );
   });
 });
