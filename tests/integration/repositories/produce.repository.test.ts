@@ -57,6 +57,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       produceType: 'berries',
       pricePerOz: 1.25,
       totalOzInventory: 500,
+      maxOrderQuantityOz: 32,
       harvestFrequencyDays: 3,
       seasonStart: '2024-06-01',
       seasonEnd: '2024-08-31',
@@ -74,6 +75,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
 
     expect(newProduce.pricePerOz).toBe('1.25');
     expect(newProduce.totalOzInventory).toBe('500.00');
+    expect(newProduce.maxOrderQuantityOz).toBe('32.00');
 
     expect(newProduce.harvestFrequencyDays).toBe(3);
     expect(newProduce.seasonStart).toBe('2024-06-01');
@@ -108,6 +110,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       produceType: 'melons',
       pricePerOz: 0.1,
       totalOzInventory: 1000,
+      maxOrderQuantityOz: 100,
       harvestFrequencyDays: 14,
       seasonStart: '2024-07-01',
       seasonEnd: '2024-09-30',
@@ -121,6 +124,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       status: 'paused' as const,
       pricePerOz: 0.15,
       totalOzInventory: 800,
+      maxOrderQuantityOz: null,
     };
 
     const updated = await produceRepository.update(created.id, TEST_SELLER_ID, updatePayload);
@@ -130,6 +134,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     expect(updated?.status).toBe('paused');
     expect(updated?.pricePerOz).toBe('0.15');
     expect(updated?.totalOzInventory).toBe('800.00');
+    expect(updated?.maxOrderQuantityOz).toBeNull();
     // Ensure unchanged properties remain intact
     expect(updated?.title).toBe('Watermelons');
   });

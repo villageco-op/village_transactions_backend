@@ -87,6 +87,7 @@ export const produceRepository = {
         produceType: data.produceType,
         pricePerOz: data.pricePerOz.toString(),
         totalOzInventory: data.totalOzInventory.toString(),
+        maxOrderQuantityOz: data.maxOrderQuantityOz ? data.maxOrderQuantityOz.toString() : null,
         availableBy: data.availableBy ?? new Date(),
         harvestFrequencyDays: data.harvestFrequencyDays,
         seasonStart: data.seasonStart,
@@ -111,7 +112,7 @@ export const produceRepository = {
     sellerId: string,
     data: UpdateProducePayload,
   ): Promise<Produce | undefined> {
-    const { pricePerOz, totalOzInventory, ...remainingData } = data;
+    const { pricePerOz, totalOzInventory, maxOrderQuantityOz, ...remainingData } = data;
 
     const updateValues: Partial<typeof produce.$inferInsert> = {
       ...remainingData,
@@ -124,6 +125,10 @@ export const produceRepository = {
 
     if (totalOzInventory !== undefined) {
       updateValues.totalOzInventory = totalOzInventory.toString();
+    }
+
+    if (maxOrderQuantityOz !== undefined) {
+      updateValues.maxOrderQuantityOz = maxOrderQuantityOz ? maxOrderQuantityOz.toString() : null;
     }
 
     const [updatedProduce] = await this.db

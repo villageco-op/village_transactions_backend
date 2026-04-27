@@ -30,6 +30,10 @@ const ProduceFields = z.object({
   produceType: ProduceTypeSchema.optional(),
   pricePerOz: PriceDollarsSchema,
   totalOzInventory: WeightOzSchema,
+  maxOrderQuantityOz: WeightOzSchema.optional().nullable().openapi({
+    example: '160.00',
+    description: 'Optional maximum ounces a single user can order per checkout',
+  }),
   availableBy: z.coerce.date().optional().openapi({
     example: '2026-03-25T10:00:00Z',
     description: 'The date and time when the produce will be ready for pickup or delivery',

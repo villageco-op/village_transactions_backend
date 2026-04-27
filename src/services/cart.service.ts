@@ -1,5 +1,10 @@
 import { cartRepository } from '../repositories/cart.repository.js';
-import type { AddToCartPayload, UpdateCartPayload } from '../schemas/cart.schema.js';
+import type {
+  AddToCartPayload,
+  CartCheckoutGroup,
+  UpdateCartPayload,
+} from '../schemas/cart.schema.js';
+import { calculateDistanceMiles } from '../utils.js';
 
 /**
  * Creates a new cart reservation for the authenticated buyer.
@@ -12,48 +17,66 @@ export async function addToCart(buyerId: string, data: AddToCartPayload) {
 }
 
 /**
- * Fetches the user's active cart and groups items by seller.
+ * Fetches the user's active cart and groups items into checkout groups
+ * separated by Seller AND whether the cart items are for subscriptions.
+ * Estimates delivery fees based on distance for optional non-pickup configurations.
  * @param buyerId - User's unique ID injected by auth session
- * @returns Array of cart reservations grouped by seller
+ * @returns Array of Cart Checkout Groups
  */
-export async function getCart(buyerId: string) {
+export async function getCart(buyerId: string): Promise<CartCheckoutGroup[]> {
   const activeItems = await cartRepository.getActiveCart(buyerId);
 
-  type GroupedCart = {
-    seller: { id: string; name: string | null };
-    items: {
-      reservationId: string;
-      productId: string;
-      title: string;
-      pricePerOz: string;
-      quantityOz: string;
-      isSubscription: boolean | null;
-      expiresAt: string;
-      images: string[] | null;
-    }[];
-  };
+  const DELIVERY_FEE_BASE = parseFloat(process.env.DELIVERY_FEE_BASE || '5.00');
+  const DELIVERY_FEE_PER_MILE = parseFloat(process.env.DELIVERY_FEE_PER_MILE || '1.50');
+  const SUBSCRIPTION_DISCOUNT_PERCENT = parseFloat(
+    process.env.SUBSCRIPTION_DISCOUNT_PERCENT || '10',
+  );
 
-  const grouped = new Map<string, GroupedCart>();
+  const grouped = new Map<string, CartCheckoutGroup>();
 
   for (const row of activeItems) {
-    const { seller } = row;
+    const { seller, buyer, product, reservation } = row;
+    const isSubscription = Boolean(reservation.isSubscription);
 
-    if (!grouped.has(seller.id)) {
-      grouped.set(seller.id, {
-        seller,
+    // Group Identifier separating Subscriptions from One-Time purchases per farm.
+    const groupId = `${seller.id}-${isSubscription ? 'sub' : 'onetime'}`;
+
+    if (!grouped.has(groupId)) {
+      // Calculate delivery fee estimate if buyer/seller coordinates exist
+      let calculatedDeliveryFee = DELIVERY_FEE_BASE;
+      if (buyer.lat && buyer.lng && seller.lat && seller.lng) {
+        const miles = calculateDistanceMiles(buyer.lat, buyer.lng, seller.lat, seller.lng);
+        calculatedDeliveryFee += miles * DELIVERY_FEE_PER_MILE;
+      }
+
+      grouped.set(groupId, {
+        groupId,
+        isSubscription,
+        deliveryFee: calculatedDeliveryFee.toFixed(2),
+        seller: { id: seller.id, name: seller.name },
         items: [],
       });
     }
 
-    grouped.get(seller.id)!.items.push({
-      reservationId: row.reservation.id,
-      productId: row.product.id,
-      title: row.product.title,
-      pricePerOz: row.product.pricePerOz,
-      quantityOz: row.reservation.quantityOz,
-      isSubscription: row.reservation.isSubscription,
-      expiresAt: row.reservation.expiresAt.toISOString(),
-      images: row.product.images,
+    // Determine absolute max order quantity: min(total available, seller enforced limit)
+    const availableQty = parseFloat(product.totalOzInventory);
+    const sellerEnforcedMax = product.maxOrderQuantityOz
+      ? parseFloat(product.maxOrderQuantityOz)
+      : Infinity;
+    const absoluteMaxAllowed = Math.min(availableQty, sellerEnforcedMax);
+
+    grouped.get(groupId)!.items.push({
+      reservationId: reservation.id,
+      productId: product.id,
+      title: product.title,
+      pricePerOz: product.pricePerOz,
+      quantityOz: reservation.quantityOz,
+      maxOrderQuantityOz: absoluteMaxAllowed.toFixed(2),
+      isSubscription,
+      subscriptionFrequencyDays: isSubscription ? product.harvestFrequencyDays : null,
+      subscriptionCostReductionPercent: isSubscription ? SUBSCRIPTION_DISCOUNT_PERCENT : null,
+      expiresAt: reservation.expiresAt.toISOString(),
+      images: product.images,
     });
   }
 

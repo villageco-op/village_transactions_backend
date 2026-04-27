@@ -71,6 +71,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         produceType: 'stone_fruits',
         pricePerOz: '0.40',
         totalOzInventory: '300',
+        maxOrderQuantityOz: '100',
         harvestFrequencyDays: 5,
         seasonStart: '2024-05-01',
         seasonEnd: '2024-07-31',
@@ -85,7 +86,8 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         method: 'PUT',
         body: JSON.stringify({
           status: 'paused',
-          totalOzInventory: 250, // decreased inventory
+          totalOzInventory: 250,
+          maxOrderQuantityOz: 50,
         }),
       },
       { id: TEST_USER_ID },
@@ -101,6 +103,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       .where(eq(produce.id, dbProduce.id));
     expect(updatedDbProduce.status).toBe('paused');
     expect(updatedDbProduce.totalOzInventory).toBe('250.00');
+    expect(updatedDbProduce.maxOrderQuantityOz).toBe('50.00');
   });
 
   it('PUT /api/produce/:id should return 400 for an invalid UUID format', async () => {
@@ -151,6 +154,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       produceType: 'stone_fruits',
       pricePerOz: 0.25,
       totalOzInventory: 500,
+      maxOrderQuantityOz: 160,
       harvestFrequencyDays: 7,
       seasonStart: '2024-09-01',
       seasonEnd: '2024-11-30',
@@ -179,6 +183,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     expect(dbProduce.title).toBe('Organic Honeycrisp Apples');
     expect(dbProduce.sellerId).toBe(TEST_USER_ID);
     expect(dbProduce.pricePerOz).toBe('0.25');
+    expect(dbProduce.maxOrderQuantityOz).toBe('160.00');
     expect(dbProduce.status).toBe('active');
   });
 

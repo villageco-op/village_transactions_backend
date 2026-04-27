@@ -1,4 +1,5 @@
 import { eq, lt, and, gte } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 import { db as defaultDb } from '../db/index.js';
 import { cartReservations, produce, users } from '../db/schema.js';
@@ -56,18 +57,28 @@ export const cartRepository = {
       .delete(cartReservations)
       .where(and(eq(cartReservations.buyerId, buyerId), lt(cartReservations.expiresAt, now)));
 
+    const buyerAlias = alias(users, 'buyer_users');
+    const sellerAlias = alias(users, 'seller_users');
+
     return await this.db
       .select({
         reservation: cartReservations,
         product: produce,
         seller: {
-          id: users.id,
-          name: users.name,
+          id: sellerAlias.id,
+          name: sellerAlias.name,
+          lat: sellerAlias.lat,
+          lng: sellerAlias.lng,
+        },
+        buyer: {
+          lat: buyerAlias.lat,
+          lng: buyerAlias.lng,
         },
       })
       .from(cartReservations)
       .innerJoin(produce, eq(cartReservations.productId, produce.id))
-      .innerJoin(users, eq(produce.sellerId, users.id))
+      .innerJoin(sellerAlias, eq(produce.sellerId, sellerAlias.id))
+      .innerJoin(buyerAlias, eq(cartReservations.buyerId, buyerAlias.id))
       .where(and(eq(cartReservations.buyerId, buyerId), gte(cartReservations.expiresAt, now)));
   },
 

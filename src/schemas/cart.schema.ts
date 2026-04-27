@@ -19,8 +19,6 @@ export const AddToCartSchema = z
   })
   .openapi('AddToCartPayload');
 
-export type AddToCartPayload = z.infer<typeof AddToCartSchema>;
-
 export const CartItemSchema = z
   .object({
     reservationId: ResourceIdSchema,
@@ -37,17 +35,42 @@ export const CartItemSchema = z
       example: '16.0',
       description: 'Quantity in ounces currently in cart',
     }),
+    maxOrderQuantityOz: z.string().openapi({
+      example: '32.0',
+      description: 'The maximum allowable order quantity (lowest of stock or seller limit)',
+    }),
     isSubscription: z.boolean().nullable().openapi({
       example: false,
       description: 'Flag indicating if this is a subscription item',
+    }),
+    subscriptionFrequencyDays: z.number().nullable().openapi({
+      example: 7,
+      description: 'How often the harvest/delivery repeats if this is a subscription',
+    }),
+    subscriptionCostReductionPercent: z.number().nullable().openapi({
+      example: 10,
+      description: 'Percentage discount applied to subscription orders',
     }),
     expiresAt: IsoDateTimeSchema,
     images: z.array(ImageUrlSchema).nullable(),
   })
   .openapi('CartItem');
 
-export const CartSellerGroupSchema = z
+export const CartCheckoutGroupSchema = z
   .object({
+    groupId: z.string().openapi({
+      example: 'user_1234-sub',
+      description: 'Unique ID for this specific checkout session/group',
+    }),
+    isSubscription: z.boolean().openapi({
+      example: false,
+      description: 'Whether this checkout group represents a recurring subscription checkout',
+    }),
+    deliveryFee: z.string().openapi({
+      example: '8.50',
+      description:
+        'Estimated delivery fee in USD (calculated via distance) if user opts out of default pickup',
+    }),
     seller: z
       .object({
         id: UserIdSchema,
@@ -58,15 +81,15 @@ export const CartSellerGroupSchema = z
       })
       .openapi('CartSeller'),
     items: z.array(CartItemSchema).openapi({
-      description: 'List of items in the cart belonging to this specific seller',
+      description: 'List of items in the cart belonging to this checkout group',
     }),
   })
-  .openapi('CartSellerGroup');
+  .openapi('CartCheckoutGroup');
 
 export const GetCartResponseSchema = z
   .object({
-    data: z.array(CartSellerGroupSchema).openapi({
-      description: 'User shopping cart grouped by seller',
+    data: z.array(CartCheckoutGroupSchema).openapi({
+      description: 'User shopping cart divided into executable checkouts',
     }),
   })
   .openapi('GetCartResponse');
@@ -81,4 +104,8 @@ export const UpdateCartSchema = z
   })
   .openapi('UpdateCartPayload');
 
+export type AddToCartPayload = z.infer<typeof AddToCartSchema>;
 export type UpdateCartPayload = z.infer<typeof UpdateCartSchema>;
+export type CartItem = z.infer<typeof CartItemSchema>;
+export type CartSeller = z.infer<typeof CartCheckoutGroupSchema>['seller'];
+export type CartCheckoutGroup = z.infer<typeof CartCheckoutGroupSchema>;
