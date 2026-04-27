@@ -3,7 +3,7 @@ import { eq, lt, and, gte } from 'drizzle-orm';
 import { db as defaultDb } from '../db/index.js';
 import { cartReservations, produce, users } from '../db/schema.js';
 import type { DbClient } from '../db/types.js';
-import type { AddToCartPayload } from '../schemas/cart.schema.js';
+import type { AddToCartPayload, UpdateCartPayload } from '../schemas/cart.schema.js';
 
 type CartReservation = typeof cartReservations.$inferSelect;
 
@@ -101,5 +101,41 @@ export const cartRepository = {
       .returning({ id: cartReservations.id });
 
     return deleted.length;
+  },
+
+  /**
+   * Updates an existing cart reservation's quantity or subscription status.
+   * Also resets the 15-minute expiration timer.
+   *
+   * @param buyerId - The ID of the user who owns the reservation
+   * @param reservationId - The unique ID of the reservation
+   * @param data - The update payload
+   * @returns A boolean indicating if the reservation was successfully updated
+   */
+  async updateCartItem(
+    buyerId: string,
+    reservationId: string,
+    data: UpdateCartPayload,
+  ): Promise<boolean> {
+    const updateData: Partial<typeof cartReservations.$inferInsert> = {
+      // Extend expiration time on interaction
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    };
+
+    if (data.quantityOz !== undefined) {
+      updateData.quantityOz = data.quantityOz.toString();
+    }
+
+    if (data.isSubscription !== undefined) {
+      updateData.isSubscription = data.isSubscription;
+    }
+
+    const updated = await this.db
+      .update(cartReservations)
+      .set(updateData)
+      .where(and(eq(cartReservations.id, reservationId), eq(cartReservations.buyerId, buyerId)))
+      .returning({ id: cartReservations.id });
+
+    return updated.length > 0;
   },
 };

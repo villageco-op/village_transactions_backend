@@ -1,5 +1,5 @@
 import { cartRepository } from '../repositories/cart.repository.js';
-import type { AddToCartPayload } from '../schemas/cart.schema.js';
+import type { AddToCartPayload, UpdateCartPayload } from '../schemas/cart.schema.js';
 
 /**
  * Creates a new cart reservation for the authenticated buyer.
@@ -77,4 +77,19 @@ export async function removeFromCart(buyerId: string, reservationId: string) {
  */
 export async function releaseExpiredCarts(): Promise<number> {
   return await cartRepository.releaseExpiredCarts();
+}
+
+/**
+ * Updates a specific item reservation in the user's active cart.
+ * @param buyerId - User's unique ID injected by auth session
+ * @param reservationId - The unique ID of the reservation to update
+ * @param data - The update payload
+ * @returns A boolean indicating whether the update was successful
+ */
+export async function updateCartItem(
+  buyerId: string,
+  reservationId: string,
+  data: UpdateCartPayload,
+) {
+  return await cartRepository.updateCartItem(buyerId, reservationId, data);
 }

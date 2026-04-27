@@ -70,3 +70,15 @@ export const GetCartResponseSchema = z
     }),
   })
   .openapi('GetCartResponse');
+
+export const UpdateCartSchema = z
+  .object({
+    quantityOz: WeightOzSchema.optional(),
+    isSubscription: z.boolean().optional().openapi({
+      example: true,
+      description: 'Whether this item should be updated as a recurring subscription',
+    }),
+  })
+  .openapi('UpdateCartPayload');
+
+export type UpdateCartPayload = z.infer<typeof UpdateCartSchema>;

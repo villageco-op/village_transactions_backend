@@ -51,4 +51,12 @@ describe('Cart API - Smoke Tests', () => {
     expect(body.success).toBe(true);
     expect(typeof body.count).toBe('number');
   });
+
+  it('PATCH /api/cart/update should not return a 500 error', async () => {
+    const res = await authedRequest('api/cart/update/123e4567-e89b-12d3-a456-426614174000', {
+      method: 'PATCH',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });

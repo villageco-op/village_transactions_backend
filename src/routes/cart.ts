@@ -2,14 +2,18 @@ import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
 import { TAGS } from '../constants/tags.js';
-import { AddToCartSchema, GetCartResponseSchema } from '../schemas/cart.schema.js';
+import {
+  AddToCartSchema,
+  GetCartResponseSchema,
+  UpdateCartSchema,
+} from '../schemas/cart.schema.js';
 import {
   EntityParamSchema,
   ErrorResponseSchema,
   SuccessResponseSchema,
   SuccessWithEntitySchema,
 } from '../schemas/common.schema.js';
-import { addToCart, getCart, removeFromCart } from '../services/cart.service.js';
+import { addToCart, getCart, removeFromCart, updateCartItem } from '../services/cart.service.js';
 
 export const cartRoute = new OpenAPIHono();
 
@@ -129,5 +133,59 @@ cartRoute.openapi(
     const success = await removeFromCart(userId, id);
 
     return c.json({ success }, 200);
+  },
+);
+
+cartRoute.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/update/{id}',
+    operationId: 'updateCartItem',
+    description: 'Update cart reservation quantity and subscription status.',
+    tags: [TAGS.CART],
+    middleware: [verifyAuth()],
+    request: {
+      params: EntityParamSchema,
+      body: {
+        content: {
+          'application/json': {
+            schema: UpdateCartSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Updated successfully',
+        content: { 'application/json': { schema: SuccessResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Reservation not found or expired',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json');
+
+    const success = await updateCartItem(userId, id, body);
+
+    if (!success) {
+      return c.json({ error: 'Reservation not found or expired' }, 404);
+    }
+
+    return c.json({ success: true }, 200);
   },
 );
