@@ -166,6 +166,7 @@ export const produce = pgTable('produce', {
   produceType: produceTypeEnum('produce_type'),
   pricePerOz: numeric('price_per_oz', { precision: 10, scale: 2 }).notNull(),
   totalOzInventory: numeric('total_oz_inventory', { precision: 10, scale: 2 }).notNull(),
+  maxOrderQuantityOz: numeric('max_order_quantity_oz', { precision: 10, scale: 2 }),
   availableBy: timestamp('available_by').defaultNow().notNull(),
   harvestFrequencyDays: integer('harvest_frequency_days').notNull(),
   seasonStart: date('season_start').notNull(),

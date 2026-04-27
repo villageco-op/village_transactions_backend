@@ -1,0 +1,1 @@
+ALTER TABLE "produce" ADD COLUMN "max_order_quantity_oz" numeric(10, 2);

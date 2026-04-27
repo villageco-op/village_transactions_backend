@@ -23,12 +23,12 @@ cartRoute.openapi(
     path: '/',
     operationId: 'getCart',
     description:
-      "Fetch user's active cart, grouped by seller. Drops expired reservations automatically.",
+      "Fetch user's active cart. Groups items into checkouts partitioned by Seller AND Subscription vs Single-Purchase configurations. Drops expired reservations automatically.",
     tags: [TAGS.CART],
     middleware: [verifyAuth()],
     responses: {
       200: {
-        description: 'Cart Object',
+        description: 'Cart Checkouts Object',
         content: { 'application/json': { schema: GetCartResponseSchema } },
       },
       401: {
