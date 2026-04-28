@@ -40,6 +40,9 @@ export const CartItemSchema = z
       example: '32.0',
       description: 'The maximum allowable order quantity (lowest of stock or seller limit)',
     }),
+    isSubscribable: z.boolean().default(false).openapi({
+      description: 'Can this item be subscribed to (set by the seller)',
+    }),
     isSubscription: z.boolean().nullable().openapi({
       example: false,
       description: 'Flag indicating if this is a subscription item',

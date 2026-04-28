@@ -79,6 +79,7 @@ describe('CartService', () => {
             pricePerOz: '0.50',
             totalOzInventory: '100',
             availableBy: Date.now(),
+            isSubscribable: true,
             images: [],
           },
           seller: { id: 'seller_A', name: 'Farmer Alice', lat: 40.0, lng: -73.0 },
@@ -133,9 +134,11 @@ describe('CartService', () => {
 
       // Group A Assertions
       const groupA = cart.find((g) => g.groupId === 'group_A');
+      expect(groupA).toBeDefined();
       expect(groupA?.items).toHaveLength(2);
       expect(groupA?.deliveryFee).toBe('5.00'); // Base fee only (0 miles)
       expect(groupA?.isSubscription).toBe(false);
+      expect(groupA?.items[0].isSubscribable).toBe(true);
 
       // Group B Assertions
       const groupB = cart.find((g) => g.groupId === 'group_B');
@@ -144,6 +147,7 @@ describe('CartService', () => {
       // Check inventory capping: maxOrderQuantityOz should be min(totalInventory, sellerMax)
       expect(groupB?.items[0].maxOrderQuantityOz).toBe('10.00');
       expect(parseFloat(groupB!.deliveryFee)).toBeGreaterThan(5.0);
+      expect(groupB?.items[0].isSubscribable).toBe(false);
     });
 
     it('should return an empty array if cart is empty', async () => {
