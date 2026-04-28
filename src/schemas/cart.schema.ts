@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import {
+  FulfillmentTypeSchema,
   ImageUrlSchema,
   IsoDateTimeSchema,
   ResourceIdSchema,
@@ -56,28 +57,42 @@ export const CartItemSchema = z
   })
   .openapi('CartItem');
 
+export const UpdateCartGroupSchema = z
+  .object({
+    fulfillmentType: FulfillmentTypeSchema.openapi({
+      description: 'Update the fulfillment type for this entire checkout group',
+    }),
+  })
+  .openapi('UpdateCartGroupPayload');
+
+export type UpdateCartGroupPayload = z.infer<typeof UpdateCartGroupSchema>;
+
 export const CartCheckoutGroupSchema = z
   .object({
     groupId: z.string().openapi({
-      example: 'user_1234-sub',
-      description: 'Unique ID for this specific checkout session/group',
+      example: 'user_1234-onetime',
+      description: 'Group ID for this specific checkout session',
     }),
     isSubscription: z.boolean().openapi({
-      example: false,
-      description: 'Whether this checkout group represents a recurring subscription checkout',
+      example: true,
+      description: 'True if ANY item in this group is a recurring subscription',
+    }),
+    frequencyDays: z.number().openapi({
+      example: 7,
+      description: 'The harvest/delivery interval for this group (0 if one-time)',
+    }),
+    fulfillmentType: FulfillmentTypeSchema.openapi({
+      example: 'pickup',
+      description: 'Current fulfillment type selected for this group (pickup or delivery)',
     }),
     deliveryFee: z.string().openapi({
       example: '8.50',
-      description:
-        'Estimated delivery fee in USD (calculated via distance) if user opts out of default pickup',
+      description: 'Estimated delivery fee in USD (applied if user selects delivery)',
     }),
     seller: z
       .object({
         id: UserIdSchema,
-        name: z.string().nullable().openapi({
-          example: 'Sun-Kissed Orchards',
-          description: 'The name of the seller providing these items',
-        }),
+        name: z.string().nullable().openapi({ example: 'Sun-Kissed Orchards' }),
       })
       .openapi('CartSeller'),
     items: z.array(CartItemSchema).openapi({

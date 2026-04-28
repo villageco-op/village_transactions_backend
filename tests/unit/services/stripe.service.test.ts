@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, Mocked } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mocked, afterEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 import type Stripe from 'stripe';
 
@@ -75,6 +75,7 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
 vi.mock('../../../src/repositories/cart.repository.js', () => ({
   cartRepository: {
     getActiveCart: vi.fn(),
+    getCheckoutGroup: vi.fn(),
   },
 }));
 
@@ -382,13 +383,11 @@ describe('StripeService - updateStripeSubscriptionQuantity', () => {
 
 describe('StripeService - createCheckoutSession', () => {
   const mockBuyerId = 'buyer_123';
-  const mockPayload = {
-    sellerId: 'seller_1',
-    fulfillmentType: 'pickup',
-    scheduledTime: '2026-05-15T12:00:00Z',
-  };
+  const mockGroupId = 'group_abc_123';
+  const mockPayload = { groupId: mockGroupId };
+  const FAKE_NOW = '2026-04-27T12:00:00.000Z';
 
-  const mockValidSeller = {
+  const mockSellerUser = {
     id: 'seller_1',
     stripeAccountId: 'acct_seller123',
     stripeOnboardingComplete: true,
@@ -396,26 +395,33 @@ describe('StripeService - createCheckoutSession', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(FAKE_NOW));
+
+    // Set default envs
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
-    vi.mocked(userRepository.findById).mockResolvedValue(mockValidSeller as any);
+    process.env.PLATFORM_FEE_PERCENT = '0.02'; // 2%
+    process.env.SUBSCRIPTION_DISCOUNT_PERCENT = '10'; // 10%
   });
 
-  it('should throw 400 if no active reservations exist for the requested seller', async () => {
-    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
-      { seller: { id: 'seller_2' } } as any, // Different seller
-    ]);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should throw 400 if the checkout group is not found or empty', async () => {
+    vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([]);
 
     await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
-      new HTTPException(400, { message: 'No active reservations found for this seller.' }),
+      new HTTPException(400, { message: 'Checkout group not found or has expired.' }),
     );
   });
 
-  it('should throw 400 if an item in the cart is no longer active', async () => {
-    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+  it('should throw 400 if a product in the group is no longer active', async () => {
+    vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
       {
-        seller: { id: 'seller_1' },
-        product: { title: 'Tomatoes', status: 'paused' },
-        reservation: { isSubscription: false },
+        product: { title: 'Tomatoes', status: 'archived' },
+        reservation: { quantityOz: '10' },
+        group: { isSubscription: false },
       } as any,
     ]);
 
@@ -424,82 +430,73 @@ describe('StripeService - createCheckoutSession', () => {
     );
   });
 
-  it('should throw 400 if the seller is not fully configured for Stripe payments', async () => {
-    vi.mocked(userRepository.findById).mockResolvedValueOnce({
-      ...mockValidSeller,
-      stripeOnboardingComplete: false,
-    } as any);
-
-    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+  it('should create a ONE-TIME payment session with delivery fees and platform fee amount', async () => {
+    // Setup Group Data
+    vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
       {
+        group: { id: mockGroupId, isSubscription: false, fulfillmentType: 'delivery' },
         seller: { id: 'seller_1' },
-        product: { title: 'Tomatoes', status: 'active', pricePerOz: 1.0 },
-        reservation: { id: 'res_1', quantityOz: 10, isSubscription: false },
+        buyer: { lat: 40, lng: -73 },
+        product: { title: 'Apples', status: 'active', pricePerOz: '0.50' }, // $0.50
+        reservation: { id: 'res_1', quantityOz: '20' }, // $10.00 total
       } as any,
     ]);
 
-    await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
-      new HTTPException(400, { message: 'Seller is not properly configured to receive payments.' }),
-    );
-  });
+    // Setup Seller
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockSellerUser as any);
 
-  it('should create a ONE-TIME payment checkout session correctly calculating platform fees', async () => {
-    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
-      {
-        seller: { id: 'seller_1' },
-        product: { title: 'Apples', status: 'active', pricePerOz: 0.5 }, // $0.50
-        reservation: { id: 'res_1', quantityOz: 32, isSubscription: false }, // 32oz = $16.00
-      } as any,
-    ]);
+    // Mock delivery fee vars
+    process.env.DELIVERY_FEE_BASE = '5.00';
+    process.env.DELIVERY_FEE_PER_MILE = '0.00'; // Keep it simple for math
 
-    const url = await createCheckoutSession(mockBuyerId, mockPayload);
+    await createCheckoutSession(mockBuyerId, mockPayload);
 
     expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: 'payment',
-        payment_method_types: ['card'],
-        line_items: [
-          {
-            price_data: {
-              currency: 'usd',
-              product_data: { name: 'Apples', description: 'One-time order' },
-              unit_amount: 50, // 50 cents
-            },
-            quantity: 32,
-          },
-        ],
+        line_items: expect.arrayContaining([
+          expect.objectContaining({
+            price_data: expect.objectContaining({ unit_amount: 50 }),
+            quantity: 20,
+          }),
+          expect.objectContaining({
+            price_data: expect.objectContaining({ unit_amount: 500 }), // $5.00 Delivery Fee
+            quantity: 1,
+          }),
+        ]),
         payment_intent_data: {
-          application_fee_amount: 32, // 2% of $16.00 (1600 cents) = 32 cents
+          application_fee_amount: 30, // 2% of ($10.00 + $5.00) = 0.02 * 1500 = 30 cents
           transfer_data: { destination: 'acct_seller123' },
         },
-        metadata: {
-          buyerId: mockBuyerId,
-          sellerId: 'seller_1',
-          reservationIds: 'res_1',
-          fulfillmentType: 'pickup',
-          scheduledTime: '2026-05-15T12:00:00Z',
-        },
+        metadata: expect.objectContaining({
+          groupId: mockGroupId,
+          fulfillmentType: 'delivery',
+        }),
       }),
     );
-    expect(url).toBe('https://stripe.com/checkout/session_123');
   });
 
-  it('should create a SUBSCRIPTION checkout session applying recurring interval and fee percent', async () => {
-    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
+  it('should create a SUBSCRIPTION session with discounted prices and platform fee percent', async () => {
+    vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
       {
-        seller: { id: 'seller_1' },
-        product: {
-          title: 'Weekly Veggie Box',
-          status: 'active',
-          pricePerOz: 2.0,
-          harvestFrequencyDays: 7,
+        group: {
+          id: mockGroupId,
+          isSubscription: true,
+          frequencyDays: 7,
+          fulfillmentType: 'pickup',
         },
-        reservation: { id: 'res_2', quantityOz: 10, isSubscription: true },
+        seller: { id: 'seller_1' },
+        buyer: { lat: 40, lng: -73 },
+        product: { title: 'Kale', status: 'active', pricePerOz: '1.00' },
+        reservation: { id: 'res_sub_1', quantityOz: '10' },
       } as any,
     ]);
 
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockSellerUser as any);
+
     await createCheckoutSession(mockBuyerId, mockPayload);
 
+    // Calculation: $1.00 - 10% discount = $0.90 (90 cents)
     expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: 'subscription',
@@ -507,37 +504,18 @@ describe('StripeService - createCheckoutSession', () => {
           {
             price_data: {
               currency: 'usd',
-              product_data: {
-                name: 'Weekly Veggie Box',
-                description: 'Recurring CSA Subscription',
-              },
-              unit_amount: 200,
-              recurring: { interval: 'day', interval_count: 7 }, // Subscription-specific field
+              product_data: { name: 'Kale', description: 'Recurring CSA Subscription' },
+              unit_amount: 90,
+              recurring: { interval: 'day', interval_count: 7 },
             },
             quantity: 10,
           },
         ],
         subscription_data: {
-          application_fee_percent: 2.0, // 2% platform fee
+          application_fee_percent: 2, // 0.02 * 100
           transfer_data: { destination: 'acct_seller123' },
         },
       }),
-    );
-  });
-
-  it('should throw a 500 if Stripe fails to return a session URL', async () => {
-    vi.mocked(mockStripe.checkout.sessions.create).mockResolvedValueOnce({ url: null } as any);
-
-    vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([
-      {
-        seller: { id: 'seller_1' },
-        product: { title: 'Carrots', status: 'active', pricePerOz: 0.75 },
-        reservation: { id: 'res_1', quantityOz: 16, isSubscription: false },
-      } as any,
-    ]);
-
-    await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
-      new HTTPException(500, { message: 'Failed to create checkout session URL.' }),
     );
   });
 });

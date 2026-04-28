@@ -6,6 +6,7 @@ import { cartRepository } from '../repositories/cart.repository.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
+import { calculateDistanceMiles } from '../utils.js';
 
 import { sendPushNotification } from './notification.service.js';
 import { updateInternalStripeAccountId } from './user.service.js';
@@ -69,107 +70,127 @@ export async function generateStripeOnboardLink(userId: string) {
  * Creates a Stripe Checkout session for a specific seller's produce.
  * @param buyerId - the unique buyer id
  * @param payload - checkout specific information
- * @param payload.sellerId - the unique seller id
- * @param payload.fulfillmentType - pickup or delivery
- * @param payload.scheduledTime - the datatime the order will be picked up or delivered
+ * @param payload.groupId - the unique group id
  * @returns The checkout session url
  */
-export async function createCheckoutSession(
-  buyerId: string,
-  payload: { sellerId: string; fulfillmentType: string; scheduledTime: string },
-) {
-  const activeCartGroups = await cartRepository.getActiveCart(buyerId);
+export async function createCheckoutSession(buyerId: string, payload: { groupId: string }) {
+  const groupRows = await cartRepository.getCheckoutGroup(buyerId, payload.groupId);
 
-  const sellerItems = activeCartGroups.filter((item) => item.seller.id === payload.sellerId);
-
-  if (sellerItems.length === 0) {
-    throw new HTTPException(400, { message: 'No active reservations found for this seller.' });
+  if (groupRows.length === 0) {
+    throw new HTTPException(400, { message: 'Checkout group not found or has expired.' });
   }
 
-  const isSubscription = sellerItems.some((item) => item.reservation.isSubscription);
+  const { group, seller, buyer } = groupRows[0];
+  const isSub = group.isSubscription;
+  const freq = group.frequencyDays;
 
+  const SUBSCRIPTION_DISCOUNT_PERCENT = parseFloat(
+    process.env.SUBSCRIPTION_DISCOUNT_PERCENT || '10',
+  );
   let totalCartAmountCents = 0;
 
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = sellerItems.map((item) => {
-    if (item.product.status !== 'active') {
-      throw new HTTPException(400, {
-        message: `Product is no longer available: ${item.product.title}`,
-      });
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = groupRows.map((row) => {
+    const { product, reservation } = row;
+
+    if (product.status !== 'active') {
+      throw new HTTPException(400, { message: `Product is no longer available: ${product.title}` });
     }
 
-    const priceCents = Math.round(Number(item.product.pricePerOz) * 100);
-    const qty = Math.round(Number(item.reservation.quantityOz));
+    let priceCents = Math.round(Number(product.pricePerOz) * 100);
+    const qty = Math.round(Number(reservation.quantityOz));
+
+    if (isSub) {
+      priceCents = Math.round(priceCents * (1 - SUBSCRIPTION_DISCOUNT_PERCENT / 100));
+    }
 
     totalCartAmountCents += priceCents * qty;
-
-    const isItemSub = item.reservation.isSubscription;
 
     return {
       price_data: {
         currency: 'usd',
         product_data: {
-          name: item.product.title,
-          description: isItemSub ? 'Recurring CSA Subscription' : 'One-time order',
+          name: product.title,
+          description: isSub ? 'Recurring CSA Subscription' : 'One-time order',
         },
         unit_amount: priceCents,
-        ...(isItemSub && item.product.harvestFrequencyDays
-          ? {
-              recurring: {
-                interval: 'day',
-                interval_count: item.product.harvestFrequencyDays,
-              },
-            }
-          : {}),
+        ...(isSub && freq ? { recurring: { interval: 'day', interval_count: freq } } : {}),
       },
       quantity: qty,
     };
   });
 
-  const seller = await userRepository.findById(payload.sellerId);
-  if (!seller || !seller.stripeAccountId || !seller.stripeOnboardingComplete) {
+  if (group.fulfillmentType === 'delivery') {
+    const DELIVERY_FEE_BASE = parseFloat(process.env.DELIVERY_FEE_BASE || '5.00');
+    const DELIVERY_FEE_PER_MILE = parseFloat(process.env.DELIVERY_FEE_PER_MILE || '1.50');
+
+    let fee = DELIVERY_FEE_BASE;
+    if (buyer.lat && buyer.lng && seller.lat && seller.lng) {
+      const miles = calculateDistanceMiles(buyer.lat, buyer.lng, seller.lat, seller.lng);
+      fee += miles * DELIVERY_FEE_PER_MILE;
+    }
+
+    const deliveryFeeCents = Math.round(fee * 100);
+    totalCartAmountCents += deliveryFeeCents;
+
+    lineItems.push({
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: 'Delivery Fee',
+          description: isSub
+            ? 'Recurring distance-based delivery estimate'
+            : 'Distance-based delivery estimate',
+        },
+        unit_amount: deliveryFeeCents,
+        ...(isSub && freq ? { recurring: { interval: 'day', interval_count: freq } } : {}),
+      },
+      quantity: 1,
+    });
+  }
+
+  const sellerUser = await userRepository.findById(seller.id);
+  if (!sellerUser || !sellerUser.stripeAccountId || !sellerUser.stripeOnboardingComplete) {
     throw new HTTPException(400, {
       message: 'Seller is not properly configured to receive payments.',
     });
   }
 
-  const reservationIds = sellerItems.map((item) => item.reservation.id).join(',');
+  const reservationIds = groupRows.map((r) => r.reservation.id).join(',');
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-
-  const PLATFORM_FEE_PERCENT = 0.02;
+  const PLATFORM_FEE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENT) || 0.01;
 
   const sessionConfig: Stripe.Checkout.SessionCreateParams = {
     payment_method_types: ['card'],
     line_items: lineItems,
-    mode: isSubscription ? 'subscription' : 'payment',
+    mode: isSub ? 'subscription' : 'payment',
     success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/cart`,
     metadata: {
       buyerId,
-      sellerId: payload.sellerId,
+      sellerId: seller.id,
+      groupId: group.id,
       reservationIds,
-      fulfillmentType: payload.fulfillmentType,
-      scheduledTime: payload.scheduledTime,
+      fulfillmentType: group.fulfillmentType,
+      scheduledTime: new Date().toISOString(),
     },
   };
 
-  if (isSubscription) {
+  if (isSub) {
     sessionConfig.subscription_data = {
-      transfer_data: { destination: seller.stripeAccountId },
+      transfer_data: { destination: sellerUser.stripeAccountId },
       application_fee_percent: PLATFORM_FEE_PERCENT * 100,
     };
   } else {
     const calculatedFeeCents = Math.round(totalCartAmountCents * PLATFORM_FEE_PERCENT);
     sessionConfig.payment_intent_data = {
       application_fee_amount: calculatedFeeCents,
-      transfer_data: { destination: seller.stripeAccountId },
+      transfer_data: { destination: sellerUser.stripeAccountId },
     };
   }
 
   const session = await stripe.checkout.sessions.create(sessionConfig);
-
-  if (!session.url) {
+  if (!session.url)
     throw new HTTPException(500, { message: 'Failed to create checkout session URL.' });
-  }
 
   return session.url;
 }

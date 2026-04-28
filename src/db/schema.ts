@@ -180,6 +180,9 @@ export const produce = pgTable('produce', {
 
 export const cartReservations = pgTable('cart_reservations', {
   id: uuid('id').primaryKey().defaultRandom(),
+  groupId: uuid('group_id')
+    .notNull()
+    .references(() => cartGroups.id, { onDelete: 'cascade' }),
   buyerId: text('buyer_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
@@ -187,9 +190,22 @@ export const cartReservations = pgTable('cart_reservations', {
     .notNull()
     .references(() => produce.id, { onDelete: 'cascade' }),
   quantityOz: numeric('quantity_oz', { precision: 10, scale: 2 }).notNull(),
-  isSubscription: boolean('is_subscription').default(false),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const cartGroups = pgTable('cart_groups', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  buyerId: text('buyer_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  sellerId: text('seller_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  isSubscription: boolean('is_subscription').default(false).notNull(),
+  frequencyDays: integer('frequency_days').default(0).notNull(),
+  fulfillmentType: text('fulfillment_type').default('pickup').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const orders = pgTable('orders', {
