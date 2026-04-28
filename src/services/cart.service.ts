@@ -79,6 +79,7 @@ export async function getCart(buyerId: string): Promise<CartCheckoutGroup[]> {
       pricePerOz: product.pricePerOz,
       quantityOz: reservation.quantityOz,
       maxOrderQuantityOz: absoluteMaxAllowed.toFixed(2),
+      isSubscribable: product.isSubscribable || false,
       isSubscription: group.isSubscription,
       subscriptionFrequencyDays: group.isSubscription ? group.frequencyDays : null,
       subscriptionCostReductionPercent: group.isSubscription ? SUBSCRIPTION_DISCOUNT_PERCENT : null,
