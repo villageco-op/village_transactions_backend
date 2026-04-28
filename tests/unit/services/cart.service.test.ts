@@ -78,6 +78,7 @@ describe('CartService', () => {
             title: 'Carrots',
             pricePerOz: '0.50',
             totalOzInventory: '100',
+            availableBy: Date.now(),
             images: [],
           },
           seller: { id: 'seller_A', name: 'Farmer Alice', lat: 40.0, lng: -73.0 },
@@ -96,6 +97,7 @@ describe('CartService', () => {
             title: 'Onions',
             pricePerOz: '0.30',
             totalOzInventory: '50',
+            availableBy: Date.now(),
             images: [],
           },
           seller: { id: 'seller_A', name: 'Farmer Alice', lat: 40.0, lng: -73.0 },
@@ -115,6 +117,7 @@ describe('CartService', () => {
             pricePerOz: '0.80',
             totalOzInventory: '20',
             maxOrderQuantityOz: '10',
+            availableBy: Date.now(),
             images: null,
           },
           seller: { id: 'seller_B', name: 'Farmer Bob', lat: 41.0, lng: -74.0 },
@@ -147,6 +150,76 @@ describe('CartService', () => {
       vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce([]);
       const cart = await getCart(mockBuyerId);
       expect(cart).toEqual([]);
+    });
+
+    it('should set availableBy to the latest product date in the group', async () => {
+      const now = new Date('2026-04-28T12:00:00Z');
+      vi.setSystemTime(now);
+
+      const pastDate = new Date('2026-04-20T10:00:00Z');
+      const futureDate1 = new Date('2026-05-01T10:00:00Z');
+      const futureDate2 = new Date('2026-05-05T10:00:00Z');
+
+      const mockRepoResponse: any[] = [
+        {
+          group: {
+            id: 'group_A',
+            isSubscription: false,
+            frequencyDays: 0,
+            fulfillmentType: 'pickup',
+          },
+          reservation: { id: 'res_1', quantityOz: '5', expiresAt: now },
+          product: {
+            id: 'prod_1',
+            availableBy: pastDate.toISOString(),
+            totalOzInventory: '100',
+            pricePerOz: '1.0',
+          },
+          seller: { id: 's1', name: 'Alice', lat: 40, lng: -73 },
+          buyer: { lat: 40, lng: -73 },
+        },
+        {
+          group: {
+            id: 'group_A',
+            isSubscription: false,
+            frequencyDays: 0,
+            fulfillmentType: 'pickup',
+          },
+          reservation: { id: 'res_2', quantityOz: '5', expiresAt: now },
+          product: {
+            id: 'prod_2',
+            availableBy: futureDate2.toISOString(),
+            totalOzInventory: '100',
+            pricePerOz: '1.0',
+          },
+          seller: { id: 's1', name: 'Alice', lat: 40, lng: -73 },
+          buyer: { lat: 40, lng: -73 },
+        },
+        {
+          group: {
+            id: 'group_A',
+            isSubscription: false,
+            frequencyDays: 0,
+            fulfillmentType: 'pickup',
+          },
+          reservation: { id: 'res_3', quantityOz: '5', expiresAt: now },
+          product: {
+            id: 'prod_3',
+            availableBy: futureDate1.toISOString(),
+            totalOzInventory: '100',
+            pricePerOz: '1.0',
+          },
+          seller: { id: 's1', name: 'Alice', lat: 40, lng: -73 },
+          buyer: { lat: 40, lng: -73 },
+        },
+      ];
+
+      vi.mocked(cartRepository.getActiveCart).mockResolvedValueOnce(mockRepoResponse);
+
+      const cart = await getCart(mockBuyerId);
+      const groupA = cart.find((g) => g.groupId === 'group_A');
+
+      expect(groupA?.availableBy).toBe(futureDate2.toISOString());
     });
   });
 

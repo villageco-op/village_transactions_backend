@@ -419,7 +419,7 @@ describe('StripeService - createCheckoutSession', () => {
   it('should throw 400 if a product in the group is no longer active', async () => {
     vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
       {
-        product: { title: 'Tomatoes', status: 'archived' },
+        product: { title: 'Tomatoes', status: 'archived', availableBy: new Date(FAKE_NOW) },
         reservation: { quantityOz: '10' },
         group: { isSubscription: false },
       } as any,
@@ -437,7 +437,12 @@ describe('StripeService - createCheckoutSession', () => {
         group: { id: mockGroupId, isSubscription: false, fulfillmentType: 'delivery' },
         seller: { id: 'seller_1' },
         buyer: { lat: 40, lng: -73 },
-        product: { title: 'Apples', status: 'active', pricePerOz: '0.50' }, // $0.50
+        product: {
+          title: 'Apples',
+          status: 'active',
+          pricePerOz: '0.50',
+          availableBy: new Date(FAKE_NOW),
+        },
         reservation: { id: 'res_1', quantityOz: '20' }, // $10.00 total
       } as any,
     ]);
@@ -487,7 +492,12 @@ describe('StripeService - createCheckoutSession', () => {
         },
         seller: { id: 'seller_1' },
         buyer: { lat: 40, lng: -73 },
-        product: { title: 'Kale', status: 'active', pricePerOz: '1.00' },
+        product: {
+          title: 'Kale',
+          status: 'active',
+          pricePerOz: '1.00',
+          availableBy: new Date(FAKE_NOW),
+        },
         reservation: { id: 'res_sub_1', quantityOz: '10' },
       } as any,
     ]);
@@ -515,6 +525,95 @@ describe('StripeService - createCheckoutSession', () => {
           application_fee_percent: 2, // 0.02 * 100
           transfer_data: { destination: 'acct_seller123' },
         },
+      }),
+    );
+  });
+
+  it('should set scheduledTime metadata to the furthest future product date', async () => {
+    const pastDate = new Date('2026-04-20T10:00:00Z');
+    const futureDate1 = new Date('2026-05-01T10:00:00Z');
+    const futureDate2 = new Date('2026-05-15T10:00:00Z'); // LATEST DATE
+
+    vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
+      {
+        group: { id: mockGroupId, isSubscription: false, fulfillmentType: 'pickup' },
+        seller: { id: 'seller_1' },
+        buyer: { lat: 40, lng: -73 },
+        product: {
+          title: 'Early Carrots',
+          status: 'active',
+          pricePerOz: '0.50',
+          availableBy: pastDate, // In the past relative to FAKE_NOW
+        },
+        reservation: { id: 'res_1', quantityOz: '1' },
+      } as any,
+      {
+        group: { id: mockGroupId, isSubscription: false, fulfillmentType: 'pickup' },
+        seller: { id: 'seller_1' },
+        buyer: { lat: 40, lng: -73 },
+        product: {
+          title: 'Late Peppers',
+          status: 'active',
+          pricePerOz: '0.50',
+          availableBy: futureDate2, // The latest one
+        },
+        reservation: { id: 'res_2', quantityOz: '1' },
+      } as any,
+      {
+        group: { id: mockGroupId, isSubscription: false, fulfillmentType: 'pickup' },
+        seller: { id: 'seller_1' },
+        buyer: { lat: 40, lng: -73 },
+        product: {
+          title: 'Mid Apples',
+          status: 'active',
+          pricePerOz: '0.50',
+          availableBy: futureDate1, // Intermediate future date
+        },
+        reservation: { id: 'res_3', quantityOz: '1' },
+      } as any,
+    ]);
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockSellerUser as any);
+
+    await createCheckoutSession(mockBuyerId, mockPayload);
+
+    expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          scheduledTime: futureDate2.toISOString(),
+        }),
+      }),
+    );
+  });
+
+  it('should set scheduledTime to "now" if all product dates are in the past', async () => {
+    const pastDate = new Date('2026-04-10T10:00:00Z');
+
+    vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
+      {
+        group: { id: mockGroupId, isSubscription: false, fulfillmentType: 'pickup' },
+        seller: { id: 'seller_1' },
+        buyer: { lat: 40, lng: -73 },
+        product: {
+          title: 'Old Stock',
+          status: 'active',
+          pricePerOz: '0.50',
+          availableBy: pastDate,
+        },
+        reservation: { id: 'res_1', quantityOz: '1' },
+      } as any,
+    ]);
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(mockSellerUser as any);
+
+    await createCheckoutSession(mockBuyerId, mockPayload);
+
+    // Should fall back to FAKE_NOW
+    expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          scheduledTime: new Date(FAKE_NOW).toISOString(),
+        }),
       }),
     );
   });

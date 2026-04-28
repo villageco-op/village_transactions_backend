@@ -85,6 +85,11 @@ export const CartCheckoutGroupSchema = z
       example: 'pickup',
       description: 'Current fulfillment type selected for this group (pickup or delivery)',
     }),
+    availableBy: IsoDateTimeSchema.openapi({
+      example: '2026-03-25T10:00:00Z',
+      description:
+        'The latest availableBy date among all items in this group. Represents when the order can actually be fulfilled.',
+    }),
     deliveryFee: z.string().openapi({
       example: '8.50',
       description: 'Estimated delivery fee in USD (applied if user selects delivery)',

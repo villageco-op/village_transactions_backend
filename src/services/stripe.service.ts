@@ -84,6 +84,12 @@ export async function createCheckoutSession(buyerId: string, payload: { groupId:
   const isSub = group.isSubscription;
   const freq = group.frequencyDays;
 
+  const now = new Date();
+  const latestAvailableBy = new Date(
+    Math.max(...groupRows.map((r) => r.product.availableBy.getTime())),
+  );
+  const scheduledTime = latestAvailableBy > now ? latestAvailableBy : now;
+
   const SUBSCRIPTION_DISCOUNT_PERCENT = parseFloat(
     process.env.SUBSCRIPTION_DISCOUNT_PERCENT || '10',
   );
@@ -171,7 +177,7 @@ export async function createCheckoutSession(buyerId: string, payload: { groupId:
       groupId: group.id,
       reservationIds,
       fulfillmentType: group.fulfillmentType,
-      scheduledTime: new Date().toISOString(),
+      scheduledTime: scheduledTime.toISOString(),
     },
   };
 

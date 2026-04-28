@@ -40,6 +40,8 @@ export async function getCart(buyerId: string): Promise<CartCheckoutGroup[]> {
   for (const row of activeRows) {
     const { group, seller, buyer, product, reservation } = row;
 
+    const productAvailableBy = new Date(product.availableBy);
+
     if (!grouped.has(group.id)) {
       let calculatedDeliveryFee = DELIVERY_FEE_BASE;
       if (buyer.lat && buyer.lng && seller.lat && seller.lng) {
@@ -53,9 +55,15 @@ export async function getCart(buyerId: string): Promise<CartCheckoutGroup[]> {
         frequencyDays: group.frequencyDays,
         fulfillmentType: group.fulfillmentType as ScheduleType,
         deliveryFee: calculatedDeliveryFee.toFixed(2),
+        availableBy: productAvailableBy.toISOString(),
         seller: { id: seller.id, name: seller.name },
         items: [],
       });
+    } else {
+      const currentGroupDate = new Date(grouped.get(group.id)!.availableBy);
+      if (productAvailableBy > currentGroupDate) {
+        grouped.get(group.id)!.availableBy = productAvailableBy.toISOString();
+      }
     }
 
     const availableQty = parseFloat(product.totalOzInventory);
