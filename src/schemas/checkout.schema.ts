@@ -1,12 +1,13 @@
 import { z } from '@hono/zod-openapi';
 
-import { FulfillmentTypeSchema, IsoDateTimeSchema, UserIdSchema } from './common.schema.js';
+import { FulfillmentTypeSchema, UserIdSchema } from './common.schema.js';
 
 export const CreateCheckoutSessionSchema = z
   .object({
-    sellerId: UserIdSchema,
-    fulfillmentType: FulfillmentTypeSchema,
-    scheduledTime: IsoDateTimeSchema,
+    groupId: z.string().openapi({
+      example: 'user_1234-sub',
+      description: 'The checkout group ID.',
+    }),
   })
   .openapi('CreateCheckoutSessionPayload');
 

@@ -1,0 +1,1 @@
+ALTER TABLE "cart_reservations" ADD COLUMN "fulfillment_type" text DEFAULT 'pickup' NOT NULL;

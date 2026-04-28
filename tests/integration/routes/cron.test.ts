@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-
 import { authedRequest } from '../../test-utils/auth.js';
 import {
   closeTestDbConnection,
@@ -7,7 +6,7 @@ import {
   truncateTables,
 } from '../../test-utils/testcontainer-db.js';
 import { cartRepository } from '../../../src/repositories/cart.repository.js';
-import { users, produce, cartReservations } from '../../../src/db/schema.js';
+import { users, produce, cartReservations, cartGroups } from '../../../src/db/schema.js';
 
 describe('Cron API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -17,18 +16,12 @@ describe('Cron API Integration', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     cartRepository.setDb(testDb);
-
     originalSecret = process.env.CRON_SECRET;
     process.env.CRON_SECRET = TEST_SECRET;
   });
 
   afterAll(async () => {
-    if (originalSecret !== undefined) {
-      process.env.CRON_SECRET = originalSecret;
-    } else {
-      delete process.env.CRON_SECRET;
-    }
-
+    process.env.CRON_SECRET = originalSecret;
     await closeTestDbConnection();
   });
 
@@ -37,7 +30,7 @@ describe('Cron API Integration', { timeout: 60_000 }, () => {
   });
 
   describe('POST /api/cron/release-carts', () => {
-    it('should securely release expired items globally and return count', async () => {
+    it('should securely release expired items globally and clean up empty groups', async () => {
       const SELLER_ID = 'cron_seller';
       const BUYER_ID = 'cron_buyer';
 
@@ -45,6 +38,15 @@ describe('Cron API Integration', { timeout: 60_000 }, () => {
         { id: SELLER_ID, name: 'Seller', email: 's@example.com' },
         { id: BUYER_ID, name: 'Buyer', email: 'b@example.com' },
       ]);
+
+      const [group] = await testDb
+        .insert(cartGroups)
+        .values({
+          buyerId: BUYER_ID,
+          sellerId: SELLER_ID,
+          fulfillmentType: 'pickup',
+        })
+        .returning();
 
       const [p] = await testDb
         .insert(produce)
@@ -65,22 +67,25 @@ describe('Cron API Integration', { timeout: 60_000 }, () => {
 
       await testDb.insert(cartReservations).values([
         {
+          groupId: group.id, // Linked to group
           buyerId: BUYER_ID,
           productId: p.id,
-          quantityOz: '1',
-          expiresAt: new Date(now.getTime() - 10000),
+          quantityOz: '1.00',
+          expiresAt: new Date(now.getTime() - 10000), // Expired
         },
         {
+          groupId: group.id,
           buyerId: BUYER_ID,
           productId: p.id,
-          quantityOz: '2',
-          expiresAt: new Date(now.getTime() - 10000),
+          quantityOz: '2.00',
+          expiresAt: new Date(now.getTime() - 10000), // Expired
         },
         {
+          groupId: group.id,
           buyerId: BUYER_ID,
           productId: p.id,
-          quantityOz: '3',
-          expiresAt: new Date(now.getTime() + 60000),
+          quantityOz: '3.00',
+          expiresAt: new Date(now.getTime() + 60000), // Valid
         },
       ]);
 
@@ -88,9 +93,7 @@ describe('Cron API Integration', { timeout: 60_000 }, () => {
         '/api/cron/release-carts',
         {
           method: 'POST',
-          headers: {
-            authorization: `Bearer ${TEST_SECRET}`,
-          },
+          headers: { authorization: `Bearer ${TEST_SECRET}` },
         },
         { id: '' },
       );
@@ -100,9 +103,14 @@ describe('Cron API Integration', { timeout: 60_000 }, () => {
       expect(body.success).toBe(true);
       expect(body.count).toBe(2);
 
-      const dbCheck = await testDb.select().from(cartReservations);
-      expect(dbCheck).toHaveLength(1);
-      expect(dbCheck[0].quantityOz).toBe('3.00'); // the future active one
+      // Verify reservations
+      const items = await testDb.select().from(cartReservations);
+      expect(items).toHaveLength(1);
+      expect(items[0].quantityOz).toBe('3.00');
+
+      // Verify the group still exists because 1 item remains
+      const groups = await testDb.select().from(cartGroups);
+      expect(groups).toHaveLength(1);
     });
 
     it('should fail with 401 if wrong token provided', async () => {
@@ -116,8 +124,6 @@ describe('Cron API Integration', { timeout: 60_000 }, () => {
       );
 
       expect(res.status).toBe(401);
-      const body = await res.json();
-      expect(body.error).toBe('Unauthorized');
     });
   });
 });

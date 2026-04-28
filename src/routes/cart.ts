@@ -2,9 +2,11 @@ import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
 import { TAGS } from '../constants/tags.js';
+import { NotFoundError } from '../lib/errors.js';
 import {
   AddToCartSchema,
   GetCartResponseSchema,
+  UpdateCartGroupSchema,
   UpdateCartSchema,
 } from '../schemas/cart.schema.js';
 import {
@@ -13,7 +15,13 @@ import {
   SuccessResponseSchema,
   SuccessWithEntitySchema,
 } from '../schemas/common.schema.js';
-import { addToCart, getCart, removeFromCart, updateCartItem } from '../services/cart.service.js';
+import {
+  addToCart,
+  getCart,
+  removeFromCart,
+  updateCartGroup,
+  updateCartItem,
+} from '../services/cart.service.js';
 
 export const cartRoute = new OpenAPIHono();
 
@@ -80,6 +88,10 @@ cartRoute.openapi(
         description: 'Unauthorized',
         content: { 'application/json': { schema: ErrorResponseSchema } },
       },
+      404: {
+        description: 'Product not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
     },
   }),
   async (c) => {
@@ -92,9 +104,16 @@ cartRoute.openapi(
 
     const body = c.req.valid('json');
 
-    const reservation = await addToCart(userId, body);
+    try {
+      const reservation = await addToCart(userId, body);
+      return c.json({ success: true, entityId: reservation.id }, 200);
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return c.json({ error: error.message }, 404);
+      }
 
-    return c.json({ success: true, entityId: reservation.id }, 200);
+      throw error;
+    }
   },
 );
 
@@ -185,6 +204,46 @@ cartRoute.openapi(
     if (!success) {
       return c.json({ error: 'Reservation not found or expired' }, 404);
     }
+
+    return c.json({ success: true }, 200);
+  },
+);
+
+cartRoute.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/group/{id}',
+    operationId: 'updateCartGroup',
+    description: 'Update settings (like fulfillmentType) for an entire checkout group.',
+    tags: [TAGS.CART],
+    middleware: [verifyAuth()],
+    request: {
+      params: EntityParamSchema,
+      body: {
+        content: { 'application/json': { schema: UpdateCartGroupSchema } },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Group updated successfully',
+        content: { 'application/json': { schema: SuccessResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const { id } = c.req.valid('param');
+    const payload = c.req.valid('json');
+
+    await updateCartGroup(userId, id, payload);
 
     return c.json({ success: true }, 200);
   },

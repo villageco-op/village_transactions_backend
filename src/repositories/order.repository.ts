@@ -8,6 +8,7 @@ import {
   produce,
   subscriptions,
   users,
+  cartGroups,
 } from '../db/schema.js';
 import type { DbClient, OrderStatus } from '../db/types.js';
 
@@ -58,12 +59,15 @@ export const orderRepository = {
     }
 
     return await this.db.transaction(async (tx) => {
+      // Fetch reserved items AND join their cart group to check subscription status
       const reservedItems = await tx
         .select({
           reservation: cartReservations,
+          group: cartGroups,
           product: produce,
         })
         .from(cartReservations)
+        .innerJoin(cartGroups, eq(cartReservations.groupId, cartGroups.id))
         .innerJoin(produce, eq(cartReservations.productId, produce.id))
         .where(
           and(
@@ -76,6 +80,7 @@ export const orderRepository = {
         throw new Error('Reservations expired or not found.');
       }
 
+      // Create the Order
       const [newOrder] = await tx
         .insert(orders)
         .values({
@@ -91,7 +96,9 @@ export const orderRepository = {
         })
         .returning();
 
-      for (const { reservation, product } of reservedItems) {
+      // Process each item
+      for (const { reservation, group, product } of reservedItems) {
+        // Record the purchased item
         await tx.insert(orderItems).values({
           orderId: newOrder.id,
           productId: product.id,
@@ -99,7 +106,8 @@ export const orderRepository = {
           pricePerOz: product.pricePerOz,
         });
 
-        if (reservation.isSubscription) {
+        // Initialize subscription if the group this item belonged to was a subscription
+        if (group.isSubscription) {
           const nextDeliveryDate = new Date(payload.scheduledTime);
           nextDeliveryDate.setDate(nextDeliveryDate.getDate() + product.harvestFrequencyDays);
 
@@ -113,6 +121,7 @@ export const orderRepository = {
           });
         }
 
+        // Deduct Inventory
         const newInventory = Math.max(
           0,
           Number(product.totalOzInventory) - Number(reservation.quantityOz),
@@ -123,6 +132,7 @@ export const orderRepository = {
           .where(eq(produce.id, product.id));
       }
 
+      // Delete the successfully purchased reservations
       await tx.delete(cartReservations).where(inArray(cartReservations.id, payload.reservationIds));
 
       return newOrder;

@@ -135,6 +135,7 @@ export function registerSharedSchemas(app: OpenAPIHono) {
   app.openAPIRegistry.register('CartCheckoutGroup', Cart.CartCheckoutGroupSchema);
   app.openAPIRegistry.register('GetCartResponse', Cart.GetCartResponseSchema);
   app.openAPIRegistry.register('UpdateCartPayload', Cart.UpdateCartSchema);
+  app.openAPIRegistry.register('UpdateCartGroupPayload', Cart.UpdateCartGroupSchema);
 
   // Checkout
   app.openAPIRegistry.register(

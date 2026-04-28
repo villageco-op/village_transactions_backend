@@ -28,6 +28,7 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^25.5.0",
     "@types/pg": "^8.18.0",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
     "drizzle-kit": "^0.31.10",
@@ -70,6 +71,7 @@
     "nodemailer": "^8.0.5",
     "pg": "^8.20.0",
     "resend": "^6.9.4",
-    "stripe": "^20.4.1"
+    "stripe": "^20.4.1",
+    "ws": "^8.20.0"
   }
 }
