@@ -1,8 +1,10 @@
-import { and, eq, notInArray, type SQL, sql } from 'drizzle-orm';
+import { and, eq, notInArray, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { orderItems, orders, produce, users } from '../db/schema.js';
 import type { DbClient, ProduceType } from '../db/types.js';
+import { getSeasonCondition } from '../db/utils.js';
+import type { Season } from '../schemas/common.schema.js';
 
 export const sourceMapRepository = {
   db: defaultDb as unknown as DbClient,
@@ -16,28 +18,6 @@ export const sourceMapRepository = {
   },
 
   /**
-   * Internal helper to apply seasonal month filters to a query.
-   * @param season - The season
-   * @returns EXTRACT statement getting only orders created in the season
-   */
-  getSeasonCondition(season: string): SQL | undefined {
-    if (!season || season === 'all') return undefined;
-
-    switch (season) {
-      case 'spring':
-        return sql`EXTRACT(MONTH FROM ${orders.createdAt}) IN (3, 4, 5)`;
-      case 'summer':
-        return sql`EXTRACT(MONTH FROM ${orders.createdAt}) IN (6, 7, 8)`;
-      case 'fall':
-        return sql`EXTRACT(MONTH FROM ${orders.createdAt}) IN (9, 10, 11)`;
-      case 'winter':
-        return sql`EXTRACT(MONTH FROM ${orders.createdAt}) IN (12, 1, 2)`;
-      default:
-        return undefined;
-    }
-  },
-
-  /**
    * Gets a list of map nodes for the source map.
    * @param filters - Search filters
    * @param filters.buyerId - The buyer ID
@@ -45,7 +25,7 @@ export const sourceMapRepository = {
    * @param filters.season - Optional season filter
    * @returns List of nodes representing sellers and produce
    */
-  async getNodes(filters: { buyerId: string; produceType?: ProduceType; season?: string }) {
+  async getNodes(filters: { buyerId: string; produceType?: ProduceType; season?: Season }) {
     let baseConditions = and(
       eq(orders.buyerId, filters.buyerId),
       notInArray(orders.status, ['canceled', 'refund_pending']),
@@ -55,7 +35,7 @@ export const sourceMapRepository = {
       baseConditions = and(baseConditions, eq(produce.produceType, filters.produceType));
     }
 
-    const seasonCondition = this.getSeasonCondition(filters.season ?? '');
+    const seasonCondition = getSeasonCondition(filters.season ?? 'all', orders.createdAt);
     if (seasonCondition) {
       baseConditions = and(baseConditions, seasonCondition);
     }
@@ -92,7 +72,7 @@ export const sourceMapRepository = {
    * @param filters.season - Optional season filter
    * @returns A set of general totals and a produce order quantity breakdown
    */
-  async getAnalytics(filters: { buyerId: string; produceType?: ProduceType; season?: string }) {
+  async getAnalytics(filters: { buyerId: string; produceType?: ProduceType; season?: Season }) {
     let baseConditions = and(
       eq(orders.buyerId, filters.buyerId),
       notInArray(orders.status, ['canceled', 'refund_pending']),
@@ -102,7 +82,7 @@ export const sourceMapRepository = {
       baseConditions = and(baseConditions, eq(produce.produceType, filters.produceType));
     }
 
-    const seasonCondition = this.getSeasonCondition(filters.season ?? '');
+    const seasonCondition = getSeasonCondition(filters.season ?? 'all', orders.createdAt);
     if (seasonCondition) {
       baseConditions = and(baseConditions, seasonCondition);
     }

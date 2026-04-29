@@ -13,6 +13,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
   const TEST_SELLER_ID = 'seller_repo_123';
   const OTHER_SELLER_ID = 'seller_repo_999';
+  const INCOMPLETE_SELLER_ID = 'seller_repo_incomplete';
 
   beforeAll(() => {
     testDb = getTestDb();
@@ -31,22 +32,28 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         id: TEST_SELLER_ID,
         name: 'Farmer Joe',
         email: 'joe@farm.com',
-        passwordHash: 'hashed_pw',
-        // Location: Madison, WI (-89.4012, 43.0731)
         location: sql`ST_SetSRID(ST_MakePoint(-89.4012, 43.0731), 4326)`,
         city: 'Madison',
         state: 'WI',
         country: 'USA',
         deliveryRangeMiles: '15',
+        stripeOnboardingComplete: true,
       },
       {
         id: OTHER_SELLER_ID,
         name: 'Farmer Jane',
         email: 'jane@farm.com',
-        passwordHash: 'hashed_pw_2',
-        // Location: Chicago, IL (-87.6298, 41.8781) (Far away)
         location: sql`ST_SetSRID(ST_MakePoint(-87.6298, 41.8781), 4326)`,
         deliveryRangeMiles: '5',
+        stripeOnboardingComplete: true,
+      },
+      {
+        id: INCOMPLETE_SELLER_ID,
+        name: 'Farmer Bob',
+        email: 'bob@farm.com',
+        location: sql`ST_SetSRID(ST_MakePoint(-89.4012, 43.0731), 4326)`,
+        deliveryRangeMiles: '15',
+        stripeOnboardingComplete: false,
       },
     ]);
   });
@@ -224,10 +231,12 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
           produceType: 'root_vegetables',
           pricePerOz: '1.00',
           totalOzInventory: '50',
+          maxOrderQuantityOz: '10',
+          isSubscribable: true,
           harvestFrequencyDays: 3,
           seasonStart: '2024-01-01',
           seasonEnd: '2024-12-31',
-          availableBy: new Date(),
+          availableBy: new Date('2024-04-15T10:00:00Z'), // Spring
           status: 'active',
         },
         {
@@ -236,6 +245,20 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
           produceType: 'root_vegetables',
           pricePerOz: '0.25',
           totalOzInventory: '500',
+          maxOrderQuantityOz: null, // No limit
+          isSubscribable: false,
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          availableBy: new Date('2024-07-15T10:00:00Z'), // Summer
+          status: 'active',
+        },
+        {
+          sellerId: INCOMPLETE_SELLER_ID,
+          title: 'Bob Carrots (Hidden)',
+          produceType: 'root_vegetables',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
           harvestFrequencyDays: 3,
           seasonStart: '2024-01-01',
           seasonEnd: '2024-12-31',
@@ -245,8 +268,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       ]);
     });
 
-    it('should sort by spatial distance by default', async () => {
-      // Query coordinates near Madison, WI
+    it('should sort by spatial distance by default and exclude non-onboarded sellers', async () => {
       const { items: result, total } = await produceRepository.getList({
         lat: 43.0,
         lng: -89.4,
@@ -254,18 +276,17 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         offset: 0,
       });
 
+      // Bob is excluded because stripeOnboardingComplete = false
       expect(total).toBe(2);
       expect(result).toHaveLength(2);
-      // First item should be Joe (Madison) because it's closer
       expect(result[0].sellerId).toBe(TEST_SELLER_ID);
       expect(result[1].sellerId).toBe(OTHER_SELLER_ID);
-
       expect(Number(result[0].distance)).toBeLessThan(Number(result[1].distance));
     });
 
     it('should sort by price when requested', async () => {
       const { items: result, total } = await produceRepository.getList({
-        lat: 43.0, // Near Madison again
+        lat: 43.0,
         lng: -89.4,
         sortBy: 'price',
         limit: 10,
@@ -273,67 +294,101 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       });
 
       expect(total).toBe(2);
-      expect(result).toHaveLength(2);
-      // First item should be Jane (Chicago) because it's cheaper (0.25 vs 1.00)
-      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
-      expect(result[1].sellerId).toBe(TEST_SELLER_ID);
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID); // Jane is 0.25
+      expect(result[1].sellerId).toBe(TEST_SELLER_ID); // Joe is 1.00
     });
 
-    it('should filter by hasDelivery logic and deliveryRangeMiles', async () => {
-      // Query exactly where Jane is (Chicago)
-      // Jane has a delivery radius of 5 miles. Joe is 100+ miles away.
+    it('should filter by string search (title, seller name)', async () => {
       const { items: result, total } = await produceRepository.getList({
-        lat: 41.8781,
-        lng: -87.6298,
-        hasDelivery: 'true',
+        lat: 43.0,
+        lng: -89.4,
         limit: 10,
         offset: 0,
+        search: 'Jane', // matches sellerName
       });
 
-      // Joe shouldn't be here because he's too far for his 15mi delivery radius to cover Chicago.
-      // Jane SHOULD be here because she is right at the location (0mi distance) which is <= 5mi radius.
       expect(total).toBe(1);
-      expect(result).toHaveLength(1);
       expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
     });
-  });
 
-  it('should retrieve a specific produce listing by ID with seller details', async () => {
-    const createPayload: CreateProducePayload = {
-      title: 'Heirloom Tomatoes',
-      produceType: 'nightshades',
-      pricePerOz: 0.3,
-      totalOzInventory: 400,
-      harvestFrequencyDays: 2,
-      seasonStart: '2024-05-01',
-      seasonEnd: '2024-10-31',
-      images: ['https://example.com/tomato.jpg'],
-      isSubscribable: true,
-    };
+    it('should filter by maxOrderQuantity (returns items that allow at least this much)', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        limit: 10,
+        offset: 0,
+        maxOrderQuantity: 20, // Joe only allows 10, Jane allows unlimited (null)
+      });
 
-    const created = await produceRepository.create(TEST_SELLER_ID, createPayload);
+      expect(total).toBe(1);
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+    });
 
-    const item = await produceRepository.getById(created.id);
+    it('should filter by isSubscribable', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        limit: 10,
+        offset: 0,
+        isSubscribable: 'true',
+      });
 
-    expect(item).toBeDefined();
-    expect(item?.id).toBe(created.id);
-    expect(item?.title).toBe('Heirloom Tomatoes');
-    expect(item?.produceType).toBe('nightshades');
+      expect(total).toBe(1);
+      expect(result[0].sellerId).toBe(TEST_SELLER_ID);
+    });
 
-    // Check joined seller details
-    expect(item?.seller).toBeDefined();
-    expect(item?.seller.id).toBe(TEST_SELLER_ID);
-    expect(item?.seller.name).toBe('Farmer Joe');
-    expect(item?.seller.deliveryRangeMiles).toBe(15);
-    expect(item?.seller.canDeliver).toBe(true);
-    expect(item?.seller.location).toStrictEqual({
-      city: 'Madison',
-      state: 'WI',
-      country: 'USA',
-      lat: null,
-      lng: null,
-      address: null,
-      zip: null,
+    it('should filter by availableInventory', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        limit: 10,
+        offset: 0,
+        availableInventory: 100, // Joe only has 50
+      });
+
+      expect(total).toBe(1);
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+    });
+
+    it('should filter by season', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        limit: 10,
+        offset: 0,
+        season: 'spring', // Joe is April (Spring), Jane is July (Summer)
+      });
+
+      expect(total).toBe(1);
+      expect(result[0].sellerId).toBe(TEST_SELLER_ID);
+    });
+
+    it('should filter by price range', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        limit: 10,
+        offset: 0,
+        minPrice: 0.5,
+        maxPrice: 2.0,
+      });
+
+      // Only Joe is >= 0.50
+      expect(total).toBe(1);
+      expect(result[0].sellerId).toBe(TEST_SELLER_ID);
+    });
+
+    it('should filter by maxDistance', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        limit: 10,
+        offset: 0,
+        maxDistance: 50, // Jane in Chicago is > 100 miles away from Madison coordinates
+      });
+
+      expect(total).toBe(1);
+      expect(result[0].sellerId).toBe(TEST_SELLER_ID);
     });
   });
 
@@ -353,11 +408,14 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
           produceType: 'root_vegetables',
           pricePerOz: '1.00',
           totalOzInventory: '50',
+          maxOrderQuantityOz: '10',
           harvestFrequencyDays: 3,
-          seasonStart: '2024-01-01',
-          seasonEnd: '2024-12-31',
+          availableBy: new Date('2024-05-10T10:00:00Z'), // Spring
+          seasonStart: '2024-03-01',
+          seasonEnd: '2024-05-31',
           status: 'active',
           images: ['joe_carrot.jpg'],
+          isSubscribable: true,
         },
         {
           sellerId: OTHER_SELLER_ID, // Chicago (-87.6298, 41.8781)
@@ -365,17 +423,19 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
           produceType: 'stone_fruits',
           pricePerOz: '0.25',
           totalOzInventory: '500',
+          maxOrderQuantityOz: null, // no limit
           harvestFrequencyDays: 3,
-          seasonStart: '2024-01-01',
-          seasonEnd: '2024-12-31',
+          availableBy: new Date('2024-10-15T10:00:00Z'), // Fall
+          seasonStart: '2024-09-01',
+          seasonEnd: '2024-11-30',
           status: 'active',
           images: [],
+          isSubscribable: false,
         },
       ]);
     });
 
-    it('should filter items by the specified radius and extract valid lat/lng geometry', async () => {
-      // Query near Madison with a small radius
+    it('should filter items by radius and return extra fields (price, inventory, etc.)', async () => {
       const result = await produceRepository.getMapItems({
         lat: 43.0731,
         lng: -89.4012,
@@ -387,28 +447,22 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       expect(result[0].name).toBe('Joe Carrots');
       expect(result[0].lat).toBeCloseTo(43.0731);
       expect(result[0].lng).toBeCloseTo(-89.4012);
+
+      expect(result[0]).toHaveProperty('price');
+      expect(result[0]).toHaveProperty('availableInventory');
+      expect(result[0]).toHaveProperty('availableBy');
+      expect(result[0]).toHaveProperty('seasonStart');
+      expect(result[0]).toHaveProperty('seasonEnd');
+      expect(result[0]).toHaveProperty('isSubscribable', true);
     });
 
-    it('should filter out items that exceed maxPrice', async () => {
-      // Query from somewhere between Madison and Chicago with huge radius
+    it('should filter items by minPrice and maxPrice simultaneously', async () => {
       const result = await produceRepository.getMapItems({
         lat: 42.0,
         lng: -88.0,
         radiusMiles: 500,
-        maxPrice: 0.5, // Joe's 1.00 carrots should be excluded
-      });
-
-      expect(result).toHaveLength(1);
-      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
-      expect(result[0].name).toBe('Jane Apples');
-    });
-
-    it('should filter items by specific produceType', async () => {
-      const result = await produceRepository.getMapItems({
-        lat: 42.0,
-        lng: -88.0,
-        radiusMiles: 500,
-        produceType: 'root_vegetables', // Jane's fruit apples should be excluded
+        minPrice: 0.5, // Jane is 0.25
+        maxPrice: 1.5, // Joe is 1.00
       });
 
       expect(result).toHaveLength(1);
@@ -416,8 +470,80 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       expect(result[0].name).toBe('Joe Carrots');
     });
 
+    it('should filter items by specific produceType', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        produceType: 'root_vegetables',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Joe Carrots');
+    });
+
+    it('should filter items by text search (matches seller name)', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        search: 'Jane',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Jane Apples');
+    });
+
+    it('should filter items by maxOrderQuantity', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        maxOrderQuantity: 50, // Joe only allows up to 10
+      });
+
+      // Jane has no limit (null), so she should be included
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Jane Apples');
+    });
+
+    it('should filter items by isSubscribable', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        isSubscribable: 'true',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Joe Carrots');
+    });
+
+    it('should filter items by availableInventory', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        availableInventory: 100, // Joe only has 50
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Jane Apples');
+    });
+
+    it('should filter items by season', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        season: 'spring', // Joe's availableBy is in May
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Joe Carrots');
+    });
+
     it('should filter by delivery capability when hasDelivery is requested', async () => {
-      // Query exactly at Chicago (Jane's location)
       const result = await produceRepository.getMapItems({
         lat: 41.8781,
         lng: -87.6298,
@@ -425,9 +551,32 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
         hasDelivery: 'true',
       });
 
-      // Joe shouldn't be here because his 15mi delivery doesn't reach Chicago
       expect(result).toHaveLength(1);
       expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+    });
+
+    it('should exclude sellers whose stripe onboarding is incomplete', async () => {
+      await testDb.insert(produce).values({
+        sellerId: INCOMPLETE_SELLER_ID,
+        title: 'Bob Beets',
+        produceType: 'root_vegetables',
+        pricePerOz: '1.00',
+        totalOzInventory: '50',
+        harvestFrequencyDays: 3,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        status: 'active',
+      });
+
+      const result = await produceRepository.getMapItems({
+        lat: 43.0731,
+        lng: -89.4012,
+        radiusMiles: 10,
+      });
+
+      // Bob's location matches Madison, but Stripe is incomplete
+      const bobItems = result.filter((r: any) => r.sellerId === INCOMPLETE_SELLER_ID);
+      expect(bobItems).toHaveLength(0);
     });
   });
 

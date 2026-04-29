@@ -1,5 +1,6 @@
 import type { ProduceType } from '../db/types.js';
 import { sourceMapRepository } from '../repositories/source-map.repository.js';
+import type { Season } from '../schemas/common.schema.js';
 
 /**
  * Gets a list of map nodes for teh source map.
@@ -12,7 +13,7 @@ import { sourceMapRepository } from '../repositories/source-map.repository.js';
 export async function getSourceMapNodes(filters: {
   buyerId: string;
   produceType?: ProduceType;
-  season?: string;
+  season?: Season;
 }) {
   const rawNodes = await sourceMapRepository.getNodes(filters);
 
@@ -43,7 +44,7 @@ export async function getSourceMapNodes(filters: {
 export async function getSourceMapAnalytics(filters: {
   buyerId: string;
   produceType?: ProduceType;
-  season?: string;
+  season?: Season;
 }) {
   const { totals, breakdown } = await sourceMapRepository.getAnalytics(filters);
 

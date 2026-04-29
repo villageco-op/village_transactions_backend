@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 
 import { authedRequest } from '../../test-utils/auth.js';
 import {
@@ -26,10 +26,16 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
 
   afterAll(async () => {
     await closeTestDbConnection();
+    vi.useRealTimers();
   });
 
   beforeEach(async () => {
+    vi.useRealTimers();
     await truncateTables(testDb);
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const mockDate = new Date('2024-05-15T12:00:00Z');
+    vi.setSystemTime(mockDate);
 
     await testDb.insert(users).values([
       {

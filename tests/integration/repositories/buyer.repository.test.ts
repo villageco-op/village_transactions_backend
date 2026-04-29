@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 
 import {
@@ -18,13 +18,17 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     buyerRepository.setDb(testDb);
+    vi.useFakeTimers();
   });
 
   afterAll(async () => {
     await closeTestDbConnection();
+    vi.useRealTimers();
   });
 
   beforeEach(async () => {
+    const mockDate = new Date('2024-05-15T12:00:00Z');
+    vi.setSystemTime(mockDate);
     await truncateTables(testDb);
 
     await testDb.insert(users).values([

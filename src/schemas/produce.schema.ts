@@ -17,6 +17,7 @@ import {
   ProduceStatusSchema,
   ProduceTypeSchema,
   ResourceIdSchema,
+  SeasonSchema,
   UserIdSchema,
   WeightOzSchema,
 } from './common.schema.js';
@@ -105,6 +106,32 @@ export const ProduceQuerySchema = z
     hasDelivery: z.enum(['true', 'false']).optional().openapi({
       description: 'Filter for items that offer delivery',
     }),
+    produceType: ProduceTypeSchema.optional(),
+    search: z.string().optional().openapi({
+      description: 'Search produce titles, types, and seller names',
+    }),
+    maxOrderQuantity: z.coerce.number().optional().openapi({
+      description: 'Filter for listings allowing at least this maximum order quantity (oz)',
+    }),
+    isSubscribable: z.enum(['true', 'false']).optional().openapi({
+      description: 'Filter for items that are subscribable',
+    }),
+    availableInventory: z.coerce.number().optional().openapi({
+      description: 'Minimum total available inventory in oz',
+    }),
+    season: SeasonSchema.optional(),
+    availableBy: z.coerce.date().optional().openapi({
+      description: 'Filter for items available on or before this date',
+    }),
+    minPrice: z.coerce.number().optional().openapi({
+      description: 'Minimum price per oz',
+    }),
+    maxPrice: z.coerce.number().optional().openapi({
+      description: 'Maximum price per oz',
+    }),
+    maxDistance: z.coerce.number().optional().openapi({
+      description: 'Maximum distance in miles',
+    }),
   })
   .extend(PaginationQuerySchema.shape)
   .openapi('ProduceQuery');
@@ -117,7 +144,26 @@ export const ProduceMapQuerySchema = z.object({
     example: 25,
   }),
   produceType: ProduceTypeSchema.optional(),
+  search: z.string().optional().openapi({
+    description: 'Search produce titles, types, and seller names',
+  }),
+  maxOrderQuantity: z.coerce.number().optional().openapi({
+    description: 'Filter for listings allowing at least this maximum order quantity (oz)',
+  }),
+  isSubscribable: z.enum(['true', 'false']).optional().openapi({
+    description: 'Filter for items that are subscribable',
+  }),
+  availableInventory: z.coerce.number().optional().openapi({
+    description: 'Minimum total available inventory in oz',
+  }),
+  season: SeasonSchema.optional(),
+  availableBy: z.coerce.date().optional().openapi({
+    description: 'Filter for items available on or before this date',
+  }),
   hasDelivery: z.enum(['true', 'false']).optional(),
+  minPrice: z.coerce.number().optional().openapi({
+    description: 'Minimum price per oz',
+  }),
   maxPrice: z.coerce.number().optional().openapi({
     description: 'Filter for items under a specific price point',
     example: 10,
@@ -129,6 +175,12 @@ export const ProduceMapItemSchema = z
     id: ResourceIdSchema,
     name: z.string().openapi({ example: 'Kale' }),
     thumbnail: ImageUrlSchema.nullable(),
+    price: z.string().openapi({ example: '4.50' }),
+    availableInventory: z.string().openapi({ example: '160.00' }),
+    availableBy: z.date(),
+    seasonStart: z.string().openapi({ example: '2024-03-01' }),
+    seasonEnd: z.string().openapi({ example: '2024-06-01' }),
+    isSubscribable: z.boolean().nullable(),
   })
   .openapi('ProduceMapItem');
 
