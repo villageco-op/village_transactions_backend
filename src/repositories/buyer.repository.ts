@@ -35,6 +35,7 @@ export const buyerRepository = {
     distanceFilter?: { lat: number; lng: number; maxDistance: number },
   ) {
     const conditions = [eq(orders.buyerId, buyerId), eq(orders.status, 'completed')];
+    const now = new Date();
 
     if (search) {
       conditions.push(
@@ -89,7 +90,7 @@ export const buyerRepository = {
         `,
         amountThisMonthOz: sql<
           number | string
-        >`COALESCE(SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE) THEN ${orderItems.quantityOz} ELSE 0 END), 0)`,
+        >`COALESCE(SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp) THEN ${orderItems.quantityOz} ELSE 0 END), 0)`,
         firstOrderDate: sql<Date>`MIN(${orders.createdAt})`,
       })
       .from(users)
@@ -136,14 +137,15 @@ export const buyerRepository = {
    * @returns Raw dashboard aggregates
    */
   async getDashboardMetrics(buyerId: string) {
+    const now = new Date();
     const [spendAgg] = await this.db
       .select({
         spendThisMonth: sql<
           number | null
-        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE) THEN ${orders.totalAmount} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp) THEN ${orders.totalAmount} ELSE 0 END)`,
         spendLastMonth: sql<
           number | null
-        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', CURRENT_DATE - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
       })
       .from(orders)
       .where(and(eq(orders.buyerId, buyerId), ne(orders.status, 'canceled')));
@@ -152,10 +154,10 @@ export const buyerRepository = {
       .select({
         ozThisWeek: sql<
           number | null
-        >`SUM(CASE WHEN date_trunc('week', ${orders.createdAt}) = date_trunc('week', CURRENT_DATE) THEN ${orderItems.quantityOz} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('week', ${orders.createdAt}) = date_trunc('week', ${now}::timestamp) THEN ${orderItems.quantityOz} ELSE 0 END)`,
         ozLastWeek: sql<
           number | null
-        >`SUM(CASE WHEN date_trunc('week', ${orders.createdAt}) = date_trunc('week', CURRENT_DATE - INTERVAL '1 week') THEN ${orderItems.quantityOz} ELSE 0 END)`,
+        >`SUM(CASE WHEN date_trunc('week', ${orders.createdAt}) = date_trunc('week', ${now}::timestamp - INTERVAL '1 week') THEN ${orderItems.quantityOz} ELSE 0 END)`,
       })
       .from(orders)
       .innerJoin(orderItems, eq(orders.id, orderItems.orderId))

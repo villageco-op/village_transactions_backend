@@ -3,6 +3,8 @@ import { and, asc, eq, isNotNull, sql, desc } from 'drizzle-orm';
 import { db as defaultDb } from '../db/index.js';
 import { orderItems, orders, produce, users } from '../db/schema.js';
 import type { DbClient, ProduceType } from '../db/types.js';
+import { getSeasonCondition } from '../db/utils.js';
+import type { Season } from '../schemas/common.schema.js';
 import type { CreateProducePayload, UpdateProducePayload } from '../schemas/produce.schema.js';
 
 type Produce = typeof produce.$inferSelect;
@@ -168,6 +170,16 @@ export const produceRepository = {
    * @param params.lng - Longitude for distance calculation.
    * @param params.sortBy - Field to sort by. 'distance' uses spatial calculation; 'price' uses numeric value.
    * @param params.hasDelivery - If 'true', filters for sellers where distance <= their delivery range.
+   * @param params.produceType - Filter by specific produce category.
+   * @param params.search - Text search filter for produce title, type, or seller name.
+   * @param params.maxOrderQuantity - Filters for listings that allow an order of at least this quantity (in oz).
+   * @param params.isSubscribable - Filter by subscription availability ('true' or 'false').
+   * @param params.availableInventory - Minimum inventory required (in oz).
+   * @param params.season - Filter by seasonal availability.
+   * @param params.availableBy - Filters for produce available on or before this date.
+   * @param params.minPrice - Minimum price per ounce.
+   * @param params.maxPrice - Maximum price per ounce.
+   * @param params.maxDistance - Maximum distance in miles from the provided coordinates.
    * @param params.limit - Max items per page.
    * @param params.offset - Starting index for results.
    * @returns An object containing the paginated items and total count.
@@ -177,6 +189,16 @@ export const produceRepository = {
     lng: number;
     sortBy?: 'distance' | 'price';
     hasDelivery?: 'true' | 'false';
+    produceType?: ProduceType;
+    search?: string;
+    maxOrderQuantity?: number;
+    isSubscribable?: 'true' | 'false';
+    availableInventory?: number;
+    season?: Season;
+    availableBy?: Date;
+    minPrice?: number;
+    maxPrice?: number;
+    maxDistance?: number;
     limit: number;
     offset: number;
   }) {
@@ -185,12 +207,66 @@ export const produceRepository = {
     const userLocation = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
     const distanceMiles = sql<number>`ST_Distance(${users.location}, ${userLocation}) / 1609.344`;
 
-    const conditions = [eq(produce.status, 'active')];
+    // Baseline checks: Active produce and seller must have completed stripe onboarding
+    const conditions = [eq(produce.status, 'active'), eq(users.stripeOnboardingComplete, true)];
 
     if (hasDelivery === 'true') {
       conditions.push(sql`${users.deliveryRangeMiles} > 0`);
       conditions.push(sql`${distanceMiles} <= ${users.deliveryRangeMiles}`);
     }
+
+    if (params.produceType) {
+      conditions.push(eq(produce.produceType, params.produceType));
+    }
+
+    if (params.search) {
+      const searchPattern = `%${params.search}%`;
+      conditions.push(
+        sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern} OR ${users.name} ILIKE ${searchPattern})`,
+      );
+    }
+
+    if (params.maxOrderQuantity !== undefined) {
+      // Return listings that allow an order of AT LEAST this quantity, or have no limit
+      conditions.push(
+        sql`(${produce.maxOrderQuantityOz} >= ${params.maxOrderQuantity} OR ${produce.maxOrderQuantityOz} IS NULL)`,
+      );
+    }
+
+    if (params.isSubscribable === 'true') {
+      conditions.push(eq(produce.isSubscribable, true));
+    } else if (params.isSubscribable === 'false') {
+      conditions.push(eq(produce.isSubscribable, false));
+    }
+
+    if (params.availableInventory !== undefined) {
+      conditions.push(sql`${produce.totalOzInventory} >= ${params.availableInventory}`);
+    }
+
+    if (params.season) {
+      const seasonCondition = getSeasonCondition(params.season, produce.availableBy);
+      if (seasonCondition) {
+        conditions.push(seasonCondition);
+      }
+    }
+
+    if (params.availableBy) {
+      conditions.push(sql`${produce.availableBy} <= ${params.availableBy}`);
+    }
+
+    if (params.minPrice !== undefined) {
+      conditions.push(sql`${produce.pricePerOz} >= ${params.minPrice}`);
+    }
+
+    if (params.maxPrice !== undefined) {
+      conditions.push(sql`${produce.pricePerOz} <= ${params.maxPrice}`);
+    }
+
+    if (params.maxDistance !== undefined) {
+      conditions.push(sql`${distanceMiles} <= ${params.maxDistance}`);
+    }
+
+    const whereClause = and(...conditions);
 
     const [totalCountResult] = await this.db
       .select({
@@ -198,7 +274,7 @@ export const produceRepository = {
       })
       .from(produce)
       .innerJoin(users, eq(produce.sellerId, users.id))
-      .where(and(...conditions));
+      .where(whereClause);
 
     const total = totalCountResult?.count || 0;
 
@@ -217,7 +293,7 @@ export const produceRepository = {
       })
       .from(produce)
       .innerJoin(users, eq(produce.sellerId, users.id))
-      .where(and(...conditions))
+      .where(whereClause)
       .$dynamic();
 
     if (sortBy === 'price') {
@@ -239,7 +315,14 @@ export const produceRepository = {
    * @param params.lng - The longitude of the search center.
    * @param params.radiusMiles - The radius (in miles) to search within. Defaults to 50.
    * @param params.produceType - Filter by a specific type of produce (e.g., 'fruit', 'veg').
+   * @param params.search - Text search filter for produce title, type, or seller name.
+   * @param params.maxOrderQuantity - Filters for listings that allow an order of at least this quantity (in oz).
+   * @param params.isSubscribable - Filter by subscription availability ('true' or 'false').
+   * @param params.availableInventory - Minimum inventory required (in oz).
+   * @param params.season - Filter by seasonal availability.
+   * @param params.availableBy - Filters for produce available on or before this date.
    * @param params.hasDelivery - If 'true', limits results to sellers whose delivery range covers the user.
+   * @param params.minPrice - Minimum price per ounce.
    * @param params.maxPrice - The maximum allowed price per ounce for the items.
    * @returns A promise resolving to an array of items containing basic produce info and seller coordinates.
    */
@@ -248,16 +331,25 @@ export const produceRepository = {
     lng: number;
     radiusMiles?: number;
     produceType?: ProduceType;
+    search?: string;
+    maxOrderQuantity?: number;
+    isSubscribable?: 'true' | 'false';
+    availableInventory?: number;
+    season?: Season;
+    availableBy?: Date;
     hasDelivery?: 'true' | 'false';
+    minPrice?: number;
     maxPrice?: number;
   }) {
-    const { lat, lng, radiusMiles = 50, produceType, hasDelivery, maxPrice } = params;
+    const { lat, lng, radiusMiles = 50, hasDelivery, produceType, maxPrice } = params;
 
     const userLocation = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
     const distanceMiles = sql<number>`ST_Distance(${users.location}, ${userLocation}) / 1609.344`;
 
+    // Baseline constraints: active produce, seller has location & onboarded completely
     const conditions = [
       eq(produce.status, 'active'),
+      eq(users.stripeOnboardingComplete, true),
       isNotNull(users.location),
       sql`${distanceMiles} <= ${radiusMiles}`,
     ];
@@ -271,6 +363,44 @@ export const produceRepository = {
       conditions.push(eq(produce.produceType, produceType));
     }
 
+    if (params.search) {
+      const searchPattern = `%${params.search}%`;
+      conditions.push(
+        sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern} OR ${users.name} ILIKE ${searchPattern})`,
+      );
+    }
+
+    if (params.maxOrderQuantity !== undefined) {
+      conditions.push(
+        sql`(${produce.maxOrderQuantityOz} >= ${params.maxOrderQuantity} OR ${produce.maxOrderQuantityOz} IS NULL)`,
+      );
+    }
+
+    if (params.isSubscribable === 'true') {
+      conditions.push(eq(produce.isSubscribable, true));
+    } else if (params.isSubscribable === 'false') {
+      conditions.push(eq(produce.isSubscribable, false));
+    }
+
+    if (params.availableInventory !== undefined) {
+      conditions.push(sql`${produce.totalOzInventory} >= ${params.availableInventory}`);
+    }
+
+    if (params.season) {
+      const seasonCondition = getSeasonCondition(params.season, produce.availableBy);
+      if (seasonCondition) {
+        conditions.push(seasonCondition);
+      }
+    }
+
+    if (params.availableBy) {
+      conditions.push(sql`${produce.availableBy} <= ${params.availableBy}`);
+    }
+
+    if (params.minPrice !== undefined) {
+      conditions.push(sql`${produce.pricePerOz} >= ${params.minPrice}`);
+    }
+
     if (maxPrice !== undefined) {
       conditions.push(sql`${produce.pricePerOz} <= ${maxPrice}`);
     }
@@ -280,6 +410,12 @@ export const produceRepository = {
         id: produce.id,
         name: produce.title,
         images: produce.images,
+        price: produce.pricePerOz,
+        availableInventory: produce.totalOzInventory,
+        availableBy: produce.availableBy,
+        seasonStart: produce.seasonStart,
+        seasonEnd: produce.seasonEnd,
+        isSubscribable: produce.isSubscribable,
         sellerId: users.id,
         lat: sql<number>`ST_Y(${users.location}::geometry)`,
         lng: sql<number>`ST_X(${users.location}::geometry)`,

@@ -1,11 +1,11 @@
 import { z } from '@hono/zod-openapi';
 
-import { ProduceTypeSchema, UserIdSchema } from './common.schema.js';
+import { ProduceTypeSchema, SeasonSchema, UserIdSchema } from './common.schema.js';
 
 export const SourceMapQuerySchema = z
   .object({
     produceType: ProduceTypeSchema.optional(),
-    season: z.enum(['all', 'spring', 'summer', 'winter', 'fall']).optional().openapi({
+    season: SeasonSchema.optional().openapi({
       description: 'Filter map and analytics by the season an order occurred.',
     }),
   })

@@ -37,431 +37,458 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       passwordHash: 'secret_hash',
       location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
       deliveryRangeMiles: '20',
+      stripeOnboardingComplete: true,
     });
   });
 
-  it('GET /api/produce/map should return 200', async () => {
-    const res = await authedRequest(
-      '/api/produce/map?lat=45.0&lng=-90.0&radiusMiles=10',
-      {},
-      { id: TEST_USER_ID },
-    );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
+  describe('PUT /api/produce/:id', () => {
+    it('PUT /api/produce/:id should return 200 and update the DB listing', async () => {
+      const [dbProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: TEST_USER_ID,
+          title: 'Plums',
+          produceType: 'stone_fruits',
+          pricePerOz: '0.40',
+          totalOzInventory: '300',
+          maxOrderQuantityOz: '100',
+          harvestFrequencyDays: 5,
+          seasonStart: '2024-05-01',
+          seasonEnd: '2024-07-31',
+          images: [],
+          status: 'active',
+        })
+        .returning();
+
+      const res = await authedRequest(
+        `/api/produce/${dbProduce.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            status: 'paused',
+            totalOzInventory: 250,
+            maxOrderQuantityOz: 50,
+          }),
+        },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ success: true, entityId: dbProduce.id });
+
+      const [updatedDbProduce] = await testDb
+        .select()
+        .from(produce)
+        .where(eq(produce.id, dbProduce.id));
+      expect(updatedDbProduce.status).toBe('paused');
+      expect(updatedDbProduce.totalOzInventory).toBe('250.00');
+      expect(updatedDbProduce.maxOrderQuantityOz).toBe('50.00');
+    });
+
+    it('PUT /api/produce/:id should return 400 for an invalid UUID format', async () => {
+      const res = await authedRequest(
+        '/api/produce/invalid_id_format',
+        {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'paused' }),
+        },
+        { id: TEST_USER_ID },
+      );
+      expect(res.status).toBe(400); // Because param validation expects a UUID
+    });
+
+    it('PUT /api/produce/:id should return 400 if the request body is empty', async () => {
+      const dummyId = crypto.randomUUID();
+      const res = await authedRequest(
+        `/api/produce/${dummyId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({}), // empty body
+        },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it('PUT /api/produce/:id should return 404 for a non-existent or unauthorized listing', async () => {
+      const randomValidId = crypto.randomUUID();
+      const res = await authedRequest(
+        `/api/produce/${randomValidId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'paused' }),
+        },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toHaveProperty('error', 'Listing not found or unauthorized');
+    });
   });
 
-  it('GET /api/produce/list should return 200', async () => {
-    const res = await authedRequest(
-      '/api/produce/list?lat=45.0&lng=-90.0&limit=10',
-      {},
-      { id: TEST_USER_ID },
-    );
-    expect(res.status).toBe(200);
-    const { data } = await res.json();
-    expect(Array.isArray(data)).toBe(true);
+  describe('POST /api/produce', () => {
+    it('POST /api/produce should return 201 and insert the listing into the DB', async () => {
+      const payload = {
+        title: 'Organic Honeycrisp Apples',
+        produceType: 'stone_fruits',
+        pricePerOz: 0.25,
+        totalOzInventory: 500,
+        maxOrderQuantityOz: 160,
+        harvestFrequencyDays: 7,
+        seasonStart: '2024-09-01',
+        seasonEnd: '2024-11-30',
+        images: ['https://example.com/apple.jpg'],
+        isSubscribable: true,
+      };
+
+      const res = await authedRequest(
+        '/api/produce',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+      expect(body).toHaveProperty('entityId');
+      expect(typeof body.entityId).toBe('string');
+
+      const [dbProduce] = await testDb.select().from(produce).where(eq(produce.id, body.entityId));
+
+      expect(dbProduce).toBeDefined();
+      expect(dbProduce.title).toBe('Organic Honeycrisp Apples');
+      expect(dbProduce.sellerId).toBe(TEST_USER_ID);
+      expect(dbProduce.pricePerOz).toBe('0.25');
+      expect(dbProduce.maxOrderQuantityOz).toBe('160.00');
+      expect(dbProduce.status).toBe('active');
+    });
+
+    it('POST /api/produce should return 400 for missing required fields', async () => {
+      const invalidPayload = {
+        produceType: 'leafy_greens',
+        // Missing title, pricePerOz, etc.
+      };
+
+      const res = await authedRequest(
+        '/api/produce',
+        {
+          method: 'POST',
+          body: JSON.stringify(invalidPayload),
+        },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(400);
+
+      const dbProduce = await testDb.select().from(produce);
+      expect(dbProduce.length).toBe(0);
+    });
+
+    it('POST /api/produce should return 400 for invalid data types (e.g. negative price)', async () => {
+      const invalidPayload = {
+        title: 'Bad Carrots',
+        produceType: 'root_vegetables',
+        pricePerOz: -5.0, // Should be positive
+        totalOzInventory: 100,
+        harvestFrequencyDays: 7,
+        seasonStart: '2024-05-01',
+        seasonEnd: '2024-10-31',
+        images: [],
+        isSubscribable: false,
+      };
+
+      const res = await authedRequest(
+        '/api/produce',
+        {
+          method: 'POST',
+          body: JSON.stringify(invalidPayload),
+        },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/produce should return 401 if user is not authenticated', async () => {
+      const payload = {
+        title: 'Ghost Produce',
+        pricePerOz: 1.0,
+        totalOzInventory: 10,
+        harvestFrequencyDays: 1,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        images: [],
+        isSubscribable: false,
+      };
+
+      const res = await authedRequest(
+        '/api/produce',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        { id: '' }, // Simulates a missing or unauthenticated session
+      );
+
+      expect(res.status).toBe(401);
+
+      const body = await res.json();
+      expect(body).toHaveProperty('error', 'Unauthorized');
+    });
   });
 
-  it('PUT /api/produce/:id should return 200 and update the DB listing', async () => {
-    const [dbProduce] = await testDb
-      .insert(produce)
-      .values({
+  describe('DELETE /api/produce/:id', () => {
+    it('DELETE /api/produce/:id should return 200 and soft delete the DB listing', async () => {
+      const [dbProduce] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: TEST_USER_ID,
+          title: 'Cherries',
+          produceType: 'stone_fruits',
+          pricePerOz: '0.60',
+          totalOzInventory: '150',
+          harvestFrequencyDays: 1,
+          seasonStart: '2024-06-01',
+          seasonEnd: '2024-07-31',
+          images: ['https://example.com/cherry.jpg'],
+          status: 'active',
+        })
+        .returning();
+
+      const res = await authedRequest(
+        `/api/produce/${dbProduce.id}`,
+        {
+          method: 'DELETE',
+        },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ success: true });
+
+      const [updatedDbProduce] = await testDb
+        .select()
+        .from(produce)
+        .where(eq(produce.id, dbProduce.id));
+      expect(updatedDbProduce.status).toBe('deleted');
+      expect(updatedDbProduce.images).toEqual([]);
+    });
+
+    it('DELETE /api/produce/:id should return 400 for an invalid UUID format', async () => {
+      const res = await authedRequest(
+        '/api/produce/invalid_id_format',
+        {
+          method: 'DELETE',
+        },
+        { id: TEST_USER_ID },
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('DELETE /api/produce/:id should return 404 for a non-existent or unauthorized listing', async () => {
+      const randomValidId = crypto.randomUUID();
+      const res = await authedRequest(
+        `/api/produce/${randomValidId}`,
+        {
+          method: 'DELETE',
+        },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toHaveProperty('error', 'Listing not found or unauthorized');
+    });
+  });
+
+  describe('GET /api/produce/list', () => {
+    it('GET /api/produce/list should return 200', async () => {
+      const res = await authedRequest(
+        '/api/produce/list?lat=45.0&lng=-90.0&limit=10',
+        {},
+        { id: TEST_USER_ID },
+      );
+      expect(res.status).toBe(200);
+      const { data } = await res.json();
+      expect(Array.isArray(data)).toBe(true);
+    });
+
+    it('GET /api/produce/list should return 200 with correctly mapped fields', async () => {
+      await testDb.insert(produce).values({
         sellerId: TEST_USER_ID,
         title: 'Plums',
         produceType: 'stone_fruits',
         pricePerOz: '0.40',
         totalOzInventory: '300',
-        maxOrderQuantityOz: '100',
         harvestFrequencyDays: 5,
         seasonStart: '2024-05-01',
         seasonEnd: '2024-07-31',
-        images: [],
+        availableBy: new Date(),
+        images: ['https://example.com/plum1.jpg', 'https://example.com/plum2.jpg'],
         status: 'active',
-      })
-      .returning();
+      });
 
-    const res = await authedRequest(
-      `/api/produce/${dbProduce.id}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({
-          status: 'paused',
-          totalOzInventory: 250,
-          maxOrderQuantityOz: 50,
-        }),
-      },
-      { id: TEST_USER_ID },
-    );
+      const res = await authedRequest(
+        '/api/produce/list?lat=45.0&lng=-90.0&limit=10',
+        {},
+        { id: TEST_USER_ID },
+      );
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ success: true, entityId: dbProduce.id });
+      expect(res.status).toBe(200);
+      const { data, meta } = await res.json();
 
-    const [updatedDbProduce] = await testDb
-      .select()
-      .from(produce)
-      .where(eq(produce.id, dbProduce.id));
-    expect(updatedDbProduce.status).toBe('paused');
-    expect(updatedDbProduce.totalOzInventory).toBe('250.00');
-    expect(updatedDbProduce.maxOrderQuantityOz).toBe('50.00');
-  });
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBeGreaterThan(0);
+      expect(meta.total).toBeGreaterThan(0);
 
-  it('PUT /api/produce/:id should return 400 for an invalid UUID format', async () => {
-    const res = await authedRequest(
-      '/api/produce/invalid_id_format',
-      {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'paused' }),
-      },
-      { id: TEST_USER_ID },
-    );
-    expect(res.status).toBe(400); // Because param validation expects a UUID
-  });
+      const firstItem = data[0];
 
-  it('PUT /api/produce/:id should return 400 if the request body is empty', async () => {
-    const dummyId = crypto.randomUUID();
-    const res = await authedRequest(
-      `/api/produce/${dummyId}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({}), // empty body
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(400);
-  });
-
-  it('PUT /api/produce/:id should return 404 for a non-existent or unauthorized listing', async () => {
-    const randomValidId = crypto.randomUUID();
-    const res = await authedRequest(
-      `/api/produce/${randomValidId}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'paused' }),
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body).toHaveProperty('error', 'Listing not found or unauthorized');
-  });
-
-  it('POST /api/produce should return 201 and insert the listing into the DB', async () => {
-    const payload = {
-      title: 'Organic Honeycrisp Apples',
-      produceType: 'stone_fruits',
-      pricePerOz: 0.25,
-      totalOzInventory: 500,
-      maxOrderQuantityOz: 160,
-      harvestFrequencyDays: 7,
-      seasonStart: '2024-09-01',
-      seasonEnd: '2024-11-30',
-      images: ['https://example.com/apple.jpg'],
-      isSubscribable: true,
-    };
-
-    const res = await authedRequest(
-      '/api/produce',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(201);
-
-    const body = await res.json();
-    expect(body).toHaveProperty('entityId');
-    expect(typeof body.entityId).toBe('string');
-
-    const [dbProduce] = await testDb.select().from(produce).where(eq(produce.id, body.entityId));
-
-    expect(dbProduce).toBeDefined();
-    expect(dbProduce.title).toBe('Organic Honeycrisp Apples');
-    expect(dbProduce.sellerId).toBe(TEST_USER_ID);
-    expect(dbProduce.pricePerOz).toBe('0.25');
-    expect(dbProduce.maxOrderQuantityOz).toBe('160.00');
-    expect(dbProduce.status).toBe('active');
-  });
-
-  it('POST /api/produce should return 400 for missing required fields', async () => {
-    const invalidPayload = {
-      produceType: 'leafy_greens',
-      // Missing title, pricePerOz, etc.
-    };
-
-    const res = await authedRequest(
-      '/api/produce',
-      {
-        method: 'POST',
-        body: JSON.stringify(invalidPayload),
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(400);
-
-    const dbProduce = await testDb.select().from(produce);
-    expect(dbProduce.length).toBe(0);
-  });
-
-  it('POST /api/produce should return 400 for invalid data types (e.g. negative price)', async () => {
-    const invalidPayload = {
-      title: 'Bad Carrots',
-      produceType: 'root_vegetables',
-      pricePerOz: -5.0, // Should be positive
-      totalOzInventory: 100,
-      harvestFrequencyDays: 7,
-      seasonStart: '2024-05-01',
-      seasonEnd: '2024-10-31',
-      images: [],
-      isSubscribable: false,
-    };
-
-    const res = await authedRequest(
-      '/api/produce',
-      {
-        method: 'POST',
-        body: JSON.stringify(invalidPayload),
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(400);
-  });
-
-  it('POST /api/produce should return 401 if user is not authenticated', async () => {
-    const payload = {
-      title: 'Ghost Produce',
-      pricePerOz: 1.0,
-      totalOzInventory: 10,
-      harvestFrequencyDays: 1,
-      seasonStart: '2024-01-01',
-      seasonEnd: '2024-12-31',
-      images: [],
-      isSubscribable: false,
-    };
-
-    const res = await authedRequest(
-      '/api/produce',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      { id: '' }, // Simulates a missing or unauthenticated session
-    );
-
-    expect(res.status).toBe(401);
-
-    const body = await res.json();
-    expect(body).toHaveProperty('error', 'Unauthorized');
-  });
-
-  it('DELETE /api/produce/:id should return 200 and soft delete the DB listing', async () => {
-    const [dbProduce] = await testDb
-      .insert(produce)
-      .values({
-        sellerId: TEST_USER_ID,
-        title: 'Cherries',
-        produceType: 'stone_fruits',
-        pricePerOz: '0.60',
-        totalOzInventory: '150',
-        harvestFrequencyDays: 1,
-        seasonStart: '2024-06-01',
-        seasonEnd: '2024-07-31',
-        images: ['https://example.com/cherry.jpg'],
-        status: 'active',
-      })
-      .returning();
-
-    const res = await authedRequest(
-      `/api/produce/${dbProduce.id}`,
-      {
-        method: 'DELETE',
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ success: true });
-
-    const [updatedDbProduce] = await testDb
-      .select()
-      .from(produce)
-      .where(eq(produce.id, dbProduce.id));
-    expect(updatedDbProduce.status).toBe('deleted');
-    expect(updatedDbProduce.images).toEqual([]);
-  });
-
-  it('DELETE /api/produce/:id should return 400 for an invalid UUID format', async () => {
-    const res = await authedRequest(
-      '/api/produce/invalid_id_format',
-      {
-        method: 'DELETE',
-      },
-      { id: TEST_USER_ID },
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it('DELETE /api/produce/:id should return 404 for a non-existent or unauthorized listing', async () => {
-    const randomValidId = crypto.randomUUID();
-    const res = await authedRequest(
-      `/api/produce/${randomValidId}`,
-      {
-        method: 'DELETE',
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body).toHaveProperty('error', 'Listing not found or unauthorized');
-  });
-
-  it('GET /api/produce/list should return 200 with correctly mapped fields', async () => {
-    await testDb.insert(produce).values({
-      sellerId: TEST_USER_ID,
-      title: 'Plums',
-      produceType: 'stone_fruits',
-      pricePerOz: '0.40',
-      totalOzInventory: '300',
-      harvestFrequencyDays: 5,
-      seasonStart: '2024-05-01',
-      seasonEnd: '2024-07-31',
-      availableBy: new Date(),
-      images: ['https://example.com/plum1.jpg', 'https://example.com/plum2.jpg'],
-      status: 'active',
+      expect(firstItem).toHaveProperty('id');
+      expect(firstItem).toHaveProperty('name', 'Plums');
+      expect(firstItem).toHaveProperty('sellerName', 'Integration Seller');
+      expect(firstItem).toHaveProperty('sellerId', TEST_USER_ID);
+      expect(firstItem).toHaveProperty('price', '0.40');
+      expect(firstItem).toHaveProperty('amount', '300.00');
+      expect(firstItem).toHaveProperty('availableBy');
+      expect(firstItem).toHaveProperty('distance');
+      expect(typeof firstItem.distance).toBe('number');
+      expect(firstItem).toHaveProperty('thumbnail', 'https://example.com/plum1.jpg');
     });
 
-    const res = await authedRequest(
-      '/api/produce/list?lat=45.0&lng=-90.0&limit=10',
-      {},
-      { id: TEST_USER_ID },
-    );
+    it('GET /api/produce/list should filter by delivery capability when requested', async () => {
+      const NO_DELIVERY_USER = 'no_delivery_user';
+      await testDb.insert(users).values({
+        id: NO_DELIVERY_USER,
+        name: 'No Delivery Seller',
+        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        deliveryRangeMiles: '0',
+      });
 
-    expect(res.status).toBe(200);
-    const { data, meta } = await res.json();
+      await testDb.insert(produce).values([
+        {
+          sellerId: TEST_USER_ID,
+          title: 'Delivery Apples',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 1,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          availableBy: new Date(),
+          status: 'active',
+        },
+        {
+          sellerId: NO_DELIVERY_USER,
+          title: 'Pickup Only Apples',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 1,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          availableBy: new Date(),
+          status: 'active',
+        },
+      ]);
 
-    expect(Array.isArray(data)).toBe(true);
-    expect(data.length).toBeGreaterThan(0);
-    expect(meta.total).toBeGreaterThan(0);
+      const res = await authedRequest(
+        '/api/produce/list?lat=45.0&lng=-90.0&hasDelivery=true',
+        {},
+        { id: TEST_USER_ID },
+      );
 
-    const firstItem = data[0];
-
-    expect(firstItem).toHaveProperty('id');
-    expect(firstItem).toHaveProperty('name', 'Plums');
-    expect(firstItem).toHaveProperty('sellerName', 'Integration Seller');
-    expect(firstItem).toHaveProperty('sellerId', TEST_USER_ID);
-    expect(firstItem).toHaveProperty('price', '0.40');
-    expect(firstItem).toHaveProperty('amount', '300.00');
-    expect(firstItem).toHaveProperty('availableBy');
-    expect(firstItem).toHaveProperty('distance');
-    expect(typeof firstItem.distance).toBe('number');
-    expect(firstItem).toHaveProperty('thumbnail', 'https://example.com/plum1.jpg');
+      const { data } = await res.json();
+      expect(data.length).toBe(1);
+      expect(data[0].sellerId).toBe(TEST_USER_ID);
+      expect(data[0].name).toBe('Delivery Apples');
+    });
   });
 
-  it('GET /api/produce/list should filter by delivery capability when requested', async () => {
-    const NO_DELIVERY_USER = 'no_delivery_user';
-    await testDb.insert(users).values({
-      id: NO_DELIVERY_USER,
-      name: 'No Delivery Seller',
-      location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
-      deliveryRangeMiles: '0',
+  describe('GET /api/produce/map', () => {
+    it('should return 200 and an empty array if no items match', async () => {
+      const res = await authedRequest(
+        '/api/produce/map?lat=45.0&lng=-90.0&radiusMiles=10',
+        {},
+        { id: TEST_USER_ID },
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(0);
     });
 
-    await testDb.insert(produce).values([
-      {
-        sellerId: TEST_USER_ID,
-        title: 'Delivery Apples',
-        pricePerOz: '0.50',
-        totalOzInventory: '100',
-        harvestFrequencyDays: 1,
-        seasonStart: '2024-01-01',
-        seasonEnd: '2024-12-31',
-        availableBy: new Date(),
-        status: 'active',
-      },
-      {
-        sellerId: NO_DELIVERY_USER,
-        title: 'Pickup Only Apples',
-        pricePerOz: '0.50',
-        totalOzInventory: '100',
-        harvestFrequencyDays: 1,
-        seasonStart: '2024-01-01',
-        seasonEnd: '2024-12-31',
-        availableBy: new Date(),
-        status: 'active',
-      },
-    ]);
+    it('should return 200 and correctly grouped sellers with extended schema fields', async () => {
+      await testDb.insert(produce).values([
+        {
+          sellerId: TEST_USER_ID,
+          title: 'Map Apples',
+          produceType: 'stone_fruits',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 1,
+          availableBy: new Date('2024-05-01T00:00:00Z'),
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          images: ['https://example.com/map_apple.jpg'],
+          status: 'active',
+          isSubscribable: true,
+        },
+        {
+          sellerId: TEST_USER_ID,
+          title: 'Map Carrots',
+          produceType: 'root_vegetables',
+          pricePerOz: '0.25',
+          totalOzInventory: '200',
+          harvestFrequencyDays: 1,
+          availableBy: new Date('2024-06-01T00:00:00Z'),
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          images: [],
+          status: 'active',
+          isSubscribable: false,
+        },
+      ]);
 
-    const res = await authedRequest(
-      '/api/produce/list?lat=45.0&lng=-90.0&hasDelivery=true',
-      {},
-      { id: TEST_USER_ID },
-    );
+      const res = await authedRequest(
+        '/api/produce/map?lat=45.0&lng=-90.0&radiusMiles=10&search=Map',
+        {},
+        { id: TEST_USER_ID },
+      );
 
-    const { data } = await res.json();
-    expect(data.length).toBe(1);
-    expect(data[0].sellerId).toBe(TEST_USER_ID);
-    expect(data[0].name).toBe('Delivery Apples');
-  });
+      expect(res.status).toBe(200);
+      const body = await res.json();
 
-  it('GET /api/produce/map should return 200 and correctly grouped sellers', async () => {
-    await testDb.insert(produce).values([
-      {
-        sellerId: TEST_USER_ID,
-        title: 'Map Apples',
-        produceType: 'stone_fruits',
-        pricePerOz: '0.50',
-        totalOzInventory: '100',
-        harvestFrequencyDays: 1,
-        seasonStart: '2024-01-01',
-        seasonEnd: '2024-12-31',
-        images: ['https://example.com/map_apple.jpg'],
-        status: 'active',
-      },
-      {
-        sellerId: TEST_USER_ID,
-        title: 'Map Carrots',
-        produceType: 'root_vegetables',
-        pricePerOz: '0.25',
-        totalOzInventory: '100',
-        harvestFrequencyDays: 1,
-        seasonStart: '2024-01-01',
-        seasonEnd: '2024-12-31',
-        images: [],
-        status: 'active',
-      },
-    ]);
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(1);
 
-    const res = await authedRequest(
-      '/api/produce/map?lat=45.0&lng=-90.0&radiusMiles=10',
-      {},
-      { id: TEST_USER_ID },
-    );
+      const sellerGroup = body[0];
+      expect(sellerGroup).toHaveProperty('sellerId', TEST_USER_ID);
+      expect(sellerGroup).toHaveProperty('lat', 45.0);
+      expect(sellerGroup).toHaveProperty('lng', -90.0);
+      expect(sellerGroup.produce).toHaveLength(2);
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
+      const appleItem = sellerGroup.produce.find((p: any) => p.name === 'Map Apples');
+      expect(appleItem).toBeDefined();
+      expect(appleItem.thumbnail).toBe('https://example.com/map_apple.jpg');
 
-    expect(Array.isArray(body)).toBe(true);
-    expect(body).toHaveLength(1);
+      expect(appleItem.price).toMatch(/0\.50?/);
+      expect(appleItem.availableInventory).toMatch(/100\.00?/);
+      expect(appleItem.seasonStart).toBe('2024-01-01');
+      expect(appleItem.seasonEnd).toBe('2024-12-31');
+      expect(typeof appleItem.availableBy).toBe('string');
+      expect(appleItem.isSubscribable).toBe(true);
 
-    const sellerGroup = body[0];
-    expect(sellerGroup).toHaveProperty('sellerId', TEST_USER_ID);
-    expect(sellerGroup).toHaveProperty('lat', 45.0);
-    expect(sellerGroup).toHaveProperty('lng', -90.0);
-
-    expect(sellerGroup.produce).toHaveLength(2);
-    expect(sellerGroup.produce[0].name).toBe('Map Apples');
-    expect(sellerGroup.produce[0].thumbnail).toBe('https://example.com/map_apple.jpg');
-
-    expect(sellerGroup.produce[1].name).toBe('Map Carrots');
-    expect(sellerGroup.produce[1].thumbnail).toBeNull();
+      const carrotItem = sellerGroup.produce.find((p: any) => p.name === 'Map Carrots');
+      expect(carrotItem).toBeDefined();
+      expect(carrotItem.thumbnail).toBeNull();
+      expect(carrotItem.price).toMatch(/0\.25?/);
+      expect(carrotItem.isSubscribable).toBe(false);
+    });
   });
 
   describe('GET /api/produce/:id/orders', () => {

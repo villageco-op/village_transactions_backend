@@ -309,6 +309,86 @@ describe('ProduceService - getProduceList', () => {
       totalPages: 3, // Math.ceil(45 / 20)
     });
   });
+
+  it('should format repository results, pass all new filters, and return pagination meta', async () => {
+    const mockDbDate = new Date();
+    const mockRepoResponse = {
+      items: [
+        {
+          id: 'prod_1',
+          name: 'Apples',
+          price: '0.50',
+          amount: '100',
+          images: ['https://example.com/apple1.jpg'],
+          isSubscribable: true,
+          availableBy: mockDbDate,
+          sellerId: 'user_1',
+          sellerName: 'Farmer Bob',
+          distance: '5.234',
+        },
+      ],
+      total: 1,
+    };
+
+    vi.mocked(produceRepository.getList).mockResolvedValueOnce(mockRepoResponse as any);
+
+    const testDate = new Date();
+    const result = await getProduceList({
+      lat: 40.0,
+      lng: -70.0,
+      page: 2,
+      limit: 20,
+      offset: 20,
+      search: 'Apples',
+      produceType: 'pome_fruits',
+      minPrice: 0.1,
+      maxPrice: 1.0,
+      maxDistance: 10,
+      season: 'fall',
+      availableBy: testDate,
+      isSubscribable: 'true',
+      availableInventory: 50,
+      maxOrderQuantity: 10,
+    });
+
+    expect(produceRepository.getList).toHaveBeenCalledWith({
+      lat: 40.0,
+      lng: -70.0,
+      page: 2,
+      limit: 20,
+      offset: 20,
+      search: 'Apples',
+      produceType: 'pome_fruits',
+      minPrice: 0.1,
+      maxPrice: 1.0,
+      maxDistance: 10,
+      season: 'fall',
+      availableBy: testDate,
+      isSubscribable: 'true',
+      availableInventory: 50,
+      maxOrderQuantity: 10,
+    });
+
+    expect(result.data[0]).toEqual({
+      id: 'prod_1',
+      name: 'Apples',
+      price: '0.50',
+      amount: '100',
+      isSubscribable: true,
+      availableBy: mockDbDate,
+      sellerId: 'user_1',
+      sellerName: 'Farmer Bob',
+      distance: 5.234,
+      thumbnail: 'https://example.com/apple1.jpg',
+    });
+
+    expect(result.meta).toEqual({
+      total: 1,
+      page: 2,
+      limit: 20,
+      totalPages: 1,
+    });
+  });
 });
 
 describe('ProduceService - getProduceMap', () => {
@@ -316,12 +396,21 @@ describe('ProduceService - getProduceMap', () => {
     vi.clearAllMocks();
   });
 
-  it('should correctly group items by sellerId and construct lightweight produce arrays', async () => {
+  it('should correctly group items by sellerId and map all required produce fields', async () => {
+    const mockDate1 = new Date('2024-05-10T10:00:00Z');
+    const mockDate2 = new Date('2024-10-15T10:00:00Z');
+
     const mockRepoResponse = [
       {
         id: 'prod_1',
         name: 'Apples',
         images: ['https://example.com/apple1.jpg'],
+        price: '4.50',
+        availableInventory: '100.00',
+        availableBy: mockDate1,
+        seasonStart: '2024-04-01',
+        seasonEnd: '2024-06-30',
+        isSubscribable: true,
         sellerId: 'user_1',
         lat: 40.0,
         lng: -70.0,
@@ -330,6 +419,12 @@ describe('ProduceService - getProduceMap', () => {
         id: 'prod_2',
         name: 'Carrots',
         images: [],
+        price: '2.00',
+        availableInventory: '50.00',
+        availableBy: mockDate2,
+        seasonStart: '2024-09-01',
+        seasonEnd: '2024-11-30',
+        isSubscribable: false,
         sellerId: 'user_1',
         lat: 40.0,
         lng: -70.0,
@@ -338,6 +433,12 @@ describe('ProduceService - getProduceMap', () => {
         id: 'prod_3',
         name: 'Oranges',
         images: ['https://example.com/orange.jpg'],
+        price: '3.00',
+        availableInventory: '20.00',
+        availableBy: mockDate1,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        isSubscribable: null,
         sellerId: 'user_2',
         lat: 41.0,
         lng: -71.0,
@@ -350,12 +451,16 @@ describe('ProduceService - getProduceMap', () => {
       lat: 40.0,
       lng: -70.0,
       radiusMiles: 50,
+      search: 'App',
+      isSubscribable: 'true',
     });
 
     expect(produceRepository.getMapItems).toHaveBeenCalledWith({
       lat: 40.0,
       lng: -70.0,
       radiusMiles: 50,
+      search: 'App',
+      isSubscribable: 'true',
     });
 
     expect(result).toHaveLength(2);
@@ -365,15 +470,29 @@ describe('ProduceService - getProduceMap', () => {
     expect(seller1?.lat).toBe(40.0);
     expect(seller1?.lng).toBe(-70.0);
     expect(seller1?.produce).toHaveLength(2);
+
     expect(seller1?.produce[0]).toEqual({
       id: 'prod_1',
       name: 'Apples',
       thumbnail: 'https://example.com/apple1.jpg',
+      price: '4.50',
+      availableInventory: '100.00',
+      availableBy: mockDate1,
+      seasonStart: '2024-04-01',
+      seasonEnd: '2024-06-30',
+      isSubscribable: true,
     });
+
     expect(seller1?.produce[1]).toEqual({
       id: 'prod_2',
       name: 'Carrots',
       thumbnail: null,
+      price: '2.00',
+      availableInventory: '50.00',
+      availableBy: mockDate2,
+      seasonStart: '2024-09-01',
+      seasonEnd: '2024-11-30',
+      isSubscribable: false,
     });
 
     const seller2 = result.find((s) => s.sellerId === 'user_2');

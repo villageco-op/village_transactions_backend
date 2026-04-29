@@ -2,6 +2,7 @@ import type { ProduceType } from '../db/types.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
+import type { Season } from '../schemas/common.schema.js';
 import type { CreateProducePayload, UpdateProducePayload } from '../schemas/produce.schema.js';
 
 import { batchCancelPendingOrders } from './order.service.js';
@@ -96,6 +97,16 @@ export async function deleteProduceListing(id: string, sellerId: string): Promis
  * @param params.lng - The longitude of the user's current location.
  * @param params.sortBy - The criteria used to order the results. Defaults to distance if not specified.
  * @param params.hasDelivery - A string-based boolean flag to filter items by delivery availability.
+ * @param params.produceType - Filter by a specific type of produce (e.g., 'fruit', 'veg').
+ * @param params.search - Text search filter for produce title, type, or seller name.
+ * @param params.maxOrderQuantity - Filters for listings that allow an order of at least this quantity (in oz).
+ * @param params.isSubscribable - Filter by subscription availability ('true' or 'false').
+ * @param params.availableInventory - Minimum inventory required (in oz).
+ * @param params.season - Filter by seasonal availability.
+ * @param params.availableBy - Filters for produce available on or before this date.
+ * @param params.minPrice - Minimum price per ounce.
+ * @param params.maxPrice - Maximum price per ounce.
+ * @param params.maxDistance - Maximum distance in miles from the provided coordinates.
  * @param params.page - Current page number.
  * @param params.limit - The maximum number of items to return for pagination.
  * @param params.offset - The number of items to skip (used for pagination).
@@ -106,6 +117,16 @@ export async function getProduceList(params: {
   lng: number;
   sortBy?: 'distance' | 'price';
   hasDelivery?: 'true' | 'false';
+  produceType?: ProduceType;
+  search?: string;
+  maxOrderQuantity?: number;
+  isSubscribable?: 'true' | 'false';
+  availableInventory?: number;
+  season?: Season;
+  availableBy?: Date;
+  minPrice?: number;
+  maxPrice?: number;
+  maxDistance?: number;
   page: number;
   limit: number;
   offset: number;
@@ -141,7 +162,14 @@ export async function getProduceList(params: {
  * @param params.lng - The center longitude for the search radius.
  * @param params.radiusMiles - The circular search boundary in miles.
  * @param params.produceType - Optional filter for specific categories (e.g., 'vegetable').
- * @param params.hasDelivery - If 'true', only returns items within the seller's delivery range.
+ * @param params.search - Text search filter for produce title, type, or seller name.
+ * @param params.maxOrderQuantity - Filters for listings that allow an order of at least this quantity (in oz).
+ * @param params.isSubscribable - Filter by subscription availability ('true' or 'false').
+ * @param params.availableInventory - Minimum inventory required (in oz).
+ * @param params.season - Filter by seasonal availability.
+ * @param params.availableBy - Filters for produce available on or before this date.
+ * @param params.hasDelivery - If 'true', limits results to sellers whose delivery range covers the user.
+ * @param params.minPrice - Minimum price per ounce.
  * @param params.maxPrice - The upper price limit per ounce.
  * @returns A promise resolving to an array of grouped objects, where each object contains
  * a seller's ID, their geographic coordinates, and a list of their available produce.
@@ -151,7 +179,14 @@ export async function getProduceMap(params: {
   lng: number;
   radiusMiles?: number;
   produceType?: ProduceType;
+  search?: string;
+  maxOrderQuantity?: number;
+  isSubscribable?: 'true' | 'false';
+  availableInventory?: number;
+  season?: Season;
+  availableBy?: Date;
   hasDelivery?: 'true' | 'false';
+  minPrice?: number;
   maxPrice?: number;
 }) {
   const items = await produceRepository.getMapItems(params);
@@ -162,7 +197,17 @@ export async function getProduceMap(params: {
       sellerId: string;
       lat: number;
       lng: number;
-      produce: { id: string; name: string; thumbnail: string | null }[];
+      produce: {
+        id: string;
+        name: string;
+        thumbnail: string | null;
+        price: string;
+        availableInventory: string;
+        availableBy: Date;
+        seasonStart: string;
+        seasonEnd: string;
+        isSubscribable: boolean | null;
+      }[];
     }
   >();
 
@@ -181,6 +226,12 @@ export async function getProduceMap(params: {
       id: item.id,
       name: item.name,
       thumbnail: item.images && item.images.length > 0 ? item.images[0] : null,
+      price: item.price,
+      availableInventory: item.availableInventory,
+      availableBy: item.availableBy,
+      seasonStart: item.seasonStart,
+      seasonEnd: item.seasonEnd,
+      isSubscribable: item.isSubscribable,
     });
   }
 

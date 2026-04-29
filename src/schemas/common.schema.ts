@@ -34,6 +34,13 @@ export const ProduceTypeSchema = z.enum(produceTypeEnum.enumValues).openapi('Pro
   description: 'The category of the produce.',
 });
 
+export const SeasonSchema = z
+  .enum(['all', 'spring', 'summer', 'winter', 'fall'])
+  .openapi('Season', {
+    example: 'spring',
+    description: 'Season enum for filtering produce.',
+  });
+
 export const OrderStatusSchema = z.enum(orderStatusEnum.enumValues).openapi('OrderStatus', {
   example: 'pending',
   description: 'The lifecycle status of the order',
@@ -164,3 +171,4 @@ export const UserBasicInfoSchema = z.object({
 });
 
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;
+export type Season = z.infer<typeof SeasonSchema>;
