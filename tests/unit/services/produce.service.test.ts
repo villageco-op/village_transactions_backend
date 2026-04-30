@@ -412,6 +412,7 @@ describe('ProduceService - getProduceMap', () => {
         seasonEnd: '2024-06-30',
         isSubscribable: true,
         sellerId: 'user_1',
+        sellerName: 'Joe',
         lat: 40.0,
         lng: -70.0,
       },
@@ -426,6 +427,7 @@ describe('ProduceService - getProduceMap', () => {
         seasonEnd: '2024-11-30',
         isSubscribable: false,
         sellerId: 'user_1',
+        sellerName: 'Joe',
         lat: 40.0,
         lng: -70.0,
       },
@@ -440,6 +442,7 @@ describe('ProduceService - getProduceMap', () => {
         seasonEnd: '2024-12-31',
         isSubscribable: null,
         sellerId: 'user_2',
+        sellerName: 'Jane',
         lat: 41.0,
         lng: -71.0,
       },
@@ -469,6 +472,7 @@ describe('ProduceService - getProduceMap', () => {
     expect(seller1).toBeDefined();
     expect(seller1?.lat).toBe(40.0);
     expect(seller1?.lng).toBe(-70.0);
+    expect(seller1?.name).toBe('Joe');
     expect(seller1?.produce).toHaveLength(2);
 
     expect(seller1?.produce[0]).toEqual({
@@ -499,6 +503,7 @@ describe('ProduceService - getProduceMap', () => {
     expect(seller2).toBeDefined();
     expect(seller2?.lat).toBe(41.0);
     expect(seller2?.lng).toBe(-71.0);
+    expect(seller2?.name).toBe('Jane');
     expect(seller2?.produce).toHaveLength(1);
   });
 });

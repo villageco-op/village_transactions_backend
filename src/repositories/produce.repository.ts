@@ -417,6 +417,7 @@ export const produceRepository = {
         seasonEnd: produce.seasonEnd,
         isSubscribable: produce.isSubscribable,
         sellerId: users.id,
+        sellerName: users.name,
         lat: sql<number>`ST_Y(${users.location}::geometry)`,
         lng: sql<number>`ST_X(${users.location}::geometry)`,
       })

@@ -195,6 +195,7 @@ export async function getProduceMap(params: {
     string,
     {
       sellerId: string;
+      name: string;
       lat: number;
       lng: number;
       produce: {
@@ -215,6 +216,7 @@ export async function getProduceMap(params: {
     if (!sellerGroups.has(item.sellerId)) {
       sellerGroups.set(item.sellerId, {
         sellerId: item.sellerId,
+        name: item.sellerName || 'Community Member',
         lat: item.lat,
         lng: item.lng,
         produce: [],
