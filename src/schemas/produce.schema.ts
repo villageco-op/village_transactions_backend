@@ -187,6 +187,7 @@ export const ProduceMapItemSchema = z
 export const SellerMapGroupSchema = z
   .object({
     sellerId: UserIdSchema,
+    name: z.string().openapi({ description: 'The sellers name' }),
     lat: z.number().openapi({ example: 43.0731 }),
     lng: z.number().openapi({ example: -89.4012 }),
     produce: z.array(ProduceMapItemSchema).openapi({

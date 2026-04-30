@@ -468,6 +468,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
 
       const sellerGroup = body[0];
       expect(sellerGroup).toHaveProperty('sellerId', TEST_USER_ID);
+      expect(sellerGroup).toHaveProperty('name', 'Integration Seller');
       expect(sellerGroup).toHaveProperty('lat', 45.0);
       expect(sellerGroup).toHaveProperty('lng', -90.0);
       expect(sellerGroup.produce).toHaveLength(2);

@@ -444,6 +444,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].sellerId).toBe(TEST_SELLER_ID);
+      expect(result[0].sellerName).toBe('Farmer Joe');
       expect(result[0].name).toBe('Joe Carrots');
       expect(result[0].lat).toBeCloseTo(43.0731);
       expect(result[0].lng).toBeCloseTo(-89.4012);
