@@ -174,6 +174,7 @@ export const ProduceMapItemSchema = z
   .object({
     id: ResourceIdSchema,
     name: z.string().openapi({ example: 'Kale' }),
+    type: ProduceTypeSchema.nullable(),
     thumbnail: ImageUrlSchema.nullable(),
     price: z.string().openapi({ example: '4.50' }),
     availableInventory: z.string().openapi({ example: '160.00' }),

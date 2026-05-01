@@ -409,6 +409,7 @@ export const produceRepository = {
       .select({
         id: produce.id,
         name: produce.title,
+        type: produce.produceType,
         images: produce.images,
         price: produce.pricePerOz,
         availableInventory: produce.totalOzInventory,

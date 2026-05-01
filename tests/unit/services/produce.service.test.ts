@@ -404,6 +404,7 @@ describe('ProduceService - getProduceMap', () => {
       {
         id: 'prod_1',
         name: 'Apples',
+        type: 'stone_fruits',
         images: ['https://example.com/apple1.jpg'],
         price: '4.50',
         availableInventory: '100.00',
@@ -419,6 +420,7 @@ describe('ProduceService - getProduceMap', () => {
       {
         id: 'prod_2',
         name: 'Carrots',
+        type: 'root_vegetables',
         images: [],
         price: '2.00',
         availableInventory: '50.00',
@@ -434,6 +436,7 @@ describe('ProduceService - getProduceMap', () => {
       {
         id: 'prod_3',
         name: 'Oranges',
+        type: 'citrus',
         images: ['https://example.com/orange.jpg'],
         price: '3.00',
         availableInventory: '20.00',
@@ -478,6 +481,7 @@ describe('ProduceService - getProduceMap', () => {
     expect(seller1?.produce[0]).toEqual({
       id: 'prod_1',
       name: 'Apples',
+      type: 'stone_fruits',
       thumbnail: 'https://example.com/apple1.jpg',
       price: '4.50',
       availableInventory: '100.00',
@@ -490,6 +494,7 @@ describe('ProduceService - getProduceMap', () => {
     expect(seller1?.produce[1]).toEqual({
       id: 'prod_2',
       name: 'Carrots',
+      type: 'root_vegetables',
       thumbnail: null,
       price: '2.00',
       availableInventory: '50.00',

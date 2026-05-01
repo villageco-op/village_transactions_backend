@@ -201,6 +201,7 @@ export async function getProduceMap(params: {
       produce: {
         id: string;
         name: string;
+        type: ProduceType | null;
         thumbnail: string | null;
         price: string;
         availableInventory: string;
@@ -227,6 +228,7 @@ export async function getProduceMap(params: {
     group.produce.push({
       id: item.id,
       name: item.name,
+      type: item.type,
       thumbnail: item.images && item.images.length > 0 ? item.images[0] : null,
       price: item.price,
       availableInventory: item.availableInventory,
