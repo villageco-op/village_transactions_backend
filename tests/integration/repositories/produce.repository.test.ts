@@ -454,6 +454,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       expect(result[0]).toHaveProperty('availableBy');
       expect(result[0]).toHaveProperty('seasonStart');
       expect(result[0]).toHaveProperty('seasonEnd');
+      expect(result[0]).toHaveProperty('type');
       expect(result[0]).toHaveProperty('isSubscribable', true);
     });
 

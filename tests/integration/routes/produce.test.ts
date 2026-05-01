@@ -483,12 +483,14 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(appleItem.seasonEnd).toBe('2024-12-31');
       expect(typeof appleItem.availableBy).toBe('string');
       expect(appleItem.isSubscribable).toBe(true);
+      expect(appleItem.type).toBe('stone_fruits');
 
       const carrotItem = sellerGroup.produce.find((p: any) => p.name === 'Map Carrots');
       expect(carrotItem).toBeDefined();
       expect(carrotItem.thumbnail).toBeNull();
       expect(carrotItem.price).toMatch(/0\.25?/);
       expect(carrotItem.isSubscribable).toBe(false);
+      expect(carrotItem.type).toBe('root_vegetables');
     });
   });
 
