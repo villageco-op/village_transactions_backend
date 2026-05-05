@@ -99,6 +99,7 @@ produceRoute.openapi(
     const paginatedItems = await getProduceList({
       lat: query.lat,
       lng: query.lng,
+      sellerId: query.sellerId,
       sortBy: query.sortBy,
       hasDelivery: query.hasDelivery,
       produceType: query.produceType,

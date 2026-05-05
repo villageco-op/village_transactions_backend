@@ -99,6 +99,9 @@ export const ProduceQuerySchema = z
   .object({
     lat: LatitudeSchema,
     lng: LongitudeSchema,
+    sellerId: UserIdSchema.optional().openapi({
+      description: 'Filter for produce owned by this seller.',
+    }),
     sortBy: z.enum(['distance', 'price']).optional().openapi({
       description: 'Sort order for the results',
       example: 'distance',

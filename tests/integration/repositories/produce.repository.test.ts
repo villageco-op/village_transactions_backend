@@ -390,6 +390,21 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       expect(total).toBe(1);
       expect(result[0].sellerId).toBe(TEST_SELLER_ID);
     });
+
+    it('should filter by sellerId', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        limit: 10,
+        offset: 0,
+        sellerId: TEST_SELLER_ID,
+      });
+
+      expect(total).toBe(1);
+      expect(result).toHaveLength(1);
+      expect(result[0].sellerId).toBe(TEST_SELLER_ID);
+      expect(result[0].name).toContain('Joe Carrots');
+    });
   });
 
   it('should return undefined when retrieving a non-existent produce ID', async () => {
