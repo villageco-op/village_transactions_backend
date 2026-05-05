@@ -163,6 +163,7 @@ export const produce = pgTable('produce', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
+  description: text('description'),
   produceType: produceTypeEnum('produce_type'),
   pricePerOz: numeric('price_per_oz', { precision: 10, scale: 2 }).notNull(),
   totalOzInventory: numeric('total_oz_inventory', { precision: 10, scale: 2 }).notNull(),

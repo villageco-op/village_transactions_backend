@@ -1,0 +1,1 @@
+ALTER TABLE "produce" ADD COLUMN "description" text;

@@ -68,6 +68,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
             status: 'paused',
             totalOzInventory: 250,
             maxOrderQuantityOz: 50,
+            description: 'New description.',
           }),
         },
         { id: TEST_USER_ID },
@@ -84,6 +85,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(updatedDbProduce.status).toBe('paused');
       expect(updatedDbProduce.totalOzInventory).toBe('250.00');
       expect(updatedDbProduce.maxOrderQuantityOz).toBe('50.00');
+      expect(updatedDbProduce.description).toBe('New description.');
     });
 
     it('PUT /api/produce/:id should return 400 for an invalid UUID format', async () => {
@@ -142,6 +144,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         seasonEnd: '2024-11-30',
         images: ['https://example.com/apple.jpg'],
         isSubscribable: true,
+        description: 'Hand picked organic apples.',
       };
 
       const res = await authedRequest(
@@ -167,6 +170,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(dbProduce.pricePerOz).toBe('0.25');
       expect(dbProduce.maxOrderQuantityOz).toBe('160.00');
       expect(dbProduce.status).toBe('active');
+      expect(dbProduce.description).toBe('Hand picked organic apples.');
     });
 
     it('POST /api/produce should return 400 for missing required fields', async () => {
@@ -333,6 +337,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         availableBy: new Date(),
         images: ['https://example.com/plum1.jpg', 'https://example.com/plum2.jpg'],
         status: 'active',
+        description: 'Fresh, sweet plums.',
       });
 
       const res = await authedRequest(
@@ -360,6 +365,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(firstItem).toHaveProperty('distance');
       expect(typeof firstItem.distance).toBe('number');
       expect(firstItem).toHaveProperty('thumbnail', 'https://example.com/plum1.jpg');
+      expect(firstItem).toHaveProperty('description', 'Fresh, sweet plums.');
     });
 
     it('GET /api/produce/list should filter by delivery capability when requested', async () => {

@@ -86,6 +86,7 @@ export const produceRepository = {
       .values({
         sellerId,
         title: data.title,
+        description: data.description,
         produceType: data.produceType,
         pricePerOz: data.pricePerOz.toString(),
         totalOzInventory: data.totalOzInventory.toString(),
@@ -293,6 +294,7 @@ export const produceRepository = {
         images: produce.images,
         isSubscribable: produce.isSubscribable,
         availableBy: produce.availableBy,
+        description: produce.description,
         sellerId: users.id,
         sellerName: users.name,
         distance: distanceMiles.as('distance'),
