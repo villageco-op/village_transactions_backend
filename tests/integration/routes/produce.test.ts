@@ -333,6 +333,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         availableBy: new Date(),
         images: ['https://example.com/plum1.jpg', 'https://example.com/plum2.jpg'],
         status: 'active',
+        description: 'Fresh, sweet plums.',
       });
 
       const res = await authedRequest(
@@ -360,6 +361,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(firstItem).toHaveProperty('distance');
       expect(typeof firstItem.distance).toBe('number');
       expect(firstItem).toHaveProperty('thumbnail', 'https://example.com/plum1.jpg');
+      expect(firstItem).toHaveProperty('description', 'Fresh, sweet plums.');
     });
 
     it('GET /api/produce/list should filter by delivery capability when requested', async () => {

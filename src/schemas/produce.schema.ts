@@ -28,6 +28,9 @@ const ProduceFields = z.object({
     example: 'Organic Honeycrisp Apples',
     description: 'The public title of the produce listing',
   }),
+  description: z.string().optional().openapi({
+    description: 'Description of the produce.',
+  }),
   produceType: ProduceTypeSchema.optional(),
   pricePerOz: PriceDollarsSchema,
   totalOzInventory: WeightOzSchema,
@@ -87,6 +90,9 @@ export const ProduceListItemSchema = z
     availableBy: z.date(),
     distance: z.number().openapi({ example: 5.2, description: 'Distance in miles from the user' }),
     isSubscribable: z.boolean().nullable(),
+    description: z.string().nullable().openapi({
+      description: 'Description of the produce written by the seller.',
+    }),
   })
   .openapi('ProduceListItem');
 

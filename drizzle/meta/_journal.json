@@ -176,6 +176,13 @@
       "when": 1777383928264,
       "tag": "0024_nebulous_toro",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1777987825327,
+      "tag": "0025_clever_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

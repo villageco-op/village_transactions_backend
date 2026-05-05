@@ -238,6 +238,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
           seasonEnd: '2024-12-31',
           availableBy: new Date('2024-04-15T10:00:00Z'), // Spring
           status: 'active',
+          description: 'Expensive carrots.',
         },
         {
           sellerId: OTHER_SELLER_ID,
@@ -252,6 +253,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
           seasonEnd: '2024-12-31',
           availableBy: new Date('2024-07-15T10:00:00Z'), // Summer
           status: 'active',
+          description: 'Cheap carrots',
         },
         {
           sellerId: INCOMPLETE_SELLER_ID,
