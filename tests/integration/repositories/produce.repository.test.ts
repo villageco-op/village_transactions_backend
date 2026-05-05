@@ -70,6 +70,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       seasonEnd: '2024-08-31',
       images: ['https://example.com/strawberry.jpg'],
       isSubscribable: true,
+      description: 'Delicious strawberries',
     };
 
     const newProduce = await produceRepository.create(TEST_SELLER_ID, payload);
@@ -79,6 +80,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     expect(newProduce.sellerId).toBe(TEST_SELLER_ID);
     expect(newProduce.title).toBe('Fresh Strawberries');
     expect(newProduce.produceType).toBe('berries');
+    expect(newProduce.description).toBe('Delicious strawberries');
 
     expect(newProduce.pricePerOz).toBe('1.25');
     expect(newProduce.totalOzInventory).toBe('500.00');
@@ -123,6 +125,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       seasonEnd: '2024-09-30',
       images: [],
       isSubscribable: false,
+      description: 'Juicy watermelons',
     };
 
     const created = await produceRepository.create(TEST_SELLER_ID, createPayload);
@@ -132,6 +135,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
       pricePerOz: 0.15,
       totalOzInventory: 800,
       maxOrderQuantityOz: null,
+      description: 'Fresh watermelons',
     };
 
     const updated = await produceRepository.update(created.id, TEST_SELLER_ID, updatePayload);
@@ -142,6 +146,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     expect(updated?.pricePerOz).toBe('0.15');
     expect(updated?.totalOzInventory).toBe('800.00');
     expect(updated?.maxOrderQuantityOz).toBeNull();
+    expect(updated?.description).toBe('Fresh watermelons');
     // Ensure unchanged properties remain intact
     expect(updated?.title).toBe('Watermelons');
   });
