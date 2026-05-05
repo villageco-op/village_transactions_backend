@@ -407,6 +407,59 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(data[0].sellerId).toBe(TEST_USER_ID);
       expect(data[0].name).toBe('Delivery Apples');
     });
+
+    it('GET /api/produce/list should filter by sellerId when requested', async () => {
+      const OTHER_USER_ID = 'other_seller_user_id';
+
+      await testDb.insert(users).values({
+        id: OTHER_USER_ID,
+        name: 'Other Seller',
+        email: 'other@example.com',
+        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        stripeOnboardingComplete: true,
+      });
+
+      await testDb.insert(produce).values([
+        {
+          sellerId: TEST_USER_ID,
+          title: 'User A Carrots',
+          produceType: 'root_vegetables',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          availableBy: new Date(),
+          status: 'active',
+        },
+        {
+          sellerId: OTHER_USER_ID,
+          title: 'User B Beets',
+          produceType: 'root_vegetables',
+          pricePerOz: '0.60',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          availableBy: new Date(),
+          status: 'active',
+        },
+      ]);
+
+      const res = await authedRequest(
+        `/api/produce/list?lat=45.0&lng=-90.0&sellerId=${TEST_USER_ID}`,
+        {},
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const { data, meta } = await res.json();
+
+      expect(meta.total).toBe(1);
+      expect(data).toHaveLength(1);
+      expect(data[0].sellerId).toBe(TEST_USER_ID);
+      expect(data[0].name).toBe('User A Carrots');
+    });
   });
 
   describe('GET /api/produce/map', () => {

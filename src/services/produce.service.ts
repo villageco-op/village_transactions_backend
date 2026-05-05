@@ -95,6 +95,7 @@ export async function deleteProduceListing(id: string, sellerId: string): Promis
  * @param params - The configuration object for the produce search.
  * @param params.lat - The latitude of the user's current location.
  * @param params.lng - The longitude of the user's current location.
+ * @param params.sellerId - Filter for a specific sellers produce.
  * @param params.sortBy - The criteria used to order the results. Defaults to distance if not specified.
  * @param params.hasDelivery - A string-based boolean flag to filter items by delivery availability.
  * @param params.produceType - Filter by a specific type of produce (e.g., 'fruit', 'veg').
@@ -115,6 +116,7 @@ export async function deleteProduceListing(id: string, sellerId: string): Promis
 export async function getProduceList(params: {
   lat: number;
   lng: number;
+  sellerId?: string;
   sortBy?: 'distance' | 'price';
   hasDelivery?: 'true' | 'false';
   produceType?: ProduceType;

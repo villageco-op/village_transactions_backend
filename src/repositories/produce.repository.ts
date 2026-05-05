@@ -168,6 +168,7 @@ export const produceRepository = {
    * @param params - The search and pagination parameters.
    * @param params.lat - Latitude for distance calculation.
    * @param params.lng - Longitude for distance calculation.
+   * @param params.sellerId - Filter for a specific sellers produce.
    * @param params.sortBy - Field to sort by. 'distance' uses spatial calculation; 'price' uses numeric value.
    * @param params.hasDelivery - If 'true', filters for sellers where distance <= their delivery range.
    * @param params.produceType - Filter by specific produce category.
@@ -187,6 +188,7 @@ export const produceRepository = {
   async getList(params: {
     lat: number;
     lng: number;
+    sellerId?: string;
     sortBy?: 'distance' | 'price';
     hasDelivery?: 'true' | 'false';
     produceType?: ProduceType;
@@ -202,13 +204,17 @@ export const produceRepository = {
     limit: number;
     offset: number;
   }) {
-    const { lat, lng, sortBy, hasDelivery, limit, offset } = params;
+    const { lat, lng, sellerId, sortBy, hasDelivery, limit, offset } = params;
 
     const userLocation = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
     const distanceMiles = sql<number>`ST_Distance(${users.location}, ${userLocation}) / 1609.344`;
 
     // Baseline checks: Active produce and seller must have completed stripe onboarding
     const conditions = [eq(produce.status, 'active'), eq(users.stripeOnboardingComplete, true)];
+
+    if (sellerId) {
+      conditions.push(eq(users.id, sellerId));
+    }
 
     if (hasDelivery === 'true') {
       conditions.push(sql`${users.deliveryRangeMiles} > 0`);
