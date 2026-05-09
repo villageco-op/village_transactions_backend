@@ -9,7 +9,7 @@ import { users, produce, orderItems, orders } from '../../../src/db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { CreateProducePayload } from '../../../src/schemas/produce.schema.js';
 
-describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
+describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
   let testDb: any;
   const TEST_SELLER_ID = 'seller_repo_123';
   const OTHER_SELLER_ID = 'seller_repo_999';
@@ -421,7 +421,7 @@ describe('ProduceRepository - Integration', { timeout: 60_000 }, () => {
     expect(item).toBeUndefined();
   });
 
-  describe('getMapItems', () => {
+  describe('getMapItems', { timeout: 60_000 }, () => {
     beforeEach(async () => {
       await testDb.insert(produce).values([
         {

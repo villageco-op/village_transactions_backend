@@ -1,4 +1,5 @@
 import type { ScheduleType } from '../db/types.js';
+import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { cartRepository } from '../repositories/cart.repository.js';
 import type {
   AddToCartPayload,
@@ -24,10 +25,18 @@ export async function addToCart(buyerId: string, data: AddToCartPayload) {
  * and the subscription frequency.
  * Estimates delivery fees based on distance for optional non-pickup configurations.
  * @param buyerId - User's unique ID injected by auth session
+ * @param log - App logger that defaults to a blank logger
  * @returns Array of Cart Checkout Groups
  */
-export async function getCart(buyerId: string): Promise<CartCheckoutGroup[]> {
+export async function getCart(
+  buyerId: string,
+  log: AppLogger = noopLogger,
+): Promise<CartCheckoutGroup[]> {
   const activeRows = await cartRepository.getActiveCart(buyerId);
+
+  if (activeRows.length === 0) {
+    log.info('Cart fetch returned empty result');
+  }
 
   const DELIVERY_FEE_BASE = parseFloat(process.env.DELIVERY_FEE_BASE || '5.00');
   const DELIVERY_FEE_PER_MILE = parseFloat(process.env.DELIVERY_FEE_PER_MILE || '1.50');
@@ -47,6 +56,10 @@ export async function getCart(buyerId: string): Promise<CartCheckoutGroup[]> {
       if (buyer.lat && buyer.lng && seller.lat && seller.lng) {
         const miles = calculateDistanceMiles(buyer.lat, buyer.lng, seller.lat, seller.lng);
         calculatedDeliveryFee += miles * DELIVERY_FEE_PER_MILE;
+        log.info(
+          { groupId: group.id, miles: miles.toFixed(2) },
+          'Calculated delivery fee based on distance',
+        );
       }
 
       grouped.set(group.id, {

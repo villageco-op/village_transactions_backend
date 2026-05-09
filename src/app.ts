@@ -3,9 +3,12 @@ import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
+import { pinoLogger } from 'hono-pino';
+import type { Logger } from 'pino';
 
 import type { DatabaseError } from './interfaces/error.interface.js';
 import { getAuthConfig } from './lib/auth-config.js';
+import { logger as rootLogger } from './lib/logger.js';
 import { openApiConfig } from './lib/openapi-config.js';
 import { registerSharedSchemas } from './lib/register-schemas.js';
 import { availabilityRoute } from './routes/availability.js';
@@ -27,10 +30,25 @@ import { uploadRoute } from './routes/upload.js';
 import { usersRoute } from './routes/users.js';
 import { isDatabaseError } from './utils.js';
 
-export const app = new OpenAPIHono();
+export type AppBindings = {
+  Variables: {
+    logger: Logger;
+  };
+};
+
+export type RouteEnv = {
+  Variables: {
+    logger: Logger;
+  };
+};
+
+export const app = new OpenAPIHono<AppBindings>();
 
 app.onError((err, c) => {
+  const log = c.get('logger') || rootLogger;
+
   if (err instanceof HTTPException) {
+    log.warn({ err, status: err.status }, 'HTTP Exception caught');
     return c.json({ error: err.message }, err.status);
   }
 
@@ -43,33 +61,47 @@ app.onError((err, c) => {
   if (isDatabaseError(dbError)) {
     switch (dbError.code) {
       case '23503': // Foreign Key Violation
-        return c.json(
-          {
-            error: 'Related resource not found',
-            detail: dbError.detail,
-          },
-          400,
-        );
+        log.warn({ dbError, code: '23503' }, 'Foreign Key Violation');
+        return c.json({ error: 'Related resource not found', detail: dbError.detail }, 400);
 
       case '23505': // Unique Violation
-        return c.json(
-          {
-            error: 'Resource already exists',
-            detail: dbError.detail,
-          },
-          409,
-        );
+        log.warn({ dbError, code: '23505' }, 'Unique Constraint Violation');
+        return c.json({ error: 'Resource already exists', detail: dbError.detail }, 409);
     }
   }
-  console.error(err, c);
+
+  log.error({ err, path: c.req.path }, 'Internal Server Error');
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
-registerSharedSchemas(app);
+app.use(
+  '*',
+  pinoLogger({
+    pino: rootLogger,
+    http: {
+      reqId: () => crypto.randomUUID(),
+    },
+  }),
+);
 
 app.use('*', initAuthConfig(getAuthConfig));
-
 app.use('/api/auth/*', authHandler());
+
+app.use('*', async (c, next) => {
+  const authUser = c.get('authUser');
+  const userId = authUser?.session?.user?.id;
+
+  const requestLogger = rootLogger.child({
+    userId: userId || 'anonymous',
+    traceId: crypto.randomUUID(),
+  });
+
+  c.set('logger', requestLogger);
+
+  await next();
+});
+
+registerSharedSchemas(app);
 
 app.get('/health', (c) => c.json({ status: 'ok' }));
 

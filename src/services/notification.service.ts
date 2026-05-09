@@ -1,5 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 
+import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { messaging } from '../lib/firebase.js';
 import { fcmRepository } from '../repositories/fcm.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
@@ -9,8 +10,14 @@ import { userRepository } from '../repositories/user.repository.js';
  * @param userId - ID of the user receiving the notification
  * @param title - Notification Title
  * @param body - Notification Body message
+ * @param log - App logger that defaults to a blank logger
  */
-export async function sendPushNotification(userId: string, title: string, body: string) {
+export async function sendPushNotification(
+  userId: string,
+  title: string,
+  body: string,
+  log: AppLogger = noopLogger,
+) {
   const tokenRecords = await fcmRepository.getTokensByUserId(userId);
   if (!tokenRecords.length) return;
 
@@ -42,11 +49,11 @@ export async function sendPushNotification(userId: string, title: string, body: 
 
       if (invalidTokens.length > 0) {
         await fcmRepository.deleteTokens(invalidTokens);
-        console.log(`Cleaned up ${invalidTokens.length} stale FCM tokens.`);
+        log.info({ count: invalidTokens.length }, 'Cleaned up stale FCM tokens');
       }
     }
   } catch (error) {
-    console.error('FCM Dispatch Error:', error);
+    log.error({ error: error instanceof Error ? error.message : error }, 'FCM Dispatch Error');
   }
 }
 
@@ -55,13 +62,21 @@ export async function sendPushNotification(userId: string, title: string, body: 
  * @param id - User's unique ID
  * @param token - FCM token
  * @param platform - Device platform identifier (e.g. 'ios', 'android', 'web')
+ * @param log - App logger that defaults to a blank logger
  */
-export async function registerFcmToken(id: string, token: string, platform: string) {
+export async function registerFcmToken(
+  id: string,
+  token: string,
+  platform: string,
+  log: AppLogger = noopLogger,
+) {
   const user = await userRepository.findById(id);
 
   if (!user) {
+    log.warn('Attempted to register FCM token for non-existent user');
     throw new HTTPException(404, { message: 'User not found' });
   }
 
   await fcmRepository.upsertToken(id, token, platform);
+  log.info({ platform }, 'FCM device token registered');
 }

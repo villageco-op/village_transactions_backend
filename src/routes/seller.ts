@@ -1,6 +1,7 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import { ErrorResponseSchema } from '../schemas/common.schema.js';
 import {
@@ -13,7 +14,7 @@ import { getPaginationParams } from '../schemas/util/pagination.js';
 import { getSellerPayouts } from '../services/order.service.js';
 import { getSellerDashboard, getSellerEarningsMetrics } from '../services/seller.service.js';
 
-export const sellerRoute = new OpenAPIHono();
+export const sellerRoute = new OpenAPIHono<RouteEnv>();
 
 sellerRoute.openapi(
   createRoute({
@@ -53,7 +54,13 @@ sellerRoute.openapi(
 
     const { offset } = getPaginationParams(page, limit);
 
-    const paginatedPayouts = await getSellerPayouts(userId, timeframe, page, limit, offset);
+    const log = c.get('logger').child({
+      action: 'getSellerPayouts',
+    });
+
+    log.debug({ timeframe, page }, 'Fetching seller payout history');
+
+    const paginatedPayouts = await getSellerPayouts(userId, timeframe, page, limit, offset, log);
 
     return c.json(paginatedPayouts, 200);
   },

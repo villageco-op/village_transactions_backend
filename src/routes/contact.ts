@@ -1,12 +1,13 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import { resend } from '../lib/resend.js';
 import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.schema.js';
 import { ContactRequestSchema } from '../schemas/contact.schema.js';
 import { processContactForm } from '../services/contact.service.js';
 
-export const contactRoute = new OpenAPIHono();
+export const contactRoute = new OpenAPIHono<RouteEnv>();
 
 contactRoute.openapi(
   createRoute({
@@ -36,8 +37,14 @@ contactRoute.openapi(
   async (c) => {
     const body = c.req.valid('json');
 
-    await processContactForm(resend, body);
+    const log = c.get('logger').child({
+      action: 'submitContactForm',
+      company: body.company,
+    });
 
+    await processContactForm(resend, body, log);
+
+    log.info('Contact form processed and forwarded');
     return c.json({ success: true }, 200);
   },
 );

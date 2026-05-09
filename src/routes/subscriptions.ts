@@ -1,6 +1,7 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import {
   EntityParamSchema,
@@ -20,7 +21,7 @@ import {
   updateSubscription,
 } from '../services/subscription.service.js';
 
-export const subscriptionsRoute = new OpenAPIHono();
+export const subscriptionsRoute = new OpenAPIHono<RouteEnv>();
 
 subscriptionsRoute.openapi(
   createRoute({
@@ -57,9 +58,14 @@ subscriptionsRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: subscriptionId } = c.req.valid('param');
 
-    const subscriptionDetails = await getSubscriptionDetails(id, userId);
+    const log = c.get('logger').child({
+      subscriptionId,
+      action: 'getSubscriptionById',
+    });
+
+    const subscriptionDetails = await getSubscriptionDetails(subscriptionId, userId, log);
 
     return c.json(subscriptionDetails, 200);
   },
@@ -105,11 +111,17 @@ subscriptionsRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: subscriptionId } = c.req.valid('param');
     const updates = c.req.valid('json');
 
-    await updateSubscription(buyerId, id, updates);
+    const log = c.get('logger').child({
+      subscriptionId,
+      action: 'updateSubscription',
+    });
 
+    await updateSubscription(buyerId, subscriptionId, updates, log);
+
+    log.info({ updates: Object.keys(updates) }, 'Subscription update cycle completed');
     return c.json({ success: true }, 200);
   },
 );
@@ -152,7 +164,12 @@ subscriptionsRoute.openapi(
     const query = c.req.valid('query');
     const { offset } = getPaginationParams(query.page, query.limit);
 
-    const paginatedSubscriptions = await getSubscriptions(userId, query, offset);
+    const log = c.get('logger').child({
+      action: 'getSubscriptions',
+      query,
+    });
+
+    const paginatedSubscriptions = await getSubscriptions(userId, query, offset, log);
 
     return c.json(paginatedSubscriptions, 200);
   },

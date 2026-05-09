@@ -1,6 +1,7 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import {
   ErrorResponseSchema,
@@ -27,7 +28,7 @@ import {
   getPublicUserProfile,
 } from '../services/user.service.js';
 
-export const usersRoute = new OpenAPIHono();
+export const usersRoute = new OpenAPIHono<RouteEnv>();
 
 usersRoute.openapi(
   createRoute({
@@ -60,7 +61,11 @@ usersRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const userProfile = await getCurrentUser(userId);
+    const log = c.get('logger').child({
+      action: 'getCurrentUser',
+    });
+
+    const userProfile = await getCurrentUser(userId, log);
 
     return c.json(userProfile, 200);
   },
@@ -108,7 +113,11 @@ usersRoute.openapi(
 
     const body = c.req.valid('json');
 
-    await updateCurrentUser(userId, body);
+    const log = c.get('logger').child({
+      action: 'updateCurrentUser',
+    });
+
+    await updateCurrentUser(userId, body, log);
 
     return c.json({ success: true }, 200);
   },
@@ -154,7 +163,12 @@ usersRoute.openapi(
 
     const { token, platform } = c.req.valid('json');
 
-    await registerFcmToken(userId, token, platform);
+    const log = c.get('logger').child({
+      action: 'registerFcmToken',
+      platform,
+    });
+
+    await registerFcmToken(userId, token, platform, log);
 
     return c.json({ success: true }, 200);
   },
@@ -202,7 +216,11 @@ usersRoute.openapi(
 
     const body = c.req.valid('json');
 
-    await updateScheduleRules(userId, body);
+    const log = c.get('logger').child({
+      action: 'updateScheduleRules',
+    });
+
+    await updateScheduleRules(userId, body, log);
 
     return c.json({ success: true }, 200);
   },
@@ -230,7 +248,11 @@ usersRoute.openapi(
     const { id } = c.req.valid('param');
     const query = c.req.valid('query');
 
-    const result = await getSellerReviews(id, query);
+    const log = c.get('logger').child({
+      action: 'getSellerReviews',
+    });
+
+    const result = await getSellerReviews(id, query, log);
 
     return c.json(result, 200);
   },
@@ -261,7 +283,11 @@ usersRoute.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
 
-    const profile = await getPublicUserProfile(id);
+    const log = c.get('logger').child({
+      action: 'getPublicUserProfile',
+    });
+
+    const profile = await getPublicUserProfile(id, log);
 
     return c.json(profile, 200);
   },

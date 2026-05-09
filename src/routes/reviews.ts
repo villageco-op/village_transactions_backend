@@ -1,12 +1,13 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import { ErrorResponseSchema, SuccessWithEntitySchema } from '../schemas/common.schema.js';
 import { CreateReviewSchema } from '../schemas/review.schema.js';
 import { createReview } from '../services/review.service.js';
 
-export const reviewsRoute = new OpenAPIHono();
+export const reviewsRoute = new OpenAPIHono<RouteEnv>();
 
 reviewsRoute.openapi(
   createRoute({
@@ -54,7 +55,15 @@ reviewsRoute.openapi(
 
     const body = c.req.valid('json');
 
-    const review = await createReview(userId, body);
+    const log = c.get('logger').child({
+      orderId: body.orderId,
+      sellerId: body.sellerId,
+      action: 'createReview',
+    });
+
+    const review = await createReview(userId, body, log);
+
+    log.info({ reviewId: review.id, rating: body.rating }, 'Review successfully created');
     return c.json({ success: true, entityId: review.id }, 201);
   },
 );

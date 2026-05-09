@@ -1,6 +1,7 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import {
   EntityParamSchema,
@@ -33,7 +34,7 @@ import {
   getProduceListing,
 } from '../services/produce.service.js';
 
-export const produceRoute = new OpenAPIHono();
+export const produceRoute = new OpenAPIHono<RouteEnv>();
 
 produceRoute.openapi(
   createRoute({
@@ -54,6 +55,15 @@ produceRoute.openapi(
   }),
   async (c) => {
     const query = c.req.valid('query');
+
+    const log = c.get('logger').child({
+      action: 'getProduceMap',
+    });
+
+    log.debug(
+      { lat: query.lat, lng: query.lng, radius: query.radiusMiles },
+      'Fetching produce map items',
+    );
 
     const items = await getProduceMap({
       lat: query.lat,
@@ -95,6 +105,12 @@ produceRoute.openapi(
   async (c) => {
     const query = c.req.valid('query');
     const { limit, offset } = getPaginationParams(query.page, query.limit);
+
+    const log = c.get('logger').child({
+      action: 'getProduceList',
+    });
+
+    log.debug({ search: query.search, page: query.page }, 'Fetching paginated produce list');
 
     const paginatedItems = await getProduceList({
       lat: query.lat,
@@ -159,7 +175,13 @@ produceRoute.openapi(
 
     const body = c.req.valid('json');
 
-    const newProduce = await createProduceListing(userId, body);
+    const log = c.get('logger').child({
+      action: 'createProduce',
+    });
+
+    log.info({ title: body.title }, 'Creating new produce listing');
+
+    const newProduce = await createProduceListing(userId, body, log);
 
     return c.json({ success: true, entityId: newProduce.id }, 201);
   },
@@ -212,12 +234,20 @@ produceRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: produceId } = c.req.valid('param');
     const body = c.req.valid('json');
 
-    const updatedProduce = await updateProduceListing(id, userId, body);
+    const log = c.get('logger').child({
+      produceId,
+      action: 'updateProduce',
+    });
+
+    log.info('Updating produce listing');
+
+    const updatedProduce = await updateProduceListing(produceId, userId, body, log);
 
     if (!updatedProduce) {
+      log.warn('Update failed: Listing not found or unauthorized');
       return c.json({ error: 'Listing not found or unauthorized' }, 404);
     }
 
@@ -261,11 +291,19 @@ produceRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: produceId } = c.req.valid('param');
 
-    const success = await deleteProduceListing(id, userId);
+    const log = c.get('logger').child({
+      produceId,
+      action: 'deleteProduce',
+    });
+
+    log.info('Deleting produce listing');
+
+    const success = await deleteProduceListing(produceId, userId, log);
 
     if (!success) {
+      log.warn('Delete failed: Listing not found or unauthorized');
       return c.json({ error: 'Listing not found or unauthorized' }, 404);
     }
 
@@ -308,12 +346,12 @@ produceRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: produceId } = c.req.valid('param');
     const { page, limit } = c.req.valid('query');
 
     const { offset } = getPaginationParams(page, limit);
 
-    const paginatedOrders = await getProduceOrders(id, userId, page, limit, offset);
+    const paginatedOrders = await getProduceOrders(produceId, userId, page, limit, offset);
 
     if (!paginatedOrders) {
       return c.json({ error: 'Listing not found or unauthorized' }, 404);
@@ -357,12 +395,20 @@ produceRoute.openapi(
 
     const { offset } = getPaginationParams(page, limit);
 
-    const paginatedItems = await getSellerProduceListings(userId, {
-      page: page,
-      limit: limit,
-      offset: offset,
-      status: status,
+    const log = c.get('logger').child({
+      action: 'getSellerListings',
     });
+
+    const paginatedItems = await getSellerProduceListings(
+      userId,
+      {
+        page: page,
+        limit: limit,
+        offset: offset,
+        status: status,
+      },
+      log,
+    );
 
     return c.json(paginatedItems, 200);
   },
@@ -391,9 +437,9 @@ produceRoute.openapi(
     },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
+    const { id: produceId } = c.req.valid('param');
 
-    const item = await getProduceListing(id);
+    const item = await getProduceListing(produceId);
 
     if (!item) {
       return c.json({ error: 'Listing not found' }, 404);

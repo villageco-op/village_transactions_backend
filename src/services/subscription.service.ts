@@ -1,6 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 
 import type { User } from '../db/types.js';
+import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { produceRepository } from '../repositories/produce.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
@@ -21,6 +22,7 @@ import {
  * @param updates.quantityOz - The new quantity
  * @param updates.fulfillmentType - The new fulfillment type
  * @param updates.cancelReason - The reason for canceling or pausing
+ * @param log - App logger that defaults to a blank logger
  * @returns The updated subcription
  */
 export async function updateSubscription(
@@ -32,19 +34,29 @@ export async function updateSubscription(
     fulfillmentType?: 'pickup' | 'delivery';
     cancelReason?: string;
   },
+  log: AppLogger = noopLogger,
 ) {
   const subscription = await subscriptionRepository.getBuyerSubscription(buyerId, subscriptionId);
 
   if (!subscription) {
+    log.warn('Subscription update failed: record not found or buyer mismatch');
     throw new HTTPException(404, { message: 'Subscription not found' });
   }
 
   if (subscription.stripeSubscriptionId) {
     if (updates.status && updates.status !== subscription.status) {
+      log.info(
+        { from: subscription.status, to: updates.status },
+        'Syncing status change to Stripe',
+      );
       await updateStripeSubscriptionStatus(subscription.stripeSubscriptionId, updates.status);
     }
 
     if (updates.quantityOz && updates.quantityOz !== Number(subscription.quantityOz)) {
+      log.info(
+        { oldQty: subscription.quantityOz, newQty: updates.quantityOz },
+        'Syncing quantity change to Stripe',
+      );
       await updateStripeSubscriptionQuantity(subscription.stripeSubscriptionId, updates.quantityOz);
     }
   }
@@ -54,6 +66,11 @@ export async function updateSubscription(
   const product = await produceRepository.getById(subscription.productId);
 
   if (product && product.sellerId) {
+    log.info(
+      { sellerId: product.sellerId },
+      'Triggering push notification for subscription update',
+    );
+
     let message = 'A customer has updated their subscription details.';
     if (updates.status === 'canceled')
       message = `A customer canceled their subscription. Reason: ${updates.cancelReason || 'None provided'}`;
@@ -73,12 +90,18 @@ export async function updateSubscription(
  * Ensures the requesting user is either the buyer or the seller of the product.
  * @param subscriptionId - The ID of the subscription
  * @param requestingUserId - The ID of the authenticated user
+ * @param log - App logger that defaults to a blank logger
  * @returns Full subscription data with product, buyer, and seller info
  */
-export async function getSubscriptionDetails(subscriptionId: string, requestingUserId: string) {
+export async function getSubscriptionDetails(
+  subscriptionId: string,
+  requestingUserId: string,
+  log: AppLogger = noopLogger,
+) {
   const subscriptionData = await subscriptionRepository.getSubscriptionDetailsById(subscriptionId);
 
   if (!subscriptionData) {
+    log.warn('Subscription detail lookup failed: 404');
     throw new HTTPException(404, { message: 'Subscription not found' });
   }
 
@@ -86,6 +109,10 @@ export async function getSubscriptionDetails(subscriptionId: string, requestingU
   const isSeller = subscriptionData.sellerId === requestingUserId;
 
   if (!isBuyer && !isSeller) {
+    log.warn(
+      { buyerId: subscriptionData.buyerId, sellerId: subscriptionData.sellerId },
+      'Unauthorized access attempt to subscription details',
+    );
     throw new HTTPException(404, { message: 'Subscription not found' });
   }
 
@@ -143,18 +170,22 @@ export async function getSubscriptionDetails(subscriptionId: string, requestingU
  * @param requestingUserId - The ID of the calling user
  * @param query - The query filters
  * @param offset - Pagination offset
+ * @param log - App logger that defaults to a blank logger
  * @returns A list of subscriptions and basic buyer and seller user information
  */
 export async function getSubscriptions(
   requestingUserId: string,
   query: GetSubscriptionsQuery,
   offset: number,
+  log: AppLogger = noopLogger,
 ) {
   // Security check: Prevent users from arbitrarily searching other users' data.
   if (query.buyerId && query.buyerId !== requestingUserId) {
+    log.warn('User attempted to query subscriptions outside their ownership scope');
     throw new HTTPException(403, { message: 'Forbidden: Cannot view other buyers subscriptions' });
   }
   if (query.sellerId && query.sellerId !== requestingUserId) {
+    log.warn('User attempted to query subscriptions outside their ownership scope');
     throw new HTTPException(403, { message: 'Forbidden: Cannot view other sellers subscriptions' });
   }
 
@@ -209,14 +240,21 @@ export async function getSubscriptions(
  * Used when a seller deletes a product or stops offering it as a subscription.
  * @param productId - The product causing the cancelation
  * @param reason - The reason for the cancelation (from the canceling party)
+ * @param log - App logger that defaults to a blank logger
  */
-export async function batchCancelProductSubscriptions(productId: string, reason: string) {
+export async function batchCancelProductSubscriptions(
+  productId: string,
+  reason: string,
+  log: AppLogger = noopLogger,
+) {
   const affectedSubscriptions = await subscriptionRepository.getSubscriptionsByProduct(productId, [
     'active',
     'paused',
   ]);
 
   if (affectedSubscriptions.length === 0) return;
+
+  log.info({ count: affectedSubscriptions.length }, 'Starting batch cancelation for product');
 
   const results = await Promise.allSettled(
     affectedSubscriptions.map(async (sub) => {
@@ -239,7 +277,15 @@ export async function batchCancelProductSubscriptions(productId: string, reason:
 
   const failed = results.filter((r) => r.status === 'rejected');
   if (failed.length > 0) {
-    console.error(`Batch cancel completed with ${failed.length} errors out of ${results.length}.`);
-    failed.forEach((err) => console.error('Reason:', err.reason));
+    log.error(
+      {
+        failedCount: failed.length,
+        totalCount: results.length,
+        errors: failed.map((f) => f.reason?.message),
+      },
+      'Batch cancelation completed with errors',
+    );
+  } else {
+    log.info('Batch cancelation completed successfully');
   }
 }
