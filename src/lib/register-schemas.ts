@@ -1,5 +1,6 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 
+import type { AppBindings } from '../app.js';
 import * as Availability from '../schemas/availability.schema.js';
 import * as Buyer from '../schemas/buyer.schema.js';
 import * as Cart from '../schemas/cart.schema.js';
@@ -22,7 +23,7 @@ import * as Users from '../schemas/user.schema.js';
  * This prevents Orval from generating duplicate inline types.
  * @param app - Open Api Hono instance
  */
-export function registerSharedSchemas(app: OpenAPIHono) {
+export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   // Responses & Params
   app.openAPIRegistry.register('ErrorResponse', Common.ErrorResponseSchema);
   app.openAPIRegistry.register('SuccessResponse', Common.SuccessResponseSchema);

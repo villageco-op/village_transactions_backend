@@ -2,6 +2,7 @@ import { del } from '@vercel/blob';
 import { HTTPException } from 'hono/http-exception';
 
 import type { ScheduleType } from '../db/types.js';
+import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { reviewRepository } from '../repositories/review.repository.js';
 import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
@@ -15,12 +16,14 @@ import type {
 /**
  * Retrieves the current user profile, handles missing users, and sanitizes data.
  * @param id - User's unique ID injected by Auth.js session
+ * @param log - App logger that defaults to a blank logger
  * @returns Sanitized user profile data
  */
-export async function getCurrentUser(id: string) {
+export async function getCurrentUser(id: string, log: AppLogger = noopLogger) {
   const user = await userRepository.findById(id);
 
   if (!user) {
+    log.warn('Authenticated user not found in database');
     throw new HTTPException(404, { message: 'User not found' });
   }
 
@@ -32,12 +35,18 @@ export async function getCurrentUser(id: string) {
  * Deletes the current profile image if replaced.
  * @param id - User's unique ID injected by Auth.js session
  * @param data - The new profile data payload from the request body
+ * @param log - App logger that defaults to a blank logger
  * @returns Sanitized updated user profile data
  */
-export async function updateCurrentUser(id: string, data: UpdateUserPayload) {
+export async function updateCurrentUser(
+  id: string,
+  data: UpdateUserPayload,
+  log: AppLogger = noopLogger,
+) {
   const currentUser = await userRepository.findById(id);
 
   if (!currentUser) {
+    log.warn('Attempted to update non-existent user profile');
     throw new HTTPException(404, { message: 'User not found' });
   }
 
@@ -45,10 +54,14 @@ export async function updateCurrentUser(id: string, data: UpdateUserPayload) {
   const newImageUrl = data.image;
 
   const updatedUser = await userRepository.updateById(id, data);
+  log.info('User profile details updated successfully');
 
   if (newImageUrl && oldImageUrl && oldImageUrl !== newImageUrl) {
     del(oldImageUrl).catch((err) => {
-      console.error(`Failed to delete orphaned blob: ${oldImageUrl}`, err);
+      log.error(
+        { error: err instanceof Error ? err.message : err, blobUrl: oldImageUrl },
+        'Failed to delete orphaned blob image',
+      );
     });
   }
 
@@ -59,15 +72,22 @@ export async function updateCurrentUser(id: string, data: UpdateUserPayload) {
  * INTERNAL USE ONLY: Updates the user's Stripe Account ID.
  * @param id - User's unique ID
  * @param stripeAccountId - The generated Stripe Account ID
+ * @param log - App logger that defaults to a blank logger
  * @returns The updated user object
  */
-export async function updateInternalStripeAccountId(id: string, stripeAccountId: string) {
+export async function updateInternalStripeAccountId(
+  id: string,
+  stripeAccountId: string,
+  log: AppLogger = noopLogger,
+) {
   const updatedUser = await userRepository.updateStripeAccountId(id, stripeAccountId);
 
   if (!updatedUser) {
+    log.warn('Attempted to link Stripe account to non-existent user');
     throw new HTTPException(404, { message: 'User not found' });
   }
 
+  log.info({ stripeAccountId }, 'Successfully linked Stripe account ID to user');
   return updatedUser;
 }
 
@@ -75,11 +95,17 @@ export async function updateInternalStripeAccountId(id: string, stripeAccountId:
  * Updates a seller's weekly base schedule rules.
  * @param id - User's (Seller's) unique ID
  * @param data - The new schedule array payload
+ * @param log - App logger that defaults to a blank logger
  */
-export async function updateScheduleRules(id: string, data: UpdateScheduleRulesPayload) {
+export async function updateScheduleRules(
+  id: string,
+  data: UpdateScheduleRulesPayload,
+  log: AppLogger = noopLogger,
+) {
   const user = await userRepository.findById(id);
 
   if (!user) {
+    log.warn('Attempted to update schedule for non-existent user');
     throw new HTTPException(404, { message: 'User not found' });
   }
 
@@ -98,17 +124,24 @@ export async function updateScheduleRules(id: string, data: UpdateScheduleRulesP
   }));
 
   await scheduleRuleRepository.replaceSellerRules(id, [...dbPickupRules, ...dbDeliveryRules]);
+
+  log.info(
+    { pickupCount: dbPickupRules.length, deliveryCount: dbDeliveryRules.length },
+    'Replaced seller schedule rules',
+  );
 }
 
 /**
  * Retrieves a sanitized public user profile, calculating review stats and active buyer metrics.
  * @param id - The requested user's ID
+ * @param log - App logger that defaults to a blank logger
  * @returns Publicly viewable seller details and stats
  */
-export async function getPublicUserProfile(id: string) {
+export async function getPublicUserProfile(id: string, log: AppLogger = noopLogger) {
   const user = await userRepository.findById(id);
 
   if (!user) {
+    log.warn('Requested public profile not found');
     throw new HTTPException(404, { message: 'User not found' });
   }
 

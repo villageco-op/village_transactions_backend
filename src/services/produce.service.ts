@@ -1,4 +1,5 @@
 import type { ProduceType } from '../db/types.js';
+import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
@@ -12,10 +13,17 @@ import { batchCancelProductSubscriptions } from './subscription.service.js';
  * Creates a new produce listing for the authenticated user.
  * @param sellerId - User's unique ID injected by auth session
  * @param data - The creation payload from the request body
+ * @param log - App logger that defaults to a blank logger
  * @returns The newly created produce profile data
  */
-export async function createProduceListing(sellerId: string, data: CreateProducePayload) {
-  return await produceRepository.create(sellerId, data);
+export async function createProduceListing(
+  sellerId: string,
+  data: CreateProducePayload,
+  log: AppLogger = noopLogger,
+) {
+  const result = await produceRepository.create(sellerId, data);
+  log.info({ produceId: result.id }, 'Successfully created produce listing in DB');
+  return result;
 }
 
 /**
@@ -23,19 +31,25 @@ export async function createProduceListing(sellerId: string, data: CreateProduce
  * @param id - The ID of the listing to update
  * @param sellerId - User's unique ID injected by auth session
  * @param data - The partial update payload from the request body
+ * @param log - App logger that defaults to a blank logger
  * @returns The updated produce profile data
  */
 export async function updateProduceListing(
   id: string,
   sellerId: string,
   data: UpdateProducePayload,
+  log: AppLogger = noopLogger,
 ) {
   const oldProduce = await produceRepository.getById(id);
-  if (!oldProduce || oldProduce.sellerId !== sellerId) return null;
+  if (!oldProduce || oldProduce.sellerId !== sellerId) {
+    log.warn({ sellerId }, 'Ownership check failed for update');
+    return null;
+  }
 
   const { cancelExistingSubscriptions, ...dbPayload } = data;
 
   const updatedProduce = await produceRepository.update(id, sellerId, dbPayload);
+  log.info('Produce record updated in DB');
 
   const frequencyChanged =
     data.harvestFrequencyDays !== undefined &&
@@ -57,12 +71,14 @@ export async function updateProduceListing(
     if (frequencyChanged) reason = 'The farmer changed the harvest frequency for this item.';
     if (statusChangedToDeleted) reason = 'This item is currently unavailable.';
 
-    batchCancelProductSubscriptions(id, reason).catch(console.error);
+    batchCancelProductSubscriptions(id, reason).catch((err) =>
+      log.error({ err }, 'Async background subscription cancellation failed'),
+    );
   }
 
   if (statusChangedToDeleted) {
     batchCancelPendingOrders(id, 'An item in your order is no longer available.', sellerId).catch(
-      console.error,
+      (err) => log.error({ err }, 'Async background pending order cancellation failed'),
     );
   }
 
@@ -73,18 +89,29 @@ export async function updateProduceListing(
  * Soft deletes an existing produce listing and cancels all related subscriptions.
  * @param id - The ID of the listing to delete
  * @param sellerId - User's unique ID injected by auth session
+ * @param log - App logger that defaults to a blank logger
  * @returns A boolean representing success
  */
-export async function deleteProduceListing(id: string, sellerId: string): Promise<boolean> {
+export async function deleteProduceListing(
+  id: string,
+  sellerId: string,
+  log: AppLogger = noopLogger,
+): Promise<boolean> {
   const success = await produceRepository.softDelete(id, sellerId);
 
   if (success) {
+    log.info('Soft delete successful, cleaning up active orders and subscriptions');
+
     const reason = 'The farmer removed an item in this order from their shop.';
 
-    Promise.allSettled([
+    void Promise.allSettled([
       batchCancelProductSubscriptions(id, reason),
       batchCancelPendingOrders(id, reason, sellerId),
-    ]).catch(console.error);
+    ])
+      .catch((err) => log.error({ err }, 'Async background cancellation failed'))
+      .then((results) => {
+        log.info({ results }, 'Cleanup tasks completed');
+      });
   }
 
   return success;
@@ -288,11 +315,13 @@ export async function getProduceOrders(
  * @param params.limit - The maximum number of items to return.
  * @param params.offset - The number of items to skip.
  * @param params.status - Optional status filter.
+ * @param log - App logger that defaults to a blank logger
  * @returns Standardized paginated response with full produce details and analytics data.
  */
 export async function getSellerProduceListings(
   sellerId: string,
   params: { page: number; limit: number; offset: number; status?: 'active' | 'paused' | 'deleted' },
+  log: AppLogger = noopLogger,
 ) {
   const { items, total } = await produceRepository.getSellerListings({
     sellerId,
@@ -312,6 +341,8 @@ export async function getSellerProduceListings(
       },
     };
   }
+
+  log.info({ count: items.length }, 'Enriching seller items with order and subscription data');
 
   const productIds = items.map((i) => i.id);
   const [ordersData, subsData] = await Promise.all([

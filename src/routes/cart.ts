@@ -1,6 +1,7 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import { NotFoundError } from '../lib/errors.js';
 import {
@@ -23,7 +24,7 @@ import {
   updateCartItem,
 } from '../services/cart.service.js';
 
-export const cartRoute = new OpenAPIHono();
+export const cartRoute = new OpenAPIHono<RouteEnv>();
 
 cartRoute.openapi(
   createRoute({
@@ -53,7 +54,9 @@ cartRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const cart = await getCart(userId);
+    const log = c.get('logger').child({ action: 'getCart' });
+
+    const cart = await getCart(userId, log);
     return c.json({ data: cart }, 200);
   },
 );
@@ -104,11 +107,18 @@ cartRoute.openapi(
 
     const body = c.req.valid('json');
 
+    const log = c.get('logger').child({
+      productId: body.productId,
+      action: 'addToCart',
+    });
+
     try {
       const reservation = await addToCart(userId, body);
+      log.info({ reservationId: reservation.id }, 'Created product reservation');
       return c.json({ success: true, entityId: reservation.id }, 200);
     } catch (error) {
       if (error instanceof NotFoundError) {
+        log.warn({ productId: body.productId }, 'Attempted to add non-existent product');
         return c.json({ error: error.message }, 404);
       }
 
@@ -147,9 +157,20 @@ cartRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: reservationId } = c.req.valid('param');
 
-    const success = await removeFromCart(userId, id);
+    const log = c.get('logger').child({
+      reservationId,
+      action: 'removeFromCart',
+    });
+
+    const success = await removeFromCart(userId, reservationId);
+
+    if (success) {
+      log.info('Manual reservation release successful');
+    } else {
+      log.warn('Failed to remove item; reservation may not exist or belong to user');
+    }
 
     return c.json({ success }, 200);
   },
@@ -196,15 +217,22 @@ cartRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: reservationId } = c.req.valid('param');
     const body = c.req.valid('json');
 
-    const success = await updateCartItem(userId, id, body);
+    const log = c.get('logger').child({
+      reservationId,
+      action: 'updateCartItem',
+    });
+
+    const success = await updateCartItem(userId, reservationId, body);
 
     if (!success) {
+      log.warn('Update failed: reservation expired or ownership mismatch');
       return c.json({ error: 'Reservation not found or expired' }, 404);
     }
 
+    log.info({ updates: Object.keys(body) }, 'Updated cart item quantity/status');
     return c.json({ success: true }, 200);
   },
 );
@@ -240,11 +268,17 @@ cartRoute.openapi(
 
     if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
-    const { id } = c.req.valid('param');
+    const { id: groupId } = c.req.valid('param');
     const payload = c.req.valid('json');
 
-    await updateCartGroup(userId, id, payload);
+    const log = c.get('logger').child({
+      groupId,
+      action: 'updateCartGroup',
+    });
 
+    await updateCartGroup(userId, groupId, payload);
+
+    log.info({ fulfillmentType: payload.fulfillmentType }, 'Updated checkout group fulfillment');
     return c.json({ success: true }, 200);
   },
 );

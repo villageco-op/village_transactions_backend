@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, Mocked, afterEach } from 'vitest'
 import { HTTPException } from 'hono/http-exception';
 import type Stripe from 'stripe';
 
+import { noopLogger } from '../../../src/interfaces/logger.interface.js';
 import {
   __setStripeClient,
   generateStripeOnboardLink,
@@ -669,7 +670,10 @@ describe('StripeService - handleInvoicePaid', () => {
   });
 
   it('should log an error but not throw if the repository call fails', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const mockLogger = {
+      ...noopLogger,
+      error: vi.fn(),
+    };
 
     vi.mocked(orderRepository.fulfillRecurringSubscription).mockRejectedValueOnce(
       new Error('DB Timeout'),
@@ -682,14 +686,15 @@ describe('StripeService - handleInvoicePaid', () => {
       lines: { data: [{ subscription: 'sub_trigger_error' }] },
     } as unknown as Stripe.Invoice;
 
-    await expect(handleInvoicePaid(mockInvoice)).resolves.not.toThrow();
+    await expect(handleInvoicePaid(mockInvoice, mockLogger)).resolves.not.toThrow();
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error fulfilling recurring invoice in_fail_123:'),
-      expect.any(Error),
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      {
+        error: 'DB Timeout',
+        invoiceId: 'in_fail_123',
+      },
+      'Failed to fulfill recurring invoice',
     );
-
-    consoleSpy.mockRestore();
   });
 
   it('should use an empty string for receipt URL if hosted_invoice_url is missing', async () => {

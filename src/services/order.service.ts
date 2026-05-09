@@ -1,6 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 
 import type { OrderStatus } from '../db/types.js';
+import { noopLogger, type AppLogger } from '../interfaces/logger.interface.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
@@ -12,8 +13,14 @@ import { refundCheckoutSession } from './stripe.service.js';
  * @param orderId - The ID of the order to cancel
  * @param reason - The reason for cancellation provided by the user
  * @param requestingUserId - The ID of the user requesting the cancellation
+ * @param log - App logger that defaults to a blank logger
  */
-export async function cancelOrder(orderId: string, reason: string, requestingUserId: string) {
+export async function cancelOrder(
+  orderId: string,
+  reason: string,
+  requestingUserId: string,
+  log: AppLogger = noopLogger,
+) {
   const order = await orderRepository.getOrderById(orderId);
 
   if (!order) {
@@ -24,21 +31,33 @@ export async function cancelOrder(orderId: string, reason: string, requestingUse
   const isSeller = order.sellerId === requestingUserId;
 
   if (!isBuyer && !isSeller) {
+    log.warn(
+      { buyerId: order.buyerId, sellerId: order.sellerId },
+      'Unauthorized attempt to cancel order',
+    );
     throw new HTTPException(404, { message: 'Unauthorized' });
   }
 
   if (order.status === 'canceled') {
+    log.info('Order is already canceled, skipping further actions');
     return;
   }
 
   await orderRepository.updateOrderToCanceled(orderId, reason);
+  log.info('Successfully updated order status to canceled in DB');
 
   if (order.stripeSessionId) {
+    log.info({ stripeSessionId: order.stripeSessionId }, 'Initiating Stripe refund');
     await refundCheckoutSession(order.stripeSessionId);
+    log.info('Stripe refund successful');
+  } else {
+    log.info('No Stripe Session ID found, skipping refund');
   }
 
   const targetUserId = order.buyerId === requestingUserId ? order.sellerId : order.buyerId;
   const role = order.buyerId === requestingUserId ? 'Buyer' : 'Seller';
+
+  log.info({ targetUserId, role }, 'Sending cancellation push notification');
 
   await sendPushNotification(
     targetUserId,
@@ -53,13 +72,18 @@ export async function cancelOrder(orderId: string, reason: string, requestingUse
  * @param productId - The ID of the affected product
  * @param reason - The cancellation reason
  * @param requestingUserId - The seller's ID initiating the cancellation
+ * @param log - App logger that defaults to a blank logger
  */
 export async function batchCancelPendingOrders(
   productId: string,
   reason: string,
   requestingUserId: string,
+  log: AppLogger = noopLogger,
 ) {
+  log.info({ productId, requestingUserId }, 'Starting batch cancellation for product');
+
   const pendingOrderIds = await orderRepository.getPendingOrdersByProductId(productId);
+  log.info({ productId, count: pendingOrderIds.length }, 'Found pending orders to cancel');
 
   const results = await Promise.allSettled(
     pendingOrderIds.map((orderId) => cancelOrder(orderId, reason, requestingUserId)),
@@ -68,8 +92,14 @@ export async function batchCancelPendingOrders(
   // Check for any stragglers that didn't cancel correctly
   const failures = results.filter((r) => r.status === 'rejected');
   if (failures.length > 0) {
-    console.error(
-      `Batch cancellation completed with ${failures.length} failures out of ${pendingOrderIds.length} orders.`,
+    log.error(
+      { productId, failureCount: failures.length, total: pendingOrderIds.length },
+      'Batch cancellation completed with partial failures',
+    );
+  } else {
+    log.info(
+      { productId, count: pendingOrderIds.length },
+      'Batch cancellation completed successfully',
     );
   }
 }
@@ -79,8 +109,14 @@ export async function batchCancelPendingOrders(
  * @param orderId - The ID of the order to reschedule
  * @param newTime - The new scheduled time string (ISO 8601)
  * @param requestingUserId - The ID of the user requesting the change
+ * @param log - App logger that defaults to a blank logger
  */
-export async function rescheduleOrder(orderId: string, newTime: string, requestingUserId: string) {
+export async function rescheduleOrder(
+  orderId: string,
+  newTime: string,
+  requestingUserId: string,
+  log: AppLogger = noopLogger,
+) {
   const order = await orderRepository.getOrderById(orderId);
 
   if (!order) {
@@ -91,15 +127,18 @@ export async function rescheduleOrder(orderId: string, newTime: string, requesti
   const isSeller = order.sellerId === requestingUserId;
 
   if (!isBuyer && !isSeller) {
+    log.warn('Unauthorized attempt to reschedule order');
     throw new HTTPException(404, { message: 'Unauthorized' });
   }
 
   if (order.status !== 'pending') {
+    log.warn({ status: order.status }, 'Attempted to reschedule non-pending order');
     throw new HTTPException(400, { message: 'Only pending orders can be rescheduled' });
   }
 
   const newScheduledTime = new Date(newTime);
   await orderRepository.updateOrderScheduleTime(orderId, newScheduledTime);
+  log.info({ newTime: newScheduledTime.toISOString() }, 'Successfully updated order schedule time');
 
   const targetUserId = isBuyer ? order.sellerId : order.buyerId;
   const role = isBuyer ? 'Buyer' : 'Seller';
@@ -109,6 +148,7 @@ export async function rescheduleOrder(orderId: string, newTime: string, requesti
     timeStyle: 'short',
   });
 
+  log.info({ targetUserId }, 'Sending reschedule push notification');
   await sendPushNotification(
     targetUserId,
     'Order Rescheduled 🕒',
@@ -125,6 +165,7 @@ export async function rescheduleOrder(orderId: string, newTime: string, requesti
  * @param page - Current page number
  * @param limit - Number of records per page
  * @param offset - Offset index for database query
+ * @param log - App logger that defaults to a blank logger
  * @returns Paginated list of orders
  */
 export async function getOrders(
@@ -135,6 +176,7 @@ export async function getOrders(
   page: number,
   limit: number,
   offset: number,
+  log: AppLogger = noopLogger,
 ) {
   let timeframeDays: number | undefined;
 
@@ -154,6 +196,8 @@ export async function getOrders(
     offset,
   });
 
+  log.info({ count: items.length, total }, 'Successfully retrieved orders');
+
   return {
     data: items,
     meta: {
@@ -172,6 +216,7 @@ export async function getOrders(
  * @param page - Current page number
  * @param limit - Number of records per page
  * @param offset - Offset index for database query
+ * @param log - App logger that defaults to a blank logger
  * @returns Standardized paginated response of payout records
  */
 export async function getSellerPayouts(
@@ -180,6 +225,7 @@ export async function getSellerPayouts(
   page: number,
   limit: number,
   offset: number,
+  log: AppLogger = noopLogger,
 ) {
   const daysMatch = timeframe.match(/^(\d+)days$/);
   const days = daysMatch ? parseInt(daysMatch[1], 10) : 90;
@@ -207,6 +253,8 @@ export async function getSellerPayouts(
     };
   });
 
+  log.info({ count: data.length, total }, 'Successfully generated payout report');
+
   return {
     data,
     meta: {
@@ -223,12 +271,18 @@ export async function getSellerPayouts(
  * Ensures the requesting user is either the buyer or the seller.
  * @param orderId - The ID of the order
  * @param requestingUserId - The ID of the authenticated user
+ * @param log - App logger that defaults to a blank logger
  * @returns Full order data with order items and buyer and seller info
  */
-export async function getOrderDetails(orderId: string, requestingUserId: string) {
+export async function getOrderDetails(
+  orderId: string,
+  requestingUserId: string,
+  log: AppLogger = noopLogger,
+) {
   const orderData = await orderRepository.getOrderWithItemsById(orderId);
 
   if (!orderData) {
+    log.info('Order details request failed: Order not found');
     throw new HTTPException(404, { message: 'Order not found' });
   }
 
@@ -236,6 +290,7 @@ export async function getOrderDetails(orderId: string, requestingUserId: string)
   const isSeller = orderData.sellerId === requestingUserId;
 
   if (!isBuyer && !isSeller) {
+    log.warn('Unauthorized access attempt to order details');
     throw new HTTPException(404, { message: 'Order not found' });
   }
 
@@ -243,6 +298,8 @@ export async function getOrderDetails(orderId: string, requestingUserId: string)
     userRepository.findById(orderData.buyerId),
     userRepository.findById(orderData.sellerId),
   ]);
+
+  log.info('Successfully compiled order, buyer, and seller data');
 
   const safeBuyer = buyerData
     ? {

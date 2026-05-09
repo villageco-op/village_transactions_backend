@@ -1,6 +1,7 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import {
   CreateCheckoutSessionSchema,
@@ -10,7 +11,7 @@ import {
 import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.schema.js';
 import { createCheckoutSession } from '../services/stripe.service.js';
 
-export const checkoutRoute = new OpenAPIHono();
+export const checkoutRoute = new OpenAPIHono<RouteEnv>();
 
 checkoutRoute.openapi(
   createRoute({
@@ -54,8 +55,14 @@ checkoutRoute.openapi(
 
     const payload = c.req.valid('json');
 
-    const url = await createCheckoutSession(buyerId, payload);
+    const log = c.get('logger').child({
+      groupId: payload.groupId,
+      action: 'createStripeSession',
+    });
 
+    const url = await createCheckoutSession(buyerId, payload, log);
+
+    log.info('Stripe checkout session generated');
     return c.json({ url }, 200);
   },
 );

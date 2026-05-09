@@ -2,6 +2,7 @@ import { HTTPException } from 'hono/http-exception';
 import Stripe from 'stripe';
 import type { Mocked } from 'vitest';
 
+import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { cartRepository } from '../repositories/cart.repository.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
@@ -29,9 +30,10 @@ export const __setStripeClient = (mock: Mocked<StripeClient>) => {
 /**
  * Generates an onboarding link for a seller. Creates a connected Express account if one does not exist.
  * @param userId - The ID of the authenticated user
+ * @param log - App logger that defaults to a blank logger
  * @returns The Stripe Account Link URL
  */
-export async function generateStripeOnboardLink(userId: string) {
+export async function generateStripeOnboardLink(userId: string, log: AppLogger = noopLogger) {
   const user = await userRepository.findById(userId);
 
   if (!user) {
@@ -41,6 +43,7 @@ export async function generateStripeOnboardLink(userId: string) {
   let stripeAccountId = user.stripeAccountId;
 
   if (!stripeAccountId) {
+    log.info('Creating new Stripe Express account for seller');
     const account = await stripe.accounts.create({
       type: 'express',
       country: 'US',
@@ -71,18 +74,26 @@ export async function generateStripeOnboardLink(userId: string) {
  * @param buyerId - the unique buyer id
  * @param payload - checkout specific information
  * @param payload.groupId - the unique group id
+ * @param log - App logger that defaults to a blank logger
  * @returns The checkout session url
  */
-export async function createCheckoutSession(buyerId: string, payload: { groupId: string }) {
+export async function createCheckoutSession(
+  buyerId: string,
+  payload: { groupId: string },
+  log: AppLogger = noopLogger,
+) {
   const groupRows = await cartRepository.getCheckoutGroup(buyerId, payload.groupId);
 
   if (groupRows.length === 0) {
+    log.warn('Checkout failed: group not found or expired');
     throw new HTTPException(400, { message: 'Checkout group not found or has expired.' });
   }
 
   const { group, seller, buyer } = groupRows[0];
   const isSub = group.isSubscription;
   const freq = group.frequencyDays;
+
+  log.setBindings({ sellerId: seller?.id, isSubscription: group.isSubscription });
 
   const now = new Date();
   const latestAvailableBy = new Date(
@@ -194,9 +205,17 @@ export async function createCheckoutSession(buyerId: string, payload: { groupId:
     };
   }
 
+  if (group.fulfillmentType === 'delivery') {
+    log.info('Adding distance-based delivery fee to checkout session');
+  }
+
   const session = await stripe.checkout.sessions.create(sessionConfig);
-  if (!session.url)
+
+  if (!session.url) {
     throw new HTTPException(500, { message: 'Failed to create checkout session URL.' });
+  }
+
+  log.info({ sessionId: session.id }, 'Stripe session created successfully');
 
   return session.url;
 }
@@ -204,8 +223,9 @@ export async function createCheckoutSession(buyerId: string, payload: { groupId:
 /**
  * Handles incoming webhooks securely verified by Stripe.
  * @param event - The verified Stripe Event object
+ * @param log - App logger that defaults to a blank logger
  */
-export async function processStripeWebhookEvent(event: Stripe.Event) {
+export async function processStripeWebhookEvent(event: Stripe.Event, log: AppLogger = noopLogger) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -224,6 +244,11 @@ export async function processStripeWebhookEvent(event: Stripe.Event) {
     }
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice;
+      log.warn(
+        { invoiceId: invoice.id },
+        'Subscription payment failed; pausing local subscription',
+      );
+
       const stripeSubscriptionId = invoice.lines.data[0]?.subscription;
 
       if (typeof stripeSubscriptionId === 'string') {
@@ -235,6 +260,8 @@ export async function processStripeWebhookEvent(event: Stripe.Event) {
       break;
     }
     case 'customer.subscription.deleted': {
+      log.info('External subscription cancellation received from Stripe');
+
       const subscription = event.data.object as Stripe.Subscription;
       await subscriptionRepository.updateSubscriptionDataByStripeId(subscription.id, {
         status: 'canceled',
@@ -243,15 +270,19 @@ export async function processStripeWebhookEvent(event: Stripe.Event) {
       break;
     }
     default:
-      console.log(`Unhandled Stripe event type: ${event.type}`);
+      log.info({ eventType: event.type }, 'Unhandled Stripe event type');
   }
 }
 
 /**
  * Creates an order for a paid invoice if associated with a subscription.
  * @param invoice - The Stripe invoice
+ * @param log - App logger that defaults to a blank logger
  */
-export async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
+export async function handleInvoicePaid(
+  invoice: Stripe.Invoice,
+  log: AppLogger = noopLogger,
+): Promise<void> {
   const stripeSubscriptionId = invoice.lines.data[0]?.subscription;
 
   if (!stripeSubscriptionId || typeof stripeSubscriptionId !== 'string') return;
@@ -270,8 +301,15 @@ export async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> 
       stripeReceiptUrl,
       totalAmount,
     });
+    log.info(
+      { stripeInvoiceId: invoice.id },
+      'Successfully fulfilled recurring subscription invoice',
+    );
   } catch (error) {
-    console.error(`Error fulfilling recurring invoice ${invoice.id}:`, error);
+    log.error(
+      { error: error instanceof Error ? error.message : error, invoiceId: invoice.id },
+      'Failed to fulfill recurring invoice',
+    );
   }
 }
 
@@ -280,17 +318,23 @@ export async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> 
  * This handler extracts metadata (buyer, seller, reservations), creates the internal
  * order record, and notifies the seller of the new purchase.
  * @param session - The completed Stripe Checkout Session object containing metadata and payment totals.
+ * @param log - App logger that defaults to a blank logger.
  * @returns A promise that resolves when the order fulfillment and notification process is complete.
  */
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+async function handleCheckoutCompleted(
+  session: Stripe.Checkout.Session,
+  log: AppLogger = noopLogger,
+) {
   const metadata = session.metadata;
   if (!metadata) return;
 
   const { buyerId, sellerId, reservationIds, fulfillmentType, scheduledTime } = metadata;
   const rIds = reservationIds?.split(',') || [];
 
+  log.setBindings({ buyerId, sellerId, stripeSessionId: session.id });
+
   if (!buyerId || !sellerId || rIds.length === 0) {
-    console.error('Checkout Session missing required metadata.', session.id);
+    log.warn({ sessionId: session.id }, 'Checkout Session missing required metadata');
     return;
   }
 
@@ -320,8 +364,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       reservationIds: rIds,
     });
 
+    log.info('Successfully fulfilled order from checkout session');
+
     const buyer = await userRepository.findById(buyerId);
     const buyerName = buyer?.name ? buyer.name.split(' ')[0] : 'a customer';
+
+    log.info({ recipientName: buyerName }, 'Triggering push notification for new order');
 
     await sendPushNotification(
       sellerId,
@@ -329,7 +377,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       `New order from ${buyerName}! Open the app to view details.`,
     );
   } catch (error) {
-    console.error(`Error fulfilling checkout session ${session.id}:`, error);
+    log.error(
+      { error: error instanceof Error ? error.message : error },
+      'Fulfillment failed during checkout completion',
+    );
   }
 }
 
@@ -338,21 +389,28 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  * This ensures the application knows when a seller is eligible to receive payments
  * based on Stripe's `details_submitted` and `charges_enabled` requirements.
  * @param account - The Stripe Account object containing updated verification and capability status.
+ * @param log - App logger that defaults to a blank logger.
  * @returns A promise that resolves once the local user record has been updated.
  */
-async function handleAccountUpdated(account: Stripe.Account) {
+async function handleAccountUpdated(account: Stripe.Account, log: AppLogger = noopLogger) {
   const isComplete = account.details_submitted && account.charges_enabled;
   await userRepository.updateStripeOnboardingStatus(account.id, isComplete);
+  log.info(
+    { stripeAccountId: account.id, isComplete },
+    'Updated user onboarding status from Stripe',
+  );
 }
 
 /**
  * Updates the remote Stripe subscription status (Pause, Resume, Cancel).
  * @param stripeSubscriptionId - The ID of the subscription in Stripe.
  * @param status - The new status intent.
+ * @param log - App logger that defaults to a blank logger.
  */
 export async function updateStripeSubscriptionStatus(
   stripeSubscriptionId: string,
   status: 'active' | 'paused' | 'canceled',
+  log: AppLogger = noopLogger,
 ) {
   if (status === 'canceled') {
     await stripe.subscriptions.cancel(stripeSubscriptionId);
@@ -365,6 +423,7 @@ export async function updateStripeSubscriptionStatus(
       pause_collection: '',
     });
   }
+  log.info({ stripeSubscriptionId, status }, 'Transitioning subscription state');
 }
 
 /**
@@ -372,11 +431,14 @@ export async function updateStripeSubscriptionStatus(
  * Disables proration so the buyer isn't charged immediately mid-cycle.
  * @param stripeSubscriptionId - The Stripe subscription ID
  * @param newQuantityOz - The new quantity
+ * @param log - App logger that defaults to a blank logger
  */
 export async function updateStripeSubscriptionQuantity(
   stripeSubscriptionId: string,
   newQuantityOz: number,
+  log: AppLogger = noopLogger,
 ) {
+  log.info({ stripeSubscriptionId, newQuantityOz }, 'Updating Stripe subscription quantity');
   const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
 
   // One product per subscription
@@ -393,8 +455,9 @@ export async function updateStripeSubscriptionQuantity(
 /**
  * Issues a full refund for a given Checkout Session.
  * @param stripeSessionId - The ID of the Stripe Checkout Session
+ * @param log - App logger that defaults to a blank logger
  */
-export async function refundCheckoutSession(stripeSessionId: string) {
+export async function refundCheckoutSession(stripeSessionId: string, log: AppLogger = noopLogger) {
   const session = await stripe.checkout.sessions.retrieve(stripeSessionId);
 
   if (!session.payment_intent) {
@@ -404,4 +467,6 @@ export async function refundCheckoutSession(stripeSessionId: string) {
   await stripe.refunds.create({
     payment_intent: session.payment_intent as string,
   });
+
+  log.info({ stripeSessionId, reason: 'user_request' }, 'Issuing full refund for checkout session');
 }

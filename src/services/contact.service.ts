@@ -1,14 +1,20 @@
 import { HTTPException } from 'hono/http-exception';
 import type { Resend } from 'resend';
 
+import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import type { ContactPayload } from '../schemas/contact.schema.js';
 
 /**
  * Sends an automatic reply to the recipient and forwards the message to contact email.
  * @param client The resend client, injected to simplify testing.
  * @param data The contact form information.
+ * @param log - App logger that defaults to a blank logger
  */
-export async function processContactForm(client: Resend, data: ContactPayload) {
+export async function processContactForm(
+  client: Resend,
+  data: ContactPayload,
+  log: AppLogger = noopLogger,
+) {
   const villageContactEmail = process.env.VILLAGE_CONTACT_EMAIL || 'contact@village.com';
   const fromEmail = process.env.VILLAGE_FROM_EMAIL || 'noreply@village.com';
 
@@ -21,7 +27,7 @@ export async function processContactForm(client: Resend, data: ContactPayload) {
   });
 
   if (forwardError) {
-    console.error('Failed to forward contact email:', forwardError);
+    log.error({ error: forwardError.message }, 'Failed to forward contact email to admin');
     throw new HTTPException(500, { message: 'Failed to process contact form' });
   }
 
@@ -33,6 +39,8 @@ export async function processContactForm(client: Resend, data: ContactPayload) {
   });
 
   if (replyError) {
-    console.error('Failed to send auto-reply email:', replyError);
+    log.warn({ error: replyError.message }, 'Failed to send auto-reply to user');
+  } else {
+    log.info('Auto-reply sent successfully');
   }
 }

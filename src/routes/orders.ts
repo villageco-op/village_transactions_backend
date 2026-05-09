@@ -1,6 +1,7 @@
 import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.schema.js';
 import {
@@ -21,7 +22,7 @@ import {
   rescheduleOrder,
 } from '../services/order.service.js';
 
-export const ordersRoute = new OpenAPIHono();
+export const ordersRoute = new OpenAPIHono<RouteEnv>();
 
 ordersRoute.openapi(
   createRoute({
@@ -57,7 +58,22 @@ ordersRoute.openapi(
 
     const { offset } = getPaginationParams(page, limit);
 
-    const paginatedOrders = await getOrders(userId, role, status, timeframe, page, limit, offset);
+    const log = c.get('logger').child({
+      action: 'getOrders',
+    });
+
+    log.debug({ role, status, timeframe, page }, 'Fetching paginated orders');
+
+    const paginatedOrders = await getOrders(
+      userId,
+      role,
+      status,
+      timeframe,
+      page,
+      limit,
+      offset,
+      log,
+    );
 
     return c.json(paginatedOrders, 200);
   },
@@ -104,10 +120,15 @@ ordersRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: orderId } = c.req.valid('param');
     const { newTime } = c.req.valid('json');
 
-    await rescheduleOrder(id, newTime, userId);
+    const log = c.get('logger').child({
+      orderId,
+      action: 'rescheduleOrder',
+    });
+
+    await rescheduleOrder(orderId, newTime, userId, log);
 
     return c.json({ success: true }, 200);
   },
@@ -156,10 +177,17 @@ ordersRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: orderId } = c.req.valid('param');
     const { reason } = c.req.valid('json');
 
-    await cancelOrder(id, reason, userId);
+    const log = c.get('logger').child({
+      orderId,
+      action: 'cancelOrder',
+    });
+
+    log.info({ reason }, 'Processing order cancellation request');
+
+    await cancelOrder(orderId, reason, userId, log);
 
     return c.json({ success: true }, 200);
   },
@@ -200,9 +228,14 @@ ordersRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { id } = c.req.valid('param');
+    const { id: orderId } = c.req.valid('param');
 
-    const orderDetails = await getOrderDetails(id, userId);
+    const log = c.get('logger').child({
+      orderId,
+      action: 'getOrderById',
+    });
+
+    const orderDetails = await getOrderDetails(orderId, userId, log);
 
     return c.json(orderDetails, 200);
   },
