@@ -54,7 +54,7 @@ ordersRoute.openapi(
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const { role, status, timeframe, page, limit } = c.req.valid('query');
+    const { role, status, productId, timeframe, page, limit } = c.req.valid('query');
 
     const { offset } = getPaginationParams(page, limit);
 
@@ -62,13 +62,14 @@ ordersRoute.openapi(
       action: 'getOrders',
     });
 
-    log.debug({ role, status, timeframe, page }, 'Fetching paginated orders');
+    log.debug({ role, status, productId, timeframe, page }, 'Fetching paginated orders');
 
     const paginatedOrders = await getOrders(
       userId,
       role,
       status,
       timeframe,
+      productId,
       page,
       limit,
       offset,

@@ -525,6 +525,82 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(recentOrders).toHaveLength(1);
       expect(recentOrders[0].totalAmount).toBe('10.00');
     });
+
+    it('should correctly filter orders by productId', async () => {
+      const buyerId = 'b_prod_filter';
+      const sellerId = 's_prod_filter';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'bprod@test.com' },
+        { id: sellerId, email: 'sprod@test.com' },
+      ]);
+
+      const [apples, oranges] = await testDb
+        .insert(produce)
+        .values([
+          {
+            sellerId,
+            title: 'Apples',
+            pricePerOz: '1',
+            totalOzInventory: '10',
+            harvestFrequencyDays: 1,
+            seasonStart: '2025-01-01',
+            seasonEnd: '2025-12-31',
+          },
+          {
+            sellerId,
+            title: 'Oranges',
+            pricePerOz: '1',
+            totalOzInventory: '10',
+            harvestFrequencyDays: 1,
+            seasonStart: '2025-01-01',
+            seasonEnd: '2025-12-31',
+          },
+        ])
+        .returning();
+
+      const [orderWithApples, orderWithOranges] = await testDb
+        .insert(orders)
+        .values([
+          {
+            buyerId,
+            sellerId,
+            status: 'pending',
+            totalAmount: '5',
+            fulfillmentType: 'pickup',
+            scheduledTime: new Date(),
+            paymentMethod: 'card',
+          },
+          {
+            buyerId,
+            sellerId,
+            status: 'pending',
+            totalAmount: '5',
+            fulfillmentType: 'pickup',
+            scheduledTime: new Date(),
+            paymentMethod: 'card',
+          },
+        ])
+        .returning();
+
+      await testDb.insert(orderItems).values([
+        { orderId: orderWithApples.id, productId: apples.id, quantityOz: '5', pricePerOz: '1' },
+        { orderId: orderWithOranges.id, productId: oranges.id, quantityOz: '5', pricePerOz: '1' },
+      ]);
+
+      const { items, total } = await orderRepository.getOrders({
+        userId: buyerId,
+        role: 'buyer',
+        productId: apples.id,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(total).toBe(1);
+      expect(items).toHaveLength(1);
+      expect(items[0].id).toBe(orderWithApples.id);
+      expect(items[0].items[0].product.title).toBe('Apples');
+    });
   });
 
   describe('OrderRepository - getPayoutHistory Integration', () => {

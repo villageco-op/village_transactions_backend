@@ -46,6 +46,9 @@ export const GetOrdersQuerySchema = z
       description: 'Optional timeframe filter (e.g., "7d", "30d", or ISO range)',
       example: 'recent',
     }),
+    productId: ResourceIdSchema.optional().openapi({
+      description: 'Include only orders with order items for this product.',
+    }),
   })
   .extend(PaginationQuerySchema.shape)
   .openapi('GetOrdersQuery');

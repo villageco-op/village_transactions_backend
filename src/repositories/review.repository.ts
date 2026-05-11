@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
-import { reviews, users } from '../db/schema.js';
+import { orderItems, reviews, users } from '../db/schema.js';
 import type { DbClient } from '../db/types.js';
 
 export const reviewRepository = {
@@ -50,6 +50,7 @@ export const reviewRepository = {
    * @param options.offset - The number of records to skip
    * @param options.sortBy - The column to sort by ('createdAt' or 'rating')
    * @param options.sortOrder - The direction of the sort ('asc' or 'desc')
+   * @param options.productId - Filter by reviews connected to a product
    * @returns A list of review objects with nested buyer details
    */
   async findReviewsBySellerId(
@@ -59,13 +60,20 @@ export const reviewRepository = {
       offset: number;
       sortBy: 'createdAt' | 'rating';
       sortOrder: 'asc' | 'desc';
+      productId?: string;
     },
   ) {
     const sortCol = options.sortBy === 'rating' ? reviews.rating : reviews.createdAt;
     const sortFunc = options.sortOrder === 'desc' ? desc : asc;
 
-    const result = await this.db
-      .select({
+    const conditions = [eq(reviews.sellerId, sellerId)];
+
+    if (options.productId) {
+      conditions.push(eq(orderItems.productId, options.productId));
+    }
+
+    const query = this.db
+      .selectDistinct({
         id: reviews.id,
         rating: reviews.rating,
         comment: reviews.comment,
@@ -77,8 +85,14 @@ export const reviewRepository = {
         },
       })
       .from(reviews)
-      .leftJoin(users, eq(reviews.buyerId, users.id))
-      .where(eq(reviews.sellerId, sellerId))
+      .leftJoin(users, eq(reviews.buyerId, users.id));
+
+    if (options.productId) {
+      query.innerJoin(orderItems, eq(reviews.orderId, orderItems.orderId));
+    }
+
+    const result = await query
+      .where(and(...conditions))
       .orderBy(sortFunc(sortCol))
       .limit(options.limit)
       .offset(options.offset);
@@ -87,16 +101,33 @@ export const reviewRepository = {
   },
 
   /**
-   * Counts the total number of reviews associated with a specific seller.
-   * Useful for calculating total pages in pagination.
+   * Counts the total number of reviews for a seller,
+   * optionally filtered by a specific product.
+   * @remarks Useful for calculating total pages in pagination.
    * @param sellerId - The unique identifier of the seller
+   * @param productId - (Optional) Only count reviews related to a product
    * @returns The total count of reviews as a number
    */
-  async countBySellerId(sellerId: string): Promise<number> {
+  async countBySellerId(sellerId: string, productId?: string): Promise<number> {
+    const conditions = [eq(reviews.sellerId, sellerId)];
+
+    if (productId) {
+      conditions.push(
+        exists(
+          this.db
+            .select()
+            .from(orderItems)
+            .where(
+              and(eq(orderItems.orderId, reviews.orderId), eq(orderItems.productId, productId)),
+            ),
+        ),
+      );
+    }
+
     const [result] = await this.db
       .select({ count: sql<number>`count(*)::int` })
       .from(reviews)
-      .where(eq(reviews.sellerId, sellerId));
+      .where(and(...conditions));
 
     return result?.count ?? 0;
   },

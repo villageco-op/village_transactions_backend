@@ -9,7 +9,15 @@ import {
 } from '../../test-utils/testcontainer-db.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
-import { users, fcmTokens, scheduleRules, orders, reviews } from '../../../src/db/schema.js';
+import {
+  users,
+  fcmTokens,
+  scheduleRules,
+  orders,
+  reviews,
+  orderItems,
+  produce,
+} from '../../../src/db/schema.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
 import { request } from '../../test-utils/request.js';
@@ -286,15 +294,14 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
   describe('GET /api/users/:id/reviews', () => {
     const BUYER_ID = 'review_buyer';
     const SELLER_ID = 'review_seller';
+    const ORDER_1 = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const ORDER_2 = '11111111-2222-3333-4444-555555555555';
 
     beforeEach(async () => {
       await testDb.insert(users).values([
         { id: BUYER_ID, name: 'Reviewer', email: 'reviewer@example.com' },
         { id: SELLER_ID, name: 'Shop Owner', email: 'shopowner@example.com' },
       ]);
-
-      const ORDER_1 = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-      const ORDER_2 = '11111111-2222-3333-4444-555555555555';
 
       await testDb.insert(orders).values([
         {
@@ -365,6 +372,53 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       const res = await authedRequest(`/api/users/${SELLER_ID}/reviews?limit=100`);
 
       expect(res.status).toBe(400);
+    });
+
+    it('should filter reviews by productId', async () => {
+      const [productA] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: SELLER_ID,
+          title: 'Product A',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
+
+      const [productB] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: SELLER_ID,
+          title: 'Product B',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
+
+      await testDb.insert(orderItems).values([
+        { orderId: ORDER_1, productId: productA.id, quantityOz: '5', pricePerOz: '1.00' },
+        { orderId: ORDER_2, productId: productB.id, quantityOz: '5', pricePerOz: '1.00' },
+      ]);
+
+      const res = await authedRequest(
+        `/api/users/${SELLER_ID}/reviews?productId=${productA.id}`,
+        {},
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      // Only the review for Order 1/Product A should return
+      expect(body.pagination.total).toBe(1);
+      expect(body.reviews).toHaveLength(1);
+      expect(body.reviews[0].comment).toBe('Awesome');
     });
   });
 

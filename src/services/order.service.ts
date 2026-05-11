@@ -162,6 +162,7 @@ export async function rescheduleOrder(
  * @param role - Whether the user is acting as a 'buyer' or 'seller'
  * @param status - Optional status to filter by
  * @param timeframe - Optional timeframe string (e.g. "30days")
+ * @param productId - Optionaly get only reviews connected to a product
  * @param page - Current page number
  * @param limit - Number of records per page
  * @param offset - Offset index for database query
@@ -173,6 +174,7 @@ export async function getOrders(
   role: 'buyer' | 'seller',
   status: OrderStatus | undefined,
   timeframe: string | undefined,
+  productId: string | undefined,
   page: number,
   limit: number,
   offset: number,
@@ -192,6 +194,7 @@ export async function getOrders(
     role,
     status,
     timeframeDays,
+    productId,
     limit,
     offset,
   });

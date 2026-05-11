@@ -6,7 +6,7 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
-import { users, orders } from '../../../src/db/schema.js';
+import { users, orders, orderItems, produce } from '../../../src/db/schema.js';
 
 describe('ReviewRepository - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -186,6 +186,64 @@ describe('ReviewRepository - Integration', { timeout: 60_000 }, () => {
       });
       expect(page2).toHaveLength(1);
       expect(page2[0].rating).toBe(5);
+    });
+
+    it('should filter reviews by a specific productId', async () => {
+      const [productA] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: SELLER_ID,
+          title: 'Product A',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
+
+      const [productB] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: SELLER_ID,
+          title: 'Product B',
+          pricePerOz: '1.00',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
+
+      // Order 1 has Product A, Order 2 has Product B
+      await testDb.insert(orderItems).values([
+        {
+          orderId: '11111111-1111-1111-1111-111111111111',
+          productId: productA.id,
+          quantityOz: '5',
+          pricePerOz: '1.00',
+        },
+        {
+          orderId: '22222222-2222-2222-2222-222222222222',
+          productId: productB.id,
+          quantityOz: '5',
+          pricePerOz: '1.00',
+        },
+      ]);
+
+      // Fetch reviews ONLY for Product A
+      const results = await reviewRepository.findReviewsBySellerId(SELLER_ID, {
+        limit: 10,
+        offset: 0,
+        sortBy: 'rating',
+        sortOrder: 'desc',
+        productId: productA.id,
+      });
+
+      // Assert: Should only find the review linked to Order 1 (Alice's "Okay" review)
+      expect(results).toHaveLength(1);
+      expect(results[0].comment).toBe('Okay');
+      expect(results[0].rating).toBe(3);
     });
   });
 

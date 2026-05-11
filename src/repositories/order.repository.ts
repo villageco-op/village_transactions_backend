@@ -1,4 +1,4 @@
-import { eq, inArray, and, gt, desc, gte, sql, lt, notInArray } from 'drizzle-orm';
+import { eq, inArray, and, gt, desc, gte, sql, lt, notInArray, exists } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import {
@@ -318,6 +318,7 @@ export const orderRepository = {
    * @param params.role - Determines if the user is fetched as the 'buyer' or 'seller' in the transaction.
    * @param params.status - (Optional) Filter by order state: 'pending', 'completed', or 'canceled'.
    * @param params.timeframeDays - (Optional) Limit results to orders created within this many days from today.
+   * @param params.productId - (Optional) Filter by orders with items for a specific product.
    * @param params.limit - Limit the max amount of orders.
    * @param params.offset - The pagination offset.
    * @returns A promise resolving to an array of orders and the total order count. Each order includes:
@@ -331,6 +332,7 @@ export const orderRepository = {
     role: 'buyer' | 'seller';
     status?: OrderStatus;
     timeframeDays?: number;
+    productId?: string;
     limit: number;
     offset: number;
   }) {
@@ -352,6 +354,19 @@ export const orderRepository = {
       conditions.push(gte(orders.createdAt, cutoffDate));
     }
 
+    if (params.productId) {
+      conditions.push(
+        exists(
+          this.db
+            .select()
+            .from(orderItems)
+            .where(
+              and(eq(orderItems.orderId, orders.id), eq(orderItems.productId, params.productId)),
+            ),
+        ),
+      );
+    }
+
     const [totalCountResult] = await this.db
       .select({
         count: sql<number>`count(${orders.id})::int`,
@@ -361,6 +376,7 @@ export const orderRepository = {
 
     const total = totalCountResult?.count || 0;
 
+    // Fetch Paginated Orders
     const ordersResult = await this.db
       .select({
         order: orders,
@@ -382,6 +398,7 @@ export const orderRepository = {
       return { items: [], total };
     }
 
+    // Fetch associated items for the orders found above
     const orderIds = ordersResult.map((o) => o.order.id);
 
     const itemsResult = await this.db
@@ -393,6 +410,7 @@ export const orderRepository = {
       .innerJoin(produce, eq(orderItems.productId, produce.id))
       .where(inArray(orderItems.orderId, orderIds));
 
+    // Aggregate items into order objects
     const items = ordersResult.map((o) => ({
       ...o.order,
       counterparty: o.counterparty,

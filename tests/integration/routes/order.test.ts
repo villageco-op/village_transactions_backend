@@ -185,6 +185,67 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       const { data } = await res.json();
       expect(data).toHaveLength(0);
     });
+
+    it('should filter orders by productId', async () => {
+      const [otherProduct] = await testDb
+        .insert(produce)
+        .values({
+          sellerId: SELLER_ID,
+          title: 'Other Product',
+          pricePerOz: '1.00',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 7,
+          seasonStart: '2025-01-01',
+          seasonEnd: '2025-12-31',
+        })
+        .returning();
+
+      const [secondOrder] = await testDb
+        .insert(orders)
+        .values({
+          buyerId: BUYER_ID,
+          sellerId: SELLER_ID,
+          status: 'pending',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '5.00',
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      await testDb.insert(orderItems).values({
+        orderId: secondOrder.id,
+        productId: otherProduct.id,
+        quantityOz: '5',
+        pricePerOz: '1.00',
+      });
+
+      const originalProduct = (await testDb.select().from(produce).limit(1))[0];
+
+      const res = await authedRequest(
+        `/api/orders?role=buyer&productId=${originalProduct.id}`,
+        {},
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const { data, meta } = await res.json();
+
+      // Even though the buyer has 2 orders, only 1 contains the filtered product
+      expect(meta.total).toBe(1);
+      expect(data).toHaveLength(1);
+      expect(data[0].id).toBe(testOrder.id);
+      expect(data[0].items[0].product.title).toBe('Fresh Berries');
+    });
+
+    it('should return 400 if productId is not a valid UUID', async () => {
+      const res = await authedRequest(
+        '/api/orders?role=buyer&productId=not-a-uuid',
+        {},
+        { id: BUYER_ID },
+      );
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('GET /api/orders/:id', () => {
