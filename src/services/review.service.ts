@@ -42,7 +42,7 @@ export async function createReview(
 /**
  * Retrieves a paginated list of reviews for a seller.
  * @param sellerId - The ID of the seller to fetch reviews for
- * @param query - Pagination and sorting options
+ * @param query - Pagination, sorting, and filter options
  * @param log - App logger that defaults to a blank logger
  * @returns A list of reviews and pagination details
  */
@@ -51,12 +51,18 @@ export async function getSellerReviews(
   query: GetSellerReviewsQuery,
   log: AppLogger = noopLogger,
 ) {
-  const { page, limit, sortBy, sortOrder } = query;
+  const { page, limit, sortBy, sortOrder, productId } = query;
   const offset = (page - 1) * limit;
 
   const [items, total] = await Promise.all([
-    reviewRepository.findReviewsBySellerId(sellerId, { limit, offset, sortBy, sortOrder }),
-    reviewRepository.countBySellerId(sellerId),
+    reviewRepository.findReviewsBySellerId(sellerId, {
+      limit,
+      offset,
+      sortBy,
+      sortOrder,
+      productId,
+    }),
+    reviewRepository.countBySellerId(sellerId, productId),
   ]);
 
   const totalPages = Math.ceil(total / limit);

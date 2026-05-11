@@ -49,6 +49,9 @@ export const GetSellerReviewsQuerySchema = z.object({
     .optional()
     .default('desc')
     .openapi({ example: 'desc', description: 'The direction of the sort' }),
+  productId: ResourceIdSchema.optional().openapi({
+    description: 'Include only reviews connected to orders for this product.',
+  }),
 });
 
 export type GetSellerReviewsQuery = z.infer<typeof GetSellerReviewsQuerySchema>;

@@ -267,7 +267,7 @@ describe('OrderService - getOrders', () => {
   it('should call repository with parsed timeframeDays and pagination params when timeframe is provided', async () => {
     vi.mocked(orderRepository.getOrders).mockResolvedValueOnce({ items: [], total: 0 });
 
-    const result = await getOrders('user_1', 'buyer', 'pending', '30days', 1, 10, 0);
+    const result = await getOrders('user_1', 'buyer', 'pending', '30days', undefined, 1, 10, 0);
 
     expect(orderRepository.getOrders).toHaveBeenCalledWith({
       userId: 'user_1',
@@ -292,7 +292,7 @@ describe('OrderService - getOrders', () => {
       total: 25,
     });
 
-    const result = await getOrders('user_2', 'seller', undefined, undefined, 2, 20, 20);
+    const result = await getOrders('user_2', 'seller', undefined, undefined, undefined, 2, 20, 20);
 
     expect(orderRepository.getOrders).toHaveBeenCalledWith({
       userId: 'user_2',
@@ -315,7 +315,7 @@ describe('OrderService - getOrders', () => {
   it('should call repository without timeframeDays if timeframe format is invalid', async () => {
     vi.mocked(orderRepository.getOrders).mockResolvedValueOnce({ items: [], total: 0 });
 
-    await getOrders('user_3', 'buyer', undefined, 'invalid_string', 1, 15, 0);
+    await getOrders('user_3', 'buyer', undefined, 'invalid_string', undefined, 1, 15, 0);
 
     expect(orderRepository.getOrders).toHaveBeenCalledWith({
       userId: 'user_3',
