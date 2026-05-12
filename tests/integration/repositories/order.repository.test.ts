@@ -888,6 +888,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
     it('should retrieve an order and its joined items', async () => {
       const buyerId = 'b_items_test';
       const sellerId = 's_items_test';
+      const availableByDate = new Date('2024-04-15T10:00:00Z');
 
       await testDb.insert(users).values([
         { id: buyerId, email: 'b_items@test.com' },
@@ -905,6 +906,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
           isSubscribable: true,
           status: 'active',
           harvestFrequencyDays: 1,
+          availableBy: availableByDate,
           seasonStart: '2024-01-01',
           seasonEnd: '2024-12-31',
         })
@@ -935,11 +937,17 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(fetchedOrderData).toBeDefined();
       expect(fetchedOrderData?.id).toBe(insertedOrder.id);
       expect(fetchedOrderData?.items).toHaveLength(1);
-      expect(fetchedOrderData?.items[0].productName).toBe('Test Apples');
-      expect(fetchedOrderData?.items[0].quantityOz).toBe('20.00');
-      expect(fetchedOrderData?.items[0].maxOrderQuantityOz).toBe('2.00');
-      expect(fetchedOrderData?.items[0].isProduceSubscribable).toBe(true);
-      expect(fetchedOrderData?.items[0].produceStatus).toBe('active');
+
+      const item = fetchedOrderData?.items[0];
+      expect(item?.productName).toBe('Test Apples');
+      expect(item?.quantityOz).toBe('20.00');
+      expect(item?.maxOrderQuantityOz).toBe('2.00');
+      expect(item?.isProduceSubscribable).toBe(true);
+      expect(item?.produceStatus).toBe('active');
+      expect(item?.produceTotalOzInventory).toBe('100.00');
+      expect(item?.produceAvailableBy).toStrictEqual(availableByDate);
+      expect(item?.produceSeasonStart).toBe('2024-01-01');
+      expect(item?.produceSeasonEnd).toBe('2024-12-31');
     });
 
     it('should return null when getting order items by a non-existent ID', async () => {

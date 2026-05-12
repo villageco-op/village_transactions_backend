@@ -21,6 +21,7 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
   const BUYER_ID = 'buyer_integration_1';
   const SELLER_ID = 'seller_integration_1';
   let testOrder: any;
+  const availableByDate = new Date('2024-04-15T10:00:00Z');
 
   beforeAll(() => {
     testDb = getTestDb();
@@ -49,8 +50,10 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
         title: 'Fresh Berries',
         pricePerOz: '1.20',
         totalOzInventory: '100',
+        status: 'active',
         isSubscribable: false,
         harvestFrequencyDays: 7,
+        availableBy: availableByDate,
         seasonStart: '2025-01-01',
         seasonEnd: '2025-12-31',
       })
@@ -276,11 +279,17 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
 
       // Validate Items Joined Correctly
       expect(body.items).toHaveLength(1);
-      expect(body.items[0].productName).toBe('Fresh Berries');
-      expect(body.items[0].quantityOz).toBe('10.00');
-      expect(body.items[0].maxOrderQuantityOz).toBe(null);
-      expect(body.items[0].isProduceSubscribable).toBe(false);
-      expect(body.items[0].produceStatus).toBe('active');
+
+      const item = body.items[0];
+      expect(item.productName).toBe('Fresh Berries');
+      expect(item.quantityOz).toBe('10.00');
+      expect(item.maxOrderQuantityOz).toBe(null);
+      expect(item.isProduceSubscribable).toBe(false);
+      expect(item.produceStatus).toBe('active');
+      expect(item.produceTotalOzInventory).toBe('100.00');
+      expect(item.produceAvailableBy).toStrictEqual(availableByDate.toISOString());
+      expect(item.produceSeasonStart).toBe('2025-01-01');
+      expect(item.produceSeasonEnd).toBe('2025-12-31');
     });
 
     it('should return 200 and details when requested by the seller', async () => {
