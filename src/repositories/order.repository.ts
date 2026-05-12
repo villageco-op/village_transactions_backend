@@ -526,6 +526,10 @@ export const orderRepository = {
         maxOrderQuantityOz: produce.maxOrderQuantityOz,
         isProduceSubscribable: produce.isSubscribable,
         produceStatus: produce.status,
+        produceTotalOzInventory: produce.totalOzInventory,
+        produceAvailableBy: produce.availableBy,
+        produceSeasonStart: produce.seasonStart,
+        produceSeasonEnd: produce.seasonEnd,
         quantityOz: orderItems.quantityOz,
         pricePerOz: orderItems.pricePerOz,
       })

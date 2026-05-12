@@ -74,6 +74,10 @@ export const OrderItemDetailSchema = z.object({
   maxOrderQuantityOz: z.string().nullable(),
   isProduceSubscribable: z.boolean().nullable(),
   produceStatus: ProduceStatusSchema.nullable(),
+  produceTotalOzInventory: z.string(),
+  produceAvailableBy: z.date(),
+  produceSeasonStart: z.date(),
+  produceSeasonEnd: z.date(),
   quantityOz: z.string(),
   pricePerOz: z.string(),
 });
