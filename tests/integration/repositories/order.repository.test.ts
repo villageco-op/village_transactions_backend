@@ -901,6 +901,9 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
           title: 'Test Apples',
           pricePerOz: '1.00',
           totalOzInventory: '100',
+          maxOrderQuantityOz: '2.00',
+          isSubscribable: true,
+          status: 'active',
           harvestFrequencyDays: 1,
           seasonStart: '2024-01-01',
           seasonEnd: '2024-12-31',
@@ -934,6 +937,9 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(fetchedOrderData?.items).toHaveLength(1);
       expect(fetchedOrderData?.items[0].productName).toBe('Test Apples');
       expect(fetchedOrderData?.items[0].quantityOz).toBe('20.00');
+      expect(fetchedOrderData?.items[0].maxOrderQuantityOz).toBe('2.00');
+      expect(fetchedOrderData?.items[0].isProduceSubscribable).toBe(true);
+      expect(fetchedOrderData?.items[0].produceStatus).toBe('active');
     });
 
     it('should return null when getting order items by a non-existent ID', async () => {

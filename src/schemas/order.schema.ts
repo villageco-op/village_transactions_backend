@@ -7,6 +7,7 @@ import {
   IsoDateTimeSchema,
   OrderStatusSchema,
   PaginationQuerySchema,
+  ProduceStatusSchema,
   ResourceIdSchema,
   UserBasicInfoSchema,
 } from './common.schema.js';
@@ -70,6 +71,9 @@ export const OrderItemDetailSchema = z.object({
   id: ResourceIdSchema,
   productId: ResourceIdSchema,
   productName: z.string(),
+  maxOrderQuantityOz: z.string().nullable(),
+  isProduceSubscribable: z.boolean().nullable(),
+  produceStatus: ProduceStatusSchema.nullable(),
   quantityOz: z.string(),
   pricePerOz: z.string(),
 });
