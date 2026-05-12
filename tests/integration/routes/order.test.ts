@@ -49,6 +49,7 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
         title: 'Fresh Berries',
         pricePerOz: '1.20',
         totalOzInventory: '100',
+        isSubscribable: false,
         harvestFrequencyDays: 7,
         seasonStart: '2025-01-01',
         seasonEnd: '2025-12-31',
@@ -277,6 +278,9 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       expect(body.items).toHaveLength(1);
       expect(body.items[0].productName).toBe('Fresh Berries');
       expect(body.items[0].quantityOz).toBe('10.00');
+      expect(body.items[0].maxOrderQuantityOz).toBe(null);
+      expect(body.items[0].isProduceSubscribable).toBe(false);
+      expect(body.items[0].produceStatus).toBe('active');
     });
 
     it('should return 200 and details when requested by the seller', async () => {

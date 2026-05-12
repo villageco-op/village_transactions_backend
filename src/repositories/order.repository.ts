@@ -523,6 +523,9 @@ export const orderRepository = {
         id: orderItems.id,
         productId: orderItems.productId,
         productName: produce.title,
+        maxOrderQuantityOz: produce.maxOrderQuantityOz,
+        isProduceSubscribable: produce.isSubscribable,
+        produceStatus: produce.status,
         quantityOz: orderItems.quantityOz,
         pricePerOz: orderItems.pricePerOz,
       })
