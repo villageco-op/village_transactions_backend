@@ -11,6 +11,10 @@ import {
   updateStripeSubscriptionQuantity,
   createCheckoutSession,
   handleInvoicePaid,
+  findOrderByCharge,
+  handleChargeDisputeCreated,
+  handleChargeRefunded,
+  handleSubscriptionUpdated,
 } from '../../../src/services/stripe.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { updateInternalStripeAccountId } from '../../../src/services/user.service.js';
@@ -49,10 +53,14 @@ const mockStripe = {
         },
       }),
       create: vi.fn().mockResolvedValue({ url: 'https://stripe.com/checkout/session_123' }),
+      list: vi.fn().mockResolvedValue({ data: [] }),
     },
   },
   refunds: {
     create: vi.fn(),
+  },
+  charges: {
+    retrieve: vi.fn(),
   },
 } as unknown as Mocked<Stripe>;
 
@@ -70,6 +78,9 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
   orderRepository: {
     fulfillCheckoutSession: vi.fn(),
     fulfillRecurringSubscription: vi.fn(),
+    getOrderByStripeId: vi.fn(),
+    updateOrderStatus: vi.fn(),
+    updateOrderToCanceled: vi.fn(),
   },
 }));
 
@@ -713,5 +724,160 @@ describe('StripeService - handleInvoicePaid', () => {
         stripeReceiptUrl: '',
       }),
     );
+  });
+});
+
+describe('StripeService - findOrderByCharge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should find an order directly via payment_intent ID', async () => {
+    const mockCharge = { payment_intent: 'pi_123' } as Stripe.Charge;
+    const mockOrder = { id: 'order_abc' };
+    vi.mocked(orderRepository.getOrderByStripeId).mockResolvedValueOnce(mockOrder as any);
+
+    const result = await findOrderByCharge(mockCharge);
+
+    expect(orderRepository.getOrderByStripeId).toHaveBeenCalledWith('pi_123');
+    expect(result).toEqual(mockOrder);
+  });
+
+  it('should fallback to checkout session lookup if PI lookup fails', async () => {
+    const mockCharge = { payment_intent: 'pi_123' } as Stripe.Charge;
+    const mockOrder = { id: 'order_from_session' };
+
+    // First attempt (PI) returns null
+    vi.mocked(orderRepository.getOrderByStripeId).mockResolvedValueOnce(null);
+    // Stripe session list returns a session
+    vi.mocked(mockStripe.checkout.sessions.list).mockResolvedValueOnce({
+      data: [{ id: 'cs_456' }],
+    } as any);
+    // Second attempt (Session ID) returns the order
+    vi.mocked(orderRepository.getOrderByStripeId).mockResolvedValueOnce(mockOrder as any);
+
+    const result = await findOrderByCharge(mockCharge);
+
+    expect(mockStripe.checkout.sessions.list).toHaveBeenCalledWith({ payment_intent: 'pi_123' });
+    expect(orderRepository.getOrderByStripeId).toHaveBeenCalledWith('cs_456');
+    expect(result).toEqual(mockOrder);
+  });
+
+  it('should return null if no order is found through PI or Session', async () => {
+    const mockCharge = { payment_intent: 'pi_123' } as Stripe.Charge;
+    vi.mocked(orderRepository.getOrderByStripeId).mockResolvedValue(null);
+    vi.mocked(mockStripe.checkout.sessions.list).mockResolvedValueOnce({ data: [] } as any);
+
+    const result = await findOrderByCharge(mockCharge);
+
+    expect(result).toBeNull();
+  });
+});
+
+describe('StripeService - handleChargeDisputeCreated', () => {
+  const mockLog = { ...noopLogger, info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should update order status to disputed when order is found', async () => {
+    const mockDispute = { id: 'dp_123', charge: 'ch_123' } as Stripe.Dispute;
+    const mockCharge = { id: 'ch_123', payment_intent: 'pi_123' } as Stripe.Charge;
+    const mockOrder = { id: 'order_123' };
+
+    vi.mocked(mockStripe.charges.retrieve).mockResolvedValueOnce(mockCharge as any);
+    vi.mocked(orderRepository.getOrderByStripeId).mockResolvedValueOnce(mockOrder as any);
+
+    await handleChargeDisputeCreated(mockDispute, mockLog as any);
+
+    expect(orderRepository.updateOrderStatus).toHaveBeenCalledWith('order_123', 'disputed');
+    expect(mockLog.info).toHaveBeenCalled();
+  });
+
+  it('should log warning if charge exists but no order is found', async () => {
+    const mockDispute = { id: 'dp_123', charge: 'ch_123' } as Stripe.Dispute;
+    vi.mocked(mockStripe.charges.retrieve).mockResolvedValueOnce({ id: 'ch_123' } as any);
+    vi.mocked(orderRepository.getOrderByStripeId).mockResolvedValueOnce(null);
+
+    await handleChargeDisputeCreated(mockDispute, mockLog as any);
+
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ chargeId: 'ch_123' }),
+      expect.stringContaining('could not find corresponding order'),
+    );
+  });
+});
+
+describe('StripeService - handleChargeRefunded', () => {
+  const mockLog = { ...noopLogger, info: vi.fn(), error: vi.fn() };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('should cancel order and restock when charge is refunded', async () => {
+    const mockCharge = {
+      id: 'ch_123',
+      payment_intent: 'pi_123',
+    } as Stripe.Charge;
+
+    const mockOrder = { id: 'order_123' };
+
+    vi.mocked(mockStripe.charges.retrieve).mockResolvedValueOnce(mockCharge as any);
+    vi.mocked(orderRepository.getOrderByStripeId).mockResolvedValue(mockOrder as any);
+
+    await handleChargeRefunded(mockCharge, mockLog as any);
+
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenCalledWith(
+      'order_123',
+      'Refunded via Stripe',
+    );
+  });
+
+  it('should log error if repository call throws', async () => {
+    const mockCharge = { id: 'ch_123', payment_intent: 'pi_123' } as Stripe.Charge;
+    vi.mocked(orderRepository.getOrderByStripeId).mockResolvedValueOnce({ id: 'order_123' } as any);
+    vi.mocked(orderRepository.updateOrderToCanceled).mockRejectedValueOnce(new Error('DB Error'));
+
+    await handleChargeRefunded(mockCharge, mockLog as any);
+
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.objectContaining({ chargeId: 'ch_123' }),
+      'Failed to process charge refunded webhook',
+    );
+  });
+});
+
+describe('StripeService - handleSubscriptionUpdated', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should update subscription quantity in DB', async () => {
+    const mockSub = {
+      id: 'sub_123',
+      items: {
+        data: [{ quantity: 5 }],
+      },
+    } as unknown as Stripe.Subscription;
+
+    await handleSubscriptionUpdated(mockSub);
+
+    expect(subscriptionRepository.updateSubscriptionDataByStripeId).toHaveBeenCalledWith(
+      'sub_123',
+      { quantityOz: 5 },
+    );
+  });
+
+  it('should do nothing if quantity is missing', async () => {
+    const mockSub = {
+      id: 'sub_123',
+      items: { data: [] },
+    } as unknown as Stripe.Subscription;
+
+    await handleSubscriptionUpdated(mockSub);
+
+    expect(subscriptionRepository.updateSubscriptionDataByStripeId).not.toHaveBeenCalled();
   });
 });

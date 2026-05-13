@@ -14,7 +14,13 @@ import { updateInternalStripeAccountId } from './user.service.js';
 
 type StripeClient = Pick<
   Stripe,
-  'accounts' | 'accountLinks' | 'checkout' | 'subscriptions' | 'subscriptionItems' | 'refunds'
+  | 'accounts'
+  | 'accountLinks'
+  | 'checkout'
+  | 'subscriptions'
+  | 'subscriptionItems'
+  | 'refunds'
+  | 'charges'
 >;
 
 let stripe: StripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
@@ -269,6 +275,21 @@ export async function processStripeWebhookEvent(event: Stripe.Event, log: AppLog
       });
       break;
     }
+    case 'charge.dispute.created': {
+      const dispute = event.data.object as Stripe.Dispute;
+      await handleChargeDisputeCreated(dispute, log);
+      break;
+    }
+    case 'charge.refunded': {
+      const charge = event.data.object as Stripe.Charge;
+      await handleChargeRefunded(charge, log);
+      break;
+    }
+    case 'customer.subscription.updated': {
+      const subscription = event.data.object as Stripe.Subscription;
+      await handleSubscriptionUpdated(subscription, log);
+      break;
+    }
     default:
       log.info({ eventType: event.type }, 'Unhandled Stripe event type');
   }
@@ -469,4 +490,115 @@ export async function refundCheckoutSession(stripeSessionId: string, log: AppLog
   });
 
   log.info({ stripeSessionId, reason: 'user_request' }, 'Issuing full refund for checkout session');
+}
+
+/**
+ * Attempts to find an Order by checking the charge's payment_intent against DB records.
+ * @param charge - The Stripe Charge object
+ * @param log - App logger that defaults to a blank logger
+ * @returns The order matching the charges payment intent Id
+ */
+export async function findOrderByCharge(charge: Stripe.Charge, log: AppLogger = noopLogger) {
+  const paymentIntentId =
+    typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+
+  if (paymentIntentId) {
+    const order = await orderRepository.getOrderByStripeId(paymentIntentId);
+    if (order) return order;
+  }
+
+  if (paymentIntentId) {
+    try {
+      const sessions = await stripe.checkout.sessions.list({ payment_intent: paymentIntentId });
+      if (sessions.data.length > 0) {
+        const order = await orderRepository.getOrderByStripeId(sessions.data[0].id);
+        if (order) return order;
+      }
+    } catch (error) {
+      log.warn(
+        { error: error instanceof Error ? error.message : error },
+        'Stripe session list failed',
+      );
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Handles a disputed charge by flipping the associated order to 'disputed'.
+ * @param dispute - The Stripe Dispute object
+ * @param log - App logger that defaults to a blank logger
+ */
+export async function handleChargeDisputeCreated(
+  dispute: Stripe.Dispute,
+  log: AppLogger = noopLogger,
+) {
+  try {
+    const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id;
+    if (!chargeId) return;
+
+    const charge = await stripe.charges.retrieve(chargeId);
+    const order = await findOrderByCharge(charge, log);
+
+    if (order) {
+      log.info({ orderId: order.id }, 'Dispute created: flipping order status to disputed');
+      await orderRepository.updateOrderStatus(order.id, 'disputed');
+    } else {
+      log.warn({ chargeId }, 'Dispute created: could not find corresponding order');
+    }
+  } catch (error) {
+    log.error({ error, disputeId: dispute.id }, 'Failed to process dispute created webhook');
+  }
+}
+
+/**
+ * Handles a refunded charge. Flips the order status to canceled and safely restocks inventory.
+ * @param charge - The Stripe Charge object
+ * @param log - App logger that defaults to a blank logger
+ */
+export async function handleChargeRefunded(charge: Stripe.Charge, log: AppLogger = noopLogger) {
+  try {
+    const order = await findOrderByCharge(charge, log);
+    if (order) {
+      log.info(
+        { orderId: order.id },
+        'Charge refunded: flipping order status to canceled & restocking inventory',
+      );
+      await orderRepository.updateOrderToCanceled(order.id, 'Refunded via Stripe');
+    } else {
+      log.warn({ chargeId: charge.id }, 'Charge refunded: could not find corresponding order');
+    }
+  } catch (error) {
+    log.error({ error, chargeId: charge.id }, 'Failed to process charge refunded webhook');
+  }
+}
+
+/**
+ * Handles external subscription updates like quantity changes from the Customer Portal.
+ * @param subscription - The Stripe Subscription object
+ * @param log - App logger that defaults to a blank logger
+ */
+export async function handleSubscriptionUpdated(
+  subscription: Stripe.Subscription,
+  log: AppLogger = noopLogger,
+) {
+  try {
+    const quantityOz = subscription.items.data[0]?.quantity;
+
+    if (quantityOz !== undefined) {
+      log.info(
+        { stripeSubscriptionId: subscription.id, quantityOz },
+        'Syncing updated subscription quantity from Stripe Portal',
+      );
+      await subscriptionRepository.updateSubscriptionDataByStripeId(subscription.id, {
+        quantityOz,
+      });
+    }
+  } catch (error) {
+    log.error(
+      { error, stripeSubscriptionId: subscription.id },
+      'Failed to process subscription updated webhook',
+    );
+  }
 }

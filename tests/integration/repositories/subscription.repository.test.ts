@@ -622,7 +622,11 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   describe('updateSubscriptionDataByStripeId', () => {
-    it('should update a subscription using the Stripe Subscription ID', async () => {
+    it('should update status, cancelReason, and quantityOz using the Stripe Subscription ID', async () => {
+      vi.useFakeTimers();
+      const mockNow = new Date('2024-05-15T12:00:00Z');
+      vi.setSystemTime(mockNow);
+
       const stripeId = 'sub_12345';
       const buyerId = 'buyer_stripe_test';
       const sellerId = 'seller_stripe_test';
@@ -657,11 +661,57 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
       const updated = await subscriptionRepository.updateSubscriptionDataByStripeId(stripeId, {
         status: 'canceled',
         cancelReason: 'Payment failed',
+        quantityOz: 12.75, // Testing decimal support
       });
 
       expect(updated.stripeSubscriptionId).toBe(stripeId);
       expect(updated.status).toBe('canceled');
       expect(updated.cancelReason).toBe('Payment failed');
+      expect(updated.quantityOz).toBe('12.75');
+      expect(updated.updatedAt?.toISOString()).toBe(mockNow.toISOString());
+
+      vi.useRealTimers();
+    });
+
+    it('should perform a partial update of only quantityOz via Stripe ID', async () => {
+      const stripeId = 'sub_partial_678';
+      const buyerId = 'buyer_partial_stripe';
+      const sellerId = 'seller_partial_stripe';
+
+      await testDb.insert(users).values([
+        { id: sellerId, email: 's4@test.com' },
+        { id: buyerId, email: 'b4@test.com' },
+      ]);
+
+      const [product] = await testDb
+        .insert(produce)
+        .values({
+          sellerId,
+          title: 'Bananas',
+          pricePerOz: '0.50',
+          totalOzInventory: '500',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+        })
+        .returning();
+
+      await testDb.insert(subscriptions).values({
+        buyerId,
+        productId: product.id,
+        stripeSubscriptionId: stripeId,
+        quantityOz: '5.00',
+        status: 'active',
+        fulfillmentType: 'delivery',
+      });
+
+      const updated = await subscriptionRepository.updateSubscriptionDataByStripeId(stripeId, {
+        quantityOz: 8,
+      });
+
+      expect(updated.quantityOz).toBe('8.00');
+      expect(updated.status).toBe('active'); // Should remain unchanged
+      expect(updated.stripeSubscriptionId).toBe(stripeId);
     });
   });
 

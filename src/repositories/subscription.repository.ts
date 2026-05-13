@@ -228,6 +228,7 @@ export const subscriptionRepository = {
    * @param data - New values for fields
    * @param data.status - New subscription status
    * @param data.cancelReason - The cancel reason if status was updated to canceled or paused
+   * @param data.quantityOz - New order quantity
    * @returns The updated subscription
    */
   async updateSubscriptionDataByStripeId(
@@ -235,16 +236,19 @@ export const subscriptionRepository = {
     data: {
       status?: 'active' | 'paused' | 'canceled';
       cancelReason?: string;
+      quantityOz?: number;
     },
   ) {
     const updatePayload: {
       status?: 'active' | 'paused' | 'canceled';
       cancelReason?: string;
+      quantityOz?: string;
       updatedAt: Date;
     } = { updatedAt: new Date() };
 
     if (data.status) updatePayload.status = data.status;
     if (data.cancelReason !== undefined) updatePayload.cancelReason = data.cancelReason;
+    if (data.quantityOz !== undefined) updatePayload.quantityOz = data.quantityOz.toString();
 
     const [updated] = await this.db
       .update(subscriptions)
