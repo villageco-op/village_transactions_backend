@@ -1,4 +1,4 @@
-import { eq, inArray, and, gt, desc, gte, sql, lt, notInArray, exists } from 'drizzle-orm';
+import { eq, inArray, and, gt, desc, gte, sql, lt, notInArray, exists, or } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import {
@@ -10,7 +10,7 @@ import {
   users,
   cartGroups,
 } from '../db/schema.js';
-import type { DbClient, OrderStatus } from '../db/types.js';
+import type { DbClient, OrderStatus, Order } from '../db/types.js';
 
 export const orderRepository = {
   db: defaultDb as unknown as DbClient,
@@ -244,6 +244,40 @@ export const orderRepository = {
     const [order] = await this.db.select().from(orders).where(eq(orders.id, orderId));
 
     return order || null;
+  },
+
+  /**
+   * Retrieves an order by checking if the given Stripe ID matches
+   * either the stripeSessionId or stripeInvoiceId.
+   * @param stripeId - The Stripe ID to lookup
+   * @returns The order object if found, otherwise null
+   */
+  async getOrderByStripeId(stripeId: string): Promise<Order | null> {
+    const [order] = await this.db
+      .select()
+      .from(orders)
+      .where(or(eq(orders.stripeSessionId, stripeId), eq(orders.stripeInvoiceId, stripeId)));
+
+    return order || null;
+  },
+
+  /**
+   * Updates the status of an existing order.
+   * @param orderId - The UUID of the order to update.
+   * @param status - The new status to apply.
+   * @returns The updated order object.
+   */
+  async updateOrderStatus(orderId: string, status: OrderStatus) {
+    const [updatedOrder] = await this.db
+      .update(orders)
+      .set({
+        status,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
   },
 
   /**

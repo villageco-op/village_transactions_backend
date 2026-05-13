@@ -1201,4 +1201,88 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(stillPending.status).toBe('pending');
     });
   });
+
+  describe('OrderRepository - getOrderByStripeId', () => {
+    it('should retrieve an order by stripeSessionId', async () => {
+      const stripeId = 'sess_123';
+      await testDb.insert(users).values({ id: 'u1', email: 'u1@test.com' });
+      await testDb.insert(users).values({ id: 's1', email: 's1@test.com' });
+
+      await testDb.insert(orders).values({
+        buyerId: 'u1',
+        sellerId: 's1',
+        status: 'pending',
+        totalAmount: '10.00',
+        fulfillmentType: 'pickup',
+        scheduledTime: new Date(),
+        paymentMethod: 'card',
+        stripeSessionId: stripeId,
+      });
+
+      const order = await orderRepository.getOrderByStripeId(stripeId);
+      expect(order).toBeDefined();
+      expect(order?.stripeSessionId).toBe(stripeId);
+    });
+
+    it('should retrieve an order by stripeInvoiceId', async () => {
+      const stripeId = 'in_456';
+      await testDb.insert(users).values({ id: 'u2', email: 'u2@test.com' });
+      await testDb.insert(users).values({ id: 's2', email: 's2@test.com' });
+
+      await testDb.insert(orders).values({
+        buyerId: 'u2',
+        sellerId: 's2',
+        status: 'pending',
+        totalAmount: '20.00',
+        fulfillmentType: 'pickup',
+        scheduledTime: new Date(),
+        paymentMethod: 'card',
+        stripeInvoiceId: stripeId,
+      });
+
+      const order = await orderRepository.getOrderByStripeId(stripeId);
+      expect(order).toBeDefined();
+      expect(order?.stripeInvoiceId).toBe(stripeId);
+    });
+
+    it('should return null if no order matches the stripeId', async () => {
+      const order = await orderRepository.getOrderByStripeId('non_existent');
+      expect(order).toBeNull();
+    });
+  });
+
+  describe('OrderRepository - updateOrderStatus', () => {
+    it('should update the status and set updatedAt timestamp', async () => {
+      const buyerId = 'b_update_test';
+      const sellerId = 's_update_test';
+      const mockNow = new Date('2024-05-15T12:00:00Z');
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'b_up@test.com' },
+        { id: sellerId, email: 's_up@test.com' },
+      ]);
+
+      const [order] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '15.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      // Update status to 'paid'
+      const updatedOrder = await orderRepository.updateOrderStatus(order.id, 'paid');
+
+      expect(updatedOrder.status).toBe('paid');
+      expect(updatedOrder.updatedAt).toEqual(mockNow);
+
+      const [dbOrder] = await testDb.select().from(orders).where(eq(orders.id, order.id));
+      expect(dbOrder.status).toBe('paid');
+    });
+  });
 });
