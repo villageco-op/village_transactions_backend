@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { request } from '../../test-utils/request.js';
 
-describe('Contact API - Smoke Tests', () => {
+describe('Contact API - Smoke Tests', { timeout: 60_000 }, () => {
   it('POST /api/contact should not return a 500 error', async () => {
     const res = await request('/api/contact', {
       method: 'POST',

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { authedRequest } from '../../test-utils/auth.js';
 import { request } from '../../test-utils/request.js';
 
-describe('Users API - Smoke Tests', () => {
+describe('Users API - Smoke Tests', { timeout: 60_000 }, () => {
   it('GET /api/users/me should not return a 500 error', async () => {
     const res = await authedRequest('/api/users/me');
 

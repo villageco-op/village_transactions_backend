@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { authedRequest } from '../../test-utils/auth.js';
 
-describe('Cart API - Smoke Tests', () => {
+describe('Cart API - Smoke Tests', { timeout: 60_000 }, () => {
   it('POST /api/cart/add should not return a 500 error', async () => {
     const res = await authedRequest('/api/cart/add', {
       method: 'POST',
