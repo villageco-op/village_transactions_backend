@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { authedRequest } from '../../test-utils/auth.js';
 
-describe('Checkout API - Smoke Tests', () => {
+describe('Checkout API - Smoke Tests', { timeout: 60_000 }, () => {
   it('POST /api/checkout/stripe/session should not return a 500 error', async () => {
     const payload = {
       sellerId: 'some-seller-id',

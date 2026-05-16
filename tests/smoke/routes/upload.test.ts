@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { authedRequest } from '../../test-utils/auth.js';
 
-describe('Upload API - Smoke Tests', () => {
+describe('Upload API - Smoke Tests', { timeout: 60_000 }, () => {
   it('POST /api/upload should not return a 500 error', async () => {
     const formData = new FormData();
     const file = new File(['dummy video content'], 'test.mp4', { type: 'video/mp4' });

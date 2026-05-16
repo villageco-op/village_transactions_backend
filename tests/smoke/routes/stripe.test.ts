@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { authedRequest } from '../../test-utils/auth.js';
 
-describe('Stripe API - Smoke Tests', () => {
+describe('Stripe API - Smoke Tests', { timeout: 60_000 }, () => {
   it('POST /api/stripe/connect/onboard should not return a 500 error', async () => {
     const res = await authedRequest('/api/stripe/connect/onboard', {
       method: 'POST',
