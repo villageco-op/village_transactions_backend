@@ -16,7 +16,7 @@
     "format:check": "prettier --check .",
     "format:fix": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky",
+    "prepare": "is-ci || husky",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
@@ -39,6 +39,7 @@
     "eslint-plugin-jsdoc": "^62.8.0",
     "eslint-plugin-unused-imports": "^4.4.1",
     "husky": "^9.1.7",
+    "is-ci": "^4.1.0",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
     "tsx": "^4.21.0",
