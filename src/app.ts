@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { pinoLogger } from 'hono-pino';
 import type { Logger } from 'pino';
@@ -72,6 +73,39 @@ app.onError((err, c) => {
 
   log.error({ err, path: c.req.path }, 'Internal Server Error');
   return c.json({ error: 'Internal Server Error' }, 500);
+});
+
+const allowedOrigins = [process.env.FRONTEND_URL];
+
+app.use(
+  '*',
+  cors({
+    origin: (origin) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return origin;
+      }
+      return undefined;
+    },
+    credentials: true,
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Staging-Key'],
+  }),
+);
+
+app.use('*', async (c, next) => {
+  if (process.env.VERCEL_ENV === 'preview') {
+    if (c.req.method === 'OPTIONS') {
+      return await next();
+    }
+
+    const stagingKey = c.req.header('X-Staging-Key');
+    const expectedKey = process.env.STAGING_SECRET_KEY;
+
+    if (!stagingKey || stagingKey !== expectedKey) {
+      return c.json({ error: 'Unauthorized Staging Access' }, 401);
+    }
+  }
+
+  await next();
 });
 
 app.use(
