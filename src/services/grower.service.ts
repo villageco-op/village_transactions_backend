@@ -20,6 +20,7 @@ export async function getMapGrowers(filters: {
   return rawGrowers.map((g) => ({
     sellerId: g.sellerId,
     name: g.name,
+    organization: g.organization,
     lat: g.lat as number,
     lng: g.lng as number,
     image: g.image,

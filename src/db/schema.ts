@@ -72,6 +72,7 @@ export const users = pgTable('users', {
   email: text('email').unique(),
   emailVerified: timestamp('email_verified'),
   image: text('image'),
+  organization: text('organization'),
 
   aboutMe: text('about_me'),
   specialties: jsonb('specialties').$type<string[]>().default([]),

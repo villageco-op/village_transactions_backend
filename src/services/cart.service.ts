@@ -69,7 +69,11 @@ export async function getCart(
         fulfillmentType: group.fulfillmentType as ScheduleType,
         deliveryFee: calculatedDeliveryFee.toFixed(2),
         availableBy: productAvailableBy.toISOString(),
-        seller: { id: seller.id, name: seller.name },
+        seller: {
+          id: seller.id,
+          name: seller.name,
+          organization: seller.organization,
+        },
         items: [],
       });
     } else {

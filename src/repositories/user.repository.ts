@@ -52,6 +52,7 @@ export const userRepository = {
     if (data.image !== undefined) updatePayload.image = data.image;
     if (data.aboutMe !== undefined) updatePayload.aboutMe = data.aboutMe;
     if (data.specialties !== undefined) updatePayload.specialties = data.specialties;
+    if (data.organization !== undefined) updatePayload.organization = data.organization;
 
     if (data.goal !== undefined) {
       updatePayload.goal = data.goal.toString();

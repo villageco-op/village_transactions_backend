@@ -100,7 +100,8 @@ export const CartCheckoutGroupSchema = z
     seller: z
       .object({
         id: UserIdSchema,
-        name: z.string().nullable().openapi({ example: 'Sun-Kissed Orchards' }),
+        name: z.string().nullable().openapi({ example: 'Jane Apple' }),
+        organization: z.string().nullable().openapi({ example: 'Sun-Kissed Orchards' }),
       })
       .openapi('CartSeller'),
     items: z.array(CartItemSchema).openapi({

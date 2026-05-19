@@ -308,6 +308,7 @@ export async function getOrderDetails(
     ? {
         id: buyerData.id,
         name: buyerData.name,
+        organization: buyerData.organization,
         email: buyerData.email,
         location: {
           lat: buyerData.lat ?? null,
@@ -325,6 +326,7 @@ export async function getOrderDetails(
     ? {
         id: sellerData.id,
         name: sellerData.name,
+        organization: sellerData.organization,
         email: sellerData.email,
         location: {
           lat: sellerData.lat ?? null,

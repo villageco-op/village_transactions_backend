@@ -66,6 +66,7 @@ export const growerRepository = {
       .select({
         sellerId: users.id,
         name: users.name,
+        organization: users.organization,
         lat: users.lat,
         lng: users.lng,
         image: users.image,

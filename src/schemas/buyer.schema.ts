@@ -26,8 +26,12 @@ export const GrowerSchema = z
   .object({
     sellerId: UserIdSchema,
     name: z.string().nullable().openapi({
+      example: 'Jane Apple',
+      description: 'The name of the grower',
+    }),
+    organization: z.string().nullable().openapi({
       example: 'Green Valley Farm',
-      description: 'The display name of the grower',
+      description: 'The organization of the grower',
     }),
     location: LocationSchema.nullable(),
     city: z.string().nullable(),
