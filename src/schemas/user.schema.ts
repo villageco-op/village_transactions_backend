@@ -23,6 +23,9 @@ export const UpdateUserSchema = z
       example: 'https://blob.vercel.com/image.png',
       description: 'The url to the image in vercel blob from the upload image response.',
     }),
+    organization: z.string().optional().openapi({
+      description: 'The users organization they are representing if any.',
+    }),
     aboutMe: z.string().optional().openapi({
       example: 'Growing organic berries since 2010.',
       description: 'A brief bio or description of the farm/user',
@@ -84,6 +87,7 @@ export const PublicUserProfileSchema = z
     id: UserIdSchema,
     name: z.string().nullable().openapi({ example: 'Green Acres' }),
     image: ImageUrlSchema.nullable(),
+    organization: z.string().nullable().openapi({ example: 'Green Hill Farms' }),
     aboutMe: z.string().nullable().openapi({
       description: 'Public bio displayed on the seller storefront',
     }),

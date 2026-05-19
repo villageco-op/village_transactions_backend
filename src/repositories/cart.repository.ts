@@ -114,6 +114,7 @@ export const cartRepository = {
         seller: {
           id: sellerAlias.id,
           name: sellerAlias.name,
+          organization: sellerAlias.organization,
           lat: sellerAlias.lat,
           lng: sellerAlias.lng,
         },

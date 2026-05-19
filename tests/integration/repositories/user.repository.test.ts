@@ -82,11 +82,13 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
     await testDb.insert(users).values({
       id: 'update_user_123',
       name: 'Old Name',
+      organization: 'Old Org Name',
       email: 'update@example.com',
     });
 
     const updatedUser = await userRepository.updateById('update_user_123', {
       name: 'New Name',
+      organization: 'New Org Name',
       aboutMe: 'Updated bio',
       specialties: ['apples', 'peaches'],
       goal: 1000,
@@ -102,6 +104,7 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
     expect(updatedUser).toBeDefined();
     expect(updatedUser?.name).toBe('New Name');
+    expect(updatedUser?.organization).toBe('New Org Name');
     expect(updatedUser?.aboutMe).toBe('Updated bio');
     expect(updatedUser?.specialties).toEqual(['apples', 'peaches']);
     expect(updatedUser?.goal).toBe('1000.00');

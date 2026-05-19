@@ -39,7 +39,8 @@ export const buyerRepository = {
 
     if (search) {
       conditions.push(
-        sql`(${produce.title} ILIKE ${`%${search}%`} OR ${users.name} ILIKE ${`%${search}%`})`,
+        sql`(${produce.title} ILIKE ${`%${search}%`} OR ${users.name} ILIKE ${`%${search}%`}
+        OR ${users.organization} ILIKE ${`%${search}%`})`,
       );
     }
 
@@ -74,6 +75,7 @@ export const buyerRepository = {
       .select({
         sellerId: users.id,
         name: users.name,
+        organization: users.organization,
         address: users.address,
         lat: users.lat,
         lng: users.lng,

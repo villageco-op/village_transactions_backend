@@ -62,6 +62,7 @@ describe('UserService - getCurrentUser', () => {
     const mockDbUser = {
       id: 'user_123',
       name: 'Alice',
+      organization: 'Alice Farms',
       email: 'alice@example.com',
       address: '456 Seller Ave',
       stripeAccountId: 'acct_999',
@@ -75,6 +76,7 @@ describe('UserService - getCurrentUser', () => {
     expect(result).toEqual({
       id: 'user_123',
       name: 'Alice',
+      organization: 'Alice Farms',
       email: 'alice@example.com',
       address: '456 Seller Ave',
       stripeAccountId: 'acct_999',
@@ -109,6 +111,7 @@ describe('updateCurrentUser', () => {
   it('should update the user and return a user object', async () => {
     const updateData = {
       name: 'Updated Alice',
+      organization: 'Updated Alice Farms',
       address: '789 New St',
       deliveryRangeMiles: 20,
     };
@@ -116,6 +119,7 @@ describe('updateCurrentUser', () => {
     const mockDbUser = {
       id: 'user_123',
       name: 'Alice',
+      organization: 'Alice Farms',
       email: 'alice@example.com',
       address: '788 Old St',
       deliveryRangeMiles: '5',
@@ -124,6 +128,7 @@ describe('updateCurrentUser', () => {
     const mockDbUpdatedUser = {
       id: 'user_123',
       name: 'Updated Alice',
+      organization: 'Updated Alice Farms',
       email: 'alice@example.com',
       address: '789 New St',
       deliveryRangeMiles: '20',
@@ -137,6 +142,7 @@ describe('updateCurrentUser', () => {
     expect(result).toEqual({
       id: 'user_123',
       name: 'Updated Alice',
+      organization: 'Updated Alice Farms',
       email: 'alice@example.com',
       address: '789 New St',
       deliveryRangeMiles: '20',

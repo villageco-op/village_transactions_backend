@@ -57,6 +57,7 @@ export async function getGrowersForBuyer(
     return {
       sellerId: g.sellerId,
       name: g.name,
+      organization: g.organization,
       location: {
         address: g.address,
         lat: g.lat,

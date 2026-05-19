@@ -177,6 +177,7 @@ export async function getPublicUserProfile(id: string, log: AppLogger = noopLogg
     id: user.id,
     name: user.name,
     image: user.image,
+    organization: user.organization,
     aboutMe: user.aboutMe,
     specialties: user.specialties,
     country: user.country,

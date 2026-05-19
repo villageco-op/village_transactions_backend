@@ -183,6 +183,13 @@
       "when": 1777987825327,
       "tag": "0025_clever_gamma_corps",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779189787254,
+      "tag": "0026_fancy_jackal",
+      "breakpoints": true
     }
   ]
 }
