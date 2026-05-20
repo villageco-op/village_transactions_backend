@@ -115,7 +115,8 @@ app.get('/api/staging-unlock', (c) => {
 
 app.use('*', async (c, next) => {
   if (c.req.method === 'OPTIONS') {
-    return await next();
+    c.status(204);
+    return c.body(null);
   }
 
   if (process.env.VERCEL_ENV === 'preview') {
