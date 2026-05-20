@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { pinoLogger } from 'hono-pino';
@@ -88,42 +89,39 @@ app.use(
       return undefined;
     },
     credentials: true,
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Staging-Key'],
+    allowHeaders: ['Content-Type', 'Authorization'],
   }),
 );
 
+app.get('/api/staging-unlock', (c) => {
+  const expectedKey = process.env.STAGING_SECRET_KEY;
+  if (!expectedKey) {
+    return c.json({ error: 'Staging environment key is missing on backend.' }, 500);
+  }
+
+  setCookie(c, 'village_staging_access', expectedKey, {
+    path: '/',
+    secure: true,
+    httpOnly: true,
+    sameSite: 'None',
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  return c.json({ success: true, message: 'Staging access granted.' });
+});
+
 app.use('*', async (c, next) => {
   if (c.req.method === 'OPTIONS') {
-    const origin = c.req.header('Origin') || '*';
-    c.header('Access-Control-Allow-Origin', origin);
-    c.header('Access-Control-Allow-Credentials', 'true');
-    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Staging-Key');
-    c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    return c.body(null, 204);
+    return await next();
   }
 
   if (process.env.VERCEL_ENV === 'preview') {
-    const stagingKey = c.req.header('X-Staging-Key');
+    const stagingCookie = getCookie(c, 'village_staging_access');
     const expectedKey = process.env.STAGING_SECRET_KEY;
 
-    if (!stagingKey || stagingKey !== expectedKey) {
-      const origin = c.req.header('Origin') || '*';
-
-      c.header('Access-Control-Allow-Origin', origin);
-      c.header('Access-Control-Allow-Credentials', 'true');
-
-      c.header('X-Debug-Staging-Present', stagingKey ? 'true' : 'false');
-      c.header('X-Debug-Staging-Match', stagingKey === expectedKey ? 'true' : 'false');
-      c.header('X-Debug-Env-Key-Set', expectedKey ? 'true' : 'false');
-
+    if (!stagingCookie || stagingCookie !== expectedKey) {
       c.status(401);
-      return c.json({
-        error: 'Unauthorized Staging Access',
-        debug: {
-          hasKeyPassed: !!stagingKey,
-          isEnvConfigured: !!expectedKey,
-        },
-      });
+      return c.json({ error: 'Staging environment locked. Missing valid preview session.' });
     }
   }
 
