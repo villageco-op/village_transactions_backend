@@ -94,7 +94,12 @@ app.use(
 
 app.use('*', async (c, next) => {
   if (c.req.method === 'OPTIONS') {
-    return await next();
+    const origin = c.req.header('Origin') || '*';
+    c.header('Access-Control-Allow-Origin', origin);
+    c.header('Access-Control-Allow-Credentials', 'true');
+    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Staging-Key');
+    c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    return c.body(null, 204);
   }
 
   if (process.env.VERCEL_ENV === 'preview') {
