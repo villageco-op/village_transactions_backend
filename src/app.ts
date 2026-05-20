@@ -99,11 +99,14 @@ app.get('/api/staging-unlock', (c) => {
     return c.json({ error: 'Staging environment key is missing on backend.' }, 500);
   }
 
+  const isPreview = process.env.VERCEL_ENV === 'preview';
+
   setCookie(c, 'village_staging_access', expectedKey, {
     path: '/',
     secure: true,
     httpOnly: true,
-    sameSite: 'None',
+    domain: isPreview ? '.villageco-op.com' : undefined,
+    sameSite: isPreview ? 'Lax' : undefined,
     maxAge: 60 * 60 * 24 * 30,
   });
 
