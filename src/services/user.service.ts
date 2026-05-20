@@ -11,6 +11,7 @@ import type {
   ReviewBreakdown,
   UpdateScheduleRulesPayload,
   UpdateUserPayload,
+  Window,
 } from '../schemas/user.schema.js';
 
 /**
@@ -109,14 +110,14 @@ export async function updateScheduleRules(
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  const dbPickupRules = data.pickupWindows.map((window) => ({
+  const dbPickupRules = data.pickupWindows.map((window: Window) => ({
     dayOfWeek: window.day,
     type: 'pickup' as ScheduleType,
     startTime: window.start,
     endTime: window.end,
   }));
 
-  const dbDeliveryRules = data.deliveryWindows.map((window) => ({
+  const dbDeliveryRules = data.deliveryWindows.map((window: Window) => ({
     dayOfWeek: window.day,
     type: 'delivery' as ScheduleType,
     startTime: window.start,

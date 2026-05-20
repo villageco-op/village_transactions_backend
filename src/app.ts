@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { pinoLogger } from 'hono-pino';
@@ -75,7 +76,8 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
-const allowedOrigins = [process.env.FRONTEND_URL];
+const sanitizedFrontendUrl = process.env.FRONTEND_URL?.replace(/\/$/, '');
+const allowedOrigins = [sanitizedFrontendUrl];
 
 app.use(
   '*',
@@ -87,21 +89,43 @@ app.use(
       return undefined;
     },
     credentials: true,
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Staging-Key'],
+    allowHeaders: ['Content-Type', 'Authorization'],
   }),
 );
 
-app.use('*', async (c, next) => {
-  if (process.env.VERCEL_ENV === 'preview') {
-    if (c.req.method === 'OPTIONS') {
-      return await next();
-    }
+app.get('/api/staging-unlock', (c) => {
+  const expectedKey = process.env.STAGING_SECRET_KEY;
+  if (!expectedKey) {
+    return c.json({ error: 'Staging environment key is missing on backend.' }, 500);
+  }
 
-    const stagingKey = c.req.header('X-Staging-Key');
+  const isPreview = process.env.VERCEL_ENV === 'preview';
+
+  setCookie(c, 'village_staging_access', expectedKey, {
+    path: '/',
+    secure: true,
+    httpOnly: true,
+    domain: isPreview ? '.villageco-op.com' : undefined,
+    sameSite: isPreview ? 'Lax' : undefined,
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  return c.json({ success: true, message: 'Staging access granted.' });
+});
+
+app.use('*', async (c, next) => {
+  if (c.req.method === 'OPTIONS') {
+    c.status(204);
+    return c.body(null);
+  }
+
+  if (process.env.VERCEL_ENV === 'preview') {
+    const stagingCookie = getCookie(c, 'village_staging_access');
     const expectedKey = process.env.STAGING_SECRET_KEY;
 
-    if (!stagingKey || stagingKey !== expectedKey) {
-      return c.json({ error: 'Unauthorized Staging Access' }, 401);
+    if (!stagingCookie || stagingCookie !== expectedKey) {
+      c.status(401);
+      return c.json({ error: 'Staging environment locked. Missing valid preview session.' });
     }
   }
 

@@ -140,6 +140,7 @@ export const RegisterFcmTokenSchema = z
 
 export type RegisterFcmTokenPayload = z.infer<typeof RegisterFcmTokenSchema>;
 export type UpdateScheduleRulesPayload = z.infer<typeof UpdateScheduleRulesSchema>;
+export type Window = z.infer<typeof WindowSchema>;
 export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;
 export type PublicUserProfile = z.infer<typeof PublicUserProfileSchema>;
 export type ReviewBreakdown = PublicUserProfile['reviewBreakdown'];
