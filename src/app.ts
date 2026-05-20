@@ -75,7 +75,8 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
-const allowedOrigins = [process.env.FRONTEND_URL];
+const sanitizedFrontendUrl = process.env.FRONTEND_URL?.replace(/\/$/, '');
+const allowedOrigins = [sanitizedFrontendUrl];
 
 app.use(
   '*',
@@ -92,16 +93,32 @@ app.use(
 );
 
 app.use('*', async (c, next) => {
-  if (process.env.VERCEL_ENV === 'preview') {
-    if (c.req.method === 'OPTIONS') {
-      return await next();
-    }
+  if (c.req.method === 'OPTIONS') {
+    return await next();
+  }
 
+  if (process.env.VERCEL_ENV === 'preview') {
     const stagingKey = c.req.header('X-Staging-Key');
     const expectedKey = process.env.STAGING_SECRET_KEY;
 
     if (!stagingKey || stagingKey !== expectedKey) {
-      return c.json({ error: 'Unauthorized Staging Access' }, 401);
+      const origin = c.req.header('Origin') || '*';
+
+      c.header('Access-Control-Allow-Origin', origin);
+      c.header('Access-Control-Allow-Credentials', 'true');
+
+      c.header('X-Debug-Staging-Present', stagingKey ? 'true' : 'false');
+      c.header('X-Debug-Staging-Match', stagingKey === expectedKey ? 'true' : 'false');
+      c.header('X-Debug-Env-Key-Set', expectedKey ? 'true' : 'false');
+
+      c.status(401);
+      return c.json({
+        error: 'Unauthorized Staging Access',
+        debug: {
+          hasKeyPassed: !!stagingKey,
+          isEnvConfigured: !!expectedKey,
+        },
+      });
     }
   }
 
