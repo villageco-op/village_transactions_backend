@@ -17,6 +17,7 @@ export function getAuthConfig(): AuthConfig {
     secret: process.env.AUTH_SECRET,
     session: { strategy: 'jwt' },
     adapter: DrizzleAdapter(db),
+    trustHost: true,
 
     providers: [
       Google({
