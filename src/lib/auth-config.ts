@@ -18,6 +18,7 @@ export function getAuthConfig(): AuthConfig {
     session: { strategy: 'jwt' },
     adapter: DrizzleAdapter(db),
     trustHost: true,
+    basePath: '/api/auth',
 
     providers: [
       Google({
