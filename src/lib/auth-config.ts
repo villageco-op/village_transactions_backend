@@ -4,6 +4,7 @@ import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import type { AuthConfig } from '@hono/auth-js';
 
 import { db } from '../db/index.js';
+import { users, accounts, sessions, verificationTokens } from '../db/schema.js';
 import { jwtCallback, sessionCallback } from '../services/auth/callbacks.js';
 
 /**
@@ -16,7 +17,12 @@ export function getAuthConfig(): AuthConfig {
   return {
     secret: process.env.AUTH_SECRET,
     session: { strategy: 'jwt' },
-    adapter: DrizzleAdapter(db),
+    adapter: DrizzleAdapter(db, {
+      usersTable: users,
+      accountsTable: accounts,
+      sessionsTable: sessions,
+      verificationTokensTable: verificationTokens,
+    }),
     trustHost: true,
     basePath: '/api/auth',
 
