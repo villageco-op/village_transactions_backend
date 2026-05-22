@@ -67,6 +67,13 @@ export function getAuthConfig(): AuthConfig {
     callbacks: {
       jwt: jwtCallback,
       session: sessionCallback,
+      redirect({ url, baseUrl }) {
+        if (url.startsWith('/')) return `${baseUrl}${url}`;
+
+        if (url.includes('villageco-op.com')) return url;
+
+        return baseUrl;
+      },
     },
   };
 }
