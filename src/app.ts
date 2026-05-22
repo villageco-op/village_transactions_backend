@@ -44,7 +44,7 @@ export type RouteEnv = {
   };
 };
 
-export const app = new OpenAPIHono<AppBindings>().basePath('/api');
+export const app = new OpenAPIHono<AppBindings>();
 
 app.onError((err, c) => {
   const log = c.get('logger') || rootLogger;
@@ -93,7 +93,7 @@ app.use(
   }),
 );
 
-app.get('/staging-unlock', (c) => {
+app.get('/api/staging-unlock', (c) => {
   const expectedKey = process.env.STAGING_SECRET_KEY;
   if (!expectedKey) {
     return c.json({ error: 'Staging environment key is missing on backend.' }, 500);
@@ -143,7 +143,7 @@ app.use(
 );
 
 app.use('*', initAuthConfig(getAuthConfig));
-app.use('/auth/*', authHandler());
+app.use('/api/auth/*', authHandler());
 
 app.use('*', async (c, next) => {
   const authUser = c.get('authUser');
@@ -161,29 +161,29 @@ app.use('*', async (c, next) => {
 
 registerSharedSchemas(app);
 
-app.get('/health', (c) => c.json({ status: 'ok' }));
+app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
-app.route('/users', usersRoute);
-app.route('/produce', produceRoute);
-app.route('/upload', uploadRoute);
-app.route('/cart', cartRoute);
-app.route('/checkout', checkoutRoute);
-app.route('/stripe', stripeRoute);
-app.route('/orders', ordersRoute);
-app.route('/subscriptions', subscriptionsRoute);
-app.route('/availability', availabilityRoute);
-app.route('/conversations', messagingRoute.conversationsRoute);
-app.route('/messages', messagingRoute.messagesRoute);
-app.route('/seller', sellerRoute);
-app.route('/buyer', buyerRoute);
-app.route('/reviews', reviewsRoute);
-app.route('/growers', growersRoute);
-app.route('/source-map', sourceMapRoute);
-app.route('/cron', cronRoute);
-app.route('/contact', contactRoute);
+app.route('/api/users', usersRoute);
+app.route('/api/produce', produceRoute);
+app.route('/api/upload', uploadRoute);
+app.route('/api/cart', cartRoute);
+app.route('/api/checkout', checkoutRoute);
+app.route('/api/stripe', stripeRoute);
+app.route('/api/orders', ordersRoute);
+app.route('/api/subscriptions', subscriptionsRoute);
+app.route('/api/availability', availabilityRoute);
+app.route('/api/conversations', messagingRoute.conversationsRoute);
+app.route('/api/messages', messagingRoute.messagesRoute);
+app.route('/api/seller', sellerRoute);
+app.route('/api/buyer', buyerRoute);
+app.route('/api/reviews', reviewsRoute);
+app.route('/api/growers', growersRoute);
+app.route('/api/source-map', sourceMapRoute);
+app.route('/api/cron', cronRoute);
+app.route('/api/contact', contactRoute);
 
-app.doc('/doc', openApiConfig);
+app.doc('/api/doc', openApiConfig);
 
-app.get('/ui', swaggerUI({ url: '/doc' }));
+app.get('/api/ui', swaggerUI({ url: '/doc' }));
 
 export default app;
