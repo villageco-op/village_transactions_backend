@@ -3,7 +3,7 @@ import { request } from '../test-utils/request.js';
 
 describe('API Documentation', () => {
   it('GET /doc should return valid OpenAPI spec', async () => {
-    const res = await request('/doc');
+    const res = await request('/api/doc');
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/json/);
@@ -18,7 +18,7 @@ describe('API Documentation', () => {
   });
 
   it('GET /ui should return Swagger UI HTML', async () => {
-    const res = await request('/ui');
+    const res = await request('/api/ui');
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/text\/html/);

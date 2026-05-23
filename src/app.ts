@@ -161,7 +161,7 @@ app.use('*', async (c, next) => {
 
 registerSharedSchemas(app);
 
-app.get('/health', (c) => c.json({ status: 'ok' }));
+app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
 app.route('/api/users', usersRoute);
 app.route('/api/produce', produceRoute);
@@ -182,8 +182,8 @@ app.route('/api/source-map', sourceMapRoute);
 app.route('/api/cron', cronRoute);
 app.route('/api/contact', contactRoute);
 
-app.doc('/doc', openApiConfig);
+app.doc('/api/doc', openApiConfig);
 
-app.get('/ui', swaggerUI({ url: '/doc' }));
+app.get('/api/ui', swaggerUI({ url: '/doc' }));
 
 export default app;
