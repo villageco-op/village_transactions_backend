@@ -26,6 +26,7 @@ import {
   updateCurrentUser,
   updateScheduleRules,
   getPublicUserProfile,
+  deleteAccount,
 } from '../services/user.service.js';
 
 export const usersRoute = new OpenAPIHono<RouteEnv>();
@@ -290,5 +291,46 @@ usersRoute.openapi(
     const profile = await getPublicUserProfile(id, log);
 
     return c.json(profile, 200);
+  },
+);
+
+usersRoute.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/me',
+    operationId: 'deleteAccount',
+    description: 'Delete user account, anonymizing personal data to preserve historical orders.',
+    tags: [TAGS.USERS],
+    middleware: [verifyAuth()],
+    responses: {
+      200: {
+        description: 'Account successfully deleted/anonymized',
+        content: { 'application/json': { schema: SuccessResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'User not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const log = c.get('logger').child({
+      action: 'deleteAccount',
+    });
+
+    await deleteAccount(userId, log);
+
+    return c.json({ success: true }, 200);
   },
 );

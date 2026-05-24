@@ -105,6 +105,44 @@ export async function batchCancelPendingOrders(
 }
 
 /**
+ * Finds all pending orders placed by a specific user and cancels them.
+ * Used during account deletion to ensure unfulfilled orders aren't processed.
+ * @param buyerId - The ID of the user who placed the orders
+ * @param reason - The cancellation reason string
+ * @param log - App logger
+ */
+export async function batchCancelAllPendingOrdersPlacedByUser(
+  buyerId: string,
+  reason: string,
+  log: AppLogger = noopLogger,
+) {
+  log.info({ buyerId }, 'Starting batch cancellation for orders placed by user');
+
+  const pendingOrderIds = await orderRepository.getPendingOrdersByBuyerId(buyerId);
+  log.info({ buyerId, count: pendingOrderIds.length }, 'Found pending orders to cancel');
+
+  if (pendingOrderIds.length === 0) return;
+
+  // Execute cancellations concurrently
+  const results = await Promise.allSettled(
+    pendingOrderIds.map((orderId) => cancelOrder(orderId, reason, buyerId)),
+  );
+
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    log.error(
+      { buyerId, failureCount: failures.length, total: pendingOrderIds.length },
+      'Batch buyer order cancellation completed with partial failures',
+    );
+  } else {
+    log.info(
+      { buyerId, count: pendingOrderIds.length },
+      'All user-placed pending orders successfully canceled',
+    );
+  }
+}
+
+/**
  * Reschedules an order to a new time and sends a notification to the other party.
  * @param orderId - The ID of the order to reschedule
  * @param newTime - The new scheduled time string (ISO 8601)

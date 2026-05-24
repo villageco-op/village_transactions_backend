@@ -139,4 +139,37 @@ export const userRepository = {
       })
       .where(eq(users.stripeAccountId, stripeAccountId));
   },
+
+  /**
+   * Anonymizes a user's profile to act as a soft delete while maintaining
+   * foreign key integrity for past orders and order items.
+   * @param id - The unique user ID to anonymize
+   */
+  async anonymize(id: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        name: 'Deleted User',
+        email: `deleted-${id}@example.local`,
+        emailVerified: null,
+        image: null,
+        organization: null,
+        aboutMe: null,
+        specialties: [],
+        goal: null,
+        address: null,
+        city: null,
+        state: null,
+        country: null,
+        zip: null,
+        lat: null,
+        lng: null,
+        location: null,
+        deliveryRangeMiles: '0',
+        stripeAccountId: null,
+        stripeOnboardingComplete: false,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(users.id, id));
+  },
 };

@@ -8,6 +8,7 @@ import { produceRepository } from '../../../src/repositories/produce.repository.
 import { users, produce, orderItems, orders } from '../../../src/db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { CreateProducePayload } from '../../../src/schemas/produce.schema.js';
+import { Produce } from '../../../src/db/types.js';
 
 describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
   let testDb: any;
@@ -781,6 +782,158 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
       expect(total).toBe(2);
       expect(results).toHaveLength(1);
       expect(results[0].title).toBe('Test Active 1');
+    });
+  });
+
+  describe('markAllAsDeletedBySellerId', () => {
+    it('should mass-update all listings for the specified seller to deleted, clear images, and isolate changes', async () => {
+      await testDb.insert(produce).values([
+        {
+          id: crypto.randomUUID(),
+          sellerId: TEST_SELLER_ID,
+          title: 'Target Strawberry',
+          produceType: 'berries',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+          images: ['https://example.com/strawberry.jpg'],
+        },
+        {
+          id: crypto.randomUUID(),
+          sellerId: TEST_SELLER_ID,
+          title: 'Target Blackberry',
+          produceType: 'berries',
+          pricePerOz: '0.60',
+          totalOzInventory: '150',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'paused',
+          images: ['https://example.com/blackberry.jpg'],
+        },
+        {
+          id: crypto.randomUUID(),
+          sellerId: OTHER_SELLER_ID,
+          title: 'Isolated Blueberries',
+          produceType: 'berries',
+          pricePerOz: '0.70',
+          totalOzInventory: '200',
+          harvestFrequencyDays: 3,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+          images: ['https://example.com/blueberry.jpg'],
+        },
+      ]);
+
+      await produceRepository.markAllAsDeletedBySellerId(TEST_SELLER_ID);
+
+      const targetSellerItems: Produce[] = await testDb
+        .select()
+        .from(produce)
+        .where(eq(produce.sellerId, TEST_SELLER_ID));
+
+      expect(targetSellerItems).toHaveLength(2);
+      expect(targetSellerItems.every((item) => item.status === 'deleted')).toBe(true);
+      expect(targetSellerItems.every((item) => item.images?.length === 0)).toBe(true);
+
+      const otherSellerItems = await testDb
+        .select()
+        .from(produce)
+        .where(eq(produce.sellerId, OTHER_SELLER_ID));
+
+      expect(otherSellerItems).toHaveLength(1);
+      expect(otherSellerItems[0].status).toBe('active');
+      expect(otherSellerItems[0].images).toEqual(['https://example.com/blueberry.jpg']);
+    });
+
+    it('should complete smoothly if the seller has no produce items recorded', async () => {
+      await expect(
+        produceRepository.markAllAsDeletedBySellerId('empty_seller_uuid'),
+      ).resolves.not.toThrow();
+    });
+  });
+
+  describe('findAllBySellerId', () => {
+    it('should retrieve only non-deleted listings for a seller ordered by creation date descending', async () => {
+      const earlierDate = new Date('2024-01-01T12:00:00Z');
+      const laterDate = new Date('2024-01-02T12:00:00Z');
+
+      await testDb.insert(produce).values([
+        {
+          id: crypto.randomUUID(),
+          sellerId: TEST_SELLER_ID,
+          title: 'Old Active Garlic',
+          produceType: 'alliums',
+          pricePerOz: '0.30',
+          totalOzInventory: '50',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+          createdAt: earlierDate,
+        },
+        {
+          id: crypto.randomUUID(),
+          sellerId: TEST_SELLER_ID,
+          title: 'New Paused Scallions',
+          produceType: 'alliums',
+          pricePerOz: '0.40',
+          totalOzInventory: '30',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'paused',
+          createdAt: laterDate,
+        },
+        {
+          id: crypto.randomUUID(),
+          sellerId: TEST_SELLER_ID,
+          title: 'Wiped Leeks',
+          produceType: 'alliums',
+          pricePerOz: '0.50',
+          totalOzInventory: '0',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'deleted',
+          createdAt: laterDate,
+        },
+      ]);
+
+      const activeAndPausedResults = await produceRepository.findAllBySellerId(TEST_SELLER_ID);
+
+      expect(activeAndPausedResults).toHaveLength(2);
+
+      expect(activeAndPausedResults[0].title).toBe('New Paused Scallions');
+      expect(activeAndPausedResults[0].status).toBe('paused');
+
+      expect(activeAndPausedResults[1].title).toBe('Old Active Garlic');
+      expect(activeAndPausedResults[1].status).toBe('active');
+
+      const titles = activeAndPausedResults.map((item) => item.title);
+      expect(titles).not.toContain('Wiped Leeks');
+    });
+
+    it('should yield an empty array if all of a seller’s listings have been marked as deleted', async () => {
+      await testDb.insert(produce).values({
+        id: crypto.randomUUID(),
+        sellerId: TEST_SELLER_ID,
+        title: 'Ghost Apple',
+        produceType: 'pome_fruits',
+        pricePerOz: '0.10',
+        totalOzInventory: '10',
+        harvestFrequencyDays: 7,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        status: 'deleted',
+      });
+
+      const results = await produceRepository.findAllBySellerId(TEST_SELLER_ID);
+      expect(results).toEqual([]);
     });
   });
 });

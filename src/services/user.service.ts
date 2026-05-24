@@ -3,9 +3,13 @@ import { HTTPException } from 'hono/http-exception';
 
 import type { ScheduleType } from '../db/types.js';
 import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
+import { accountRepository } from '../repositories/account.repository.js';
+import { fcmRepository } from '../repositories/fcm.repository.js';
 import { orderRepository } from '../repositories/order.repository.js';
+import { produceRepository } from '../repositories/produce.repository.js';
 import { reviewRepository } from '../repositories/review.repository.js';
 import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
+import { sessionRepository } from '../repositories/session.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import type {
   ReviewBreakdown,
@@ -13,6 +17,12 @@ import type {
   UpdateUserPayload,
   Window,
 } from '../schemas/user.schema.js';
+
+import {
+  batchCancelAllPendingOrdersPlacedByUser,
+  batchCancelPendingOrders,
+} from './order.service.js';
+import { batchCancelProductSubscriptions } from './subscription.service.js';
 
 /**
  * Retrieves the current user profile, handles missing users, and sanitizes data.
@@ -190,4 +200,54 @@ export async function getPublicUserProfile(id: string, log: AppLogger = noopLogg
     reviewBreakdown,
     activeBuyerCount,
   };
+}
+
+/**
+ * Anonymizes the user account and cleans up related active records
+ * to preserve database FK integrity for past orders.
+ * @param id - User's unique ID injected by Auth.js session
+ * @param log - App logger
+ */
+export async function deleteAccount(id: string, log: AppLogger = noopLogger) {
+  const currentUser = await userRepository.findById(id);
+
+  if (!currentUser) {
+    log.warn('Attempted to delete non-existent user profile');
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  if (currentUser.image) {
+    del(currentUser.image).catch((err) => {
+      log.error(
+        { error: err instanceof Error ? err.message : err, blobUrl: currentUser.image },
+        'Failed to delete orphaned blob image during account deletion',
+      );
+    });
+  }
+
+  await userRepository.anonymize(id);
+
+  const sellerProducts = await produceRepository.findAllBySellerId(id);
+
+  await produceRepository.markAllAsDeletedBySellerId(id);
+
+  const reason = 'The seller closed their account.';
+  for (const product of sellerProducts) {
+    void Promise.allSettled([
+      batchCancelProductSubscriptions(product.id, reason),
+      batchCancelPendingOrders(product.id, reason, id, log),
+    ]).catch((err) =>
+      log.error({ err, productId: product.id }, 'Failed product cleanup for deleted account'),
+    );
+  }
+
+  await batchCancelAllPendingOrdersPlacedByUser(id, 'User deleted their account', log);
+
+  await scheduleRuleRepository.deleteBySellerId(id);
+
+  await accountRepository.deleteByUserId(id);
+  await sessionRepository.deleteByUserId(id);
+  await fcmRepository.deleteByUserId(id);
+
+  log.info('User account successfully anonymized and dependent records sanitized');
 }

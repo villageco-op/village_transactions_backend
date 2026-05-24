@@ -155,4 +155,63 @@ describe('ScheduleRuleRepository - Integration', { timeout: 60_000 }, () => {
       expect(deliveryRules[0].type).toBe('delivery');
     });
   });
+
+  describe('deleteBySellerId', () => {
+    it('should delete all schedule rules for the specified seller and keep other sellers intact', async () => {
+      const OTHER_SELLER_ID = 'other_seller_456';
+
+      await testDb.insert(users).values({
+        id: OTHER_SELLER_ID,
+        name: 'Other Seller',
+        email: 'other.rules@example.com',
+      });
+
+      await testDb.insert(scheduleRules).values([
+        {
+          sellerId: SELLER_ID,
+          dayOfWeek: 'Monday',
+          type: 'pickup',
+          startTime: '08:00',
+          endTime: '12:00',
+        },
+        {
+          sellerId: SELLER_ID,
+          dayOfWeek: 'Tuesday',
+          type: 'delivery',
+          startTime: '13:00',
+          endTime: '17:00',
+        },
+        {
+          sellerId: OTHER_SELLER_ID,
+          dayOfWeek: 'Wednesday',
+          type: 'pickup',
+          startTime: '10:00',
+          endTime: '14:00',
+        },
+      ]);
+
+      await scheduleRuleRepository.deleteBySellerId(SELLER_ID);
+
+      const targetSellerRules = await testDb
+        .select()
+        .from(scheduleRules)
+        .where(eq(scheduleRules.sellerId, SELLER_ID));
+
+      expect(targetSellerRules).toHaveLength(0);
+
+      const otherSellerRules = await testDb
+        .select()
+        .from(scheduleRules)
+        .where(eq(scheduleRules.sellerId, OTHER_SELLER_ID));
+
+      expect(otherSellerRules).toHaveLength(1);
+      expect(otherSellerRules[0].dayOfWeek).toBe('Wednesday');
+    });
+
+    it('should run successfully and not throw an error if the seller has no rules to delete', async () => {
+      await expect(
+        scheduleRuleRepository.deleteBySellerId('non_existent_seller'),
+      ).resolves.not.toThrow();
+    });
+  });
 });

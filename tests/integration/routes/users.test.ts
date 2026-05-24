@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { authedRequest } from '../../test-utils/auth.js';
@@ -22,6 +22,18 @@ import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
 import { request } from '../../test-utils/request.js';
 import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
+import * as stripeService from '../../../src/services/stripe.service.js';
+
+vi.spyOn(stripeService, 'updateStripeSubscriptionStatus').mockResolvedValue(undefined);
+vi.spyOn(stripeService, 'updateStripeSubscriptionQuantity').mockResolvedValue(undefined);
+
+vi.mock('@vercel/blob', () => ({
+  del: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../../src/services/subscription.service.js', () => ({
+  batchCancelProductSubscriptions: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe('Users API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -510,6 +522,82 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(404);
       const body = await res.json();
       expect(body.error).toBe('User not found');
+    });
+  });
+
+  describe('DELETE /api/users/me', () => {
+    const CURRENT_USER_ID = 'test_auth_user_123';
+
+    beforeEach(async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        organization: 'Doe Grocers',
+        email: 'johndoe@example.com',
+        image: 'https://blob.vercel-storage.com/avatars/john.png',
+      });
+    });
+
+    it('should return 401 Unauthorized if request session is missing or valid token not supplied', async () => {
+      const res = await request('/api/users/me', { method: 'DELETE' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should successfully execute account data anonymization and clear volatile records', async () => {
+      await testDb.insert(scheduleRules).values({
+        sellerId: CURRENT_USER_ID,
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '17:00',
+      });
+
+      await testDb.insert(fcmTokens).values({
+        userId: CURRENT_USER_ID,
+        token: 'fcm_token_device_xyz_123',
+        platform: 'mac',
+      });
+
+      const res = await authedRequest(
+        '/api/users/me',
+        { method: 'DELETE' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ success: true });
+
+      const [updatedUser] = await testDb.select().from(users).where(eq(users.id, CURRENT_USER_ID));
+
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser.email).toContain('deleted-');
+      expect(updatedUser.name).toBe('Deleted User');
+      expect(updatedUser.image).toBeNull();
+
+      const relatedRules = await testDb
+        .select()
+        .from(scheduleRules)
+        .where(eq(scheduleRules.sellerId, CURRENT_USER_ID));
+      expect(relatedRules).toHaveLength(0);
+
+      const relatedTokens = await testDb
+        .select()
+        .from(fcmTokens)
+        .where(eq(fcmTokens.userId, CURRENT_USER_ID));
+      expect(relatedTokens).toHaveLength(0);
+    });
+
+    it('should return 404 Not Found if user is authenticated but missing from database repository tracking context', async () => {
+      await truncateTables(testDb);
+
+      const res = await authedRequest(
+        '/api/users/me',
+        { method: 'DELETE' },
+        { id: 'some_ghost_id_not_in_db' },
+      );
+
+      expect(res.status).toBe(404);
     });
   });
 });

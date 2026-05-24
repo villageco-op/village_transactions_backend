@@ -596,4 +596,23 @@ export const orderRepository = {
 
     return affectedOrders.map((o) => o.orderId);
   },
+
+  /**
+   * Retrieves all pending order IDs placed by a specific buyer.
+   * @param buyerId - The ID of the user who placed the orders
+   * @returns An array of order IDs
+   */
+  async getPendingOrdersByBuyerId(buyerId: string): Promise<string[]> {
+    const records = await this.db
+      .select({ id: orders.id })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.buyerId, buyerId),
+          notInArray(orders.status, ['canceled', 'refund_pending', 'completed']),
+        ),
+      );
+
+    return records.map((r) => r.id);
+  },
 };

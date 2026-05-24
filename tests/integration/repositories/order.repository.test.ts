@@ -1285,4 +1285,72 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(dbOrder.status).toBe('paid');
     });
   });
+
+  describe('getPendingOrdersByBuyerId', () => {
+    it('should retrieve order IDs that match the target buyerId and are not canceled, refund_pending, or completed', async () => {
+      const TARGET_BUYER_ID = 'buyer_target_123';
+      const OTHER_BUYER_ID = 'buyer_isolated_456';
+      const SELLER_ID = 'seller_shared_789';
+
+      await testDb.insert(users).values([
+        { id: TARGET_BUYER_ID, email: 'target_buyer@test.com' },
+        { id: OTHER_BUYER_ID, email: 'other_buyer@test.com' },
+        { id: SELLER_ID, email: 'shared_seller@test.com' },
+      ]);
+
+      const targetValidOrders = [
+        { id: crypto.randomUUID(), status: 'paid' },
+        { id: crypto.randomUUID(), status: 'pending' },
+      ];
+      const targetExcludedOrders = [
+        { id: crypto.randomUUID(), status: 'canceled' },
+        { id: crypto.randomUUID(), status: 'completed' },
+        { id: crypto.randomUUID(), status: 'refund_pending' },
+      ];
+      const otherBuyerOrders = [{ id: crypto.randomUUID(), status: 'pending' }];
+
+      for (const order of [...targetValidOrders, ...targetExcludedOrders]) {
+        await testDb.insert(orders).values({
+          id: order.id,
+          buyerId: TARGET_BUYER_ID,
+          sellerId: SELLER_ID,
+          status: order.status,
+          totalAmount: '15.50',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        });
+      }
+
+      for (const order of otherBuyerOrders) {
+        await testDb.insert(orders).values({
+          id: order.id,
+          buyerId: OTHER_BUYER_ID,
+          sellerId: SELLER_ID,
+          status: order.status,
+          totalAmount: '22.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        });
+      }
+
+      const pendingOrderIds = await orderRepository.getPendingOrdersByBuyerId(TARGET_BUYER_ID);
+
+      expect(pendingOrderIds).toHaveLength(2);
+      expect(pendingOrderIds).toContain(targetValidOrders[0].id);
+      expect(pendingOrderIds).toContain(targetValidOrders[1].id);
+
+      expect(pendingOrderIds).not.toContain(targetExcludedOrders[0].id);
+      expect(pendingOrderIds).not.toContain(targetExcludedOrders[1].id);
+      expect(pendingOrderIds).not.toContain(targetExcludedOrders[2].id);
+
+      expect(pendingOrderIds).not.toContain(otherBuyerOrders[0].id);
+    });
+
+    it('should return an empty array if the buyer has no orders or records in the system', async () => {
+      const results = await orderRepository.getPendingOrdersByBuyerId('unregistered_buyer_uuid');
+      expect(results).toEqual([]);
+    });
+  });
 });
