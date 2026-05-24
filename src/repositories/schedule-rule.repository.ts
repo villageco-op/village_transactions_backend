@@ -56,4 +56,13 @@ export const scheduleRuleRepository = {
 
     return rules.filter((r) => r.dayOfWeek.toLowerCase() === dayOfWeek.toLowerCase());
   },
+
+  /**
+   * Hard deletes all weekly scheduling rules belonging to a specific seller.
+   * Used when clearing out non-historical relational data during account deletion.
+   * @param sellerId - The unique ID of the seller
+   */
+  async deleteBySellerId(sellerId: string): Promise<void> {
+    await this.db.delete(scheduleRules).where(eq(scheduleRules.sellerId, sellerId));
+  },
 };

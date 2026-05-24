@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import {
   truncateTables,
@@ -195,5 +195,101 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
     const fetchedUser = await userRepository.findById(userId);
     expect(fetchedUser?.stripeOnboardingComplete).toBe(true);
+  });
+
+  describe('anonymize', () => {
+    it('should overwrite all PII fields with anonymous placeholders and clear metadata for the target user', async () => {
+      const TARGET_USER_ID = 'user_to_anonymize_999';
+
+      await testDb.insert(users).values({
+        id: TARGET_USER_ID,
+        name: 'Jane Doe',
+        email: 'jane.doe@example.com',
+        emailVerified: new Date('2025-01-01'),
+        image: 'https://example.com/avatar.jpg',
+        organization: 'Jane’s Farm LLC',
+        aboutMe: 'Local grower since 2010.',
+        specialties: ['organic-berries', 'honey'],
+        goal: '1500.00',
+        address: '123 Homestead Lane',
+        city: 'Madison',
+        state: 'WI',
+        country: 'US',
+        zip: '53703',
+        lat: 43.0731,
+        lng: -89.4012,
+        location: sql`ST_SetSRID(ST_MakePoint(-89.4012, 43.0731), 4326)`,
+        deliveryRangeMiles: '25.0',
+        stripeAccountId: 'acct_target_stripe_789',
+        stripeOnboardingComplete: true,
+        updatedAt: new Date('2025-01-01'),
+      });
+
+      await userRepository.anonymize(TARGET_USER_ID);
+
+      const updatedUser = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, TARGET_USER_ID))
+        .then((res: any[]) => res[0]);
+
+      expect(updatedUser).toBeDefined();
+
+      expect(updatedUser.name).toBe('Deleted User');
+      expect(updatedUser.email).toBe(`deleted-${TARGET_USER_ID}@example.local`);
+      expect(updatedUser.deliveryRangeMiles).toBe('0');
+      expect(updatedUser.stripeOnboardingComplete).toBe(false);
+
+      expect(updatedUser.emailVerified).toBeNull();
+      expect(updatedUser.image).toBeNull();
+      expect(updatedUser.organization).toBeNull();
+      expect(updatedUser.aboutMe).toBeNull();
+      expect(updatedUser.specialties).toEqual([]);
+      expect(updatedUser.goal).toBeNull();
+      expect(updatedUser.address).toBeNull();
+      expect(updatedUser.city).toBeNull();
+      expect(updatedUser.state).toBeNull();
+      expect(updatedUser.country).toBeNull();
+      expect(updatedUser.zip).toBeNull();
+      expect(updatedUser.lat).toBeNull();
+      expect(updatedUser.lng).toBeNull();
+      expect(updatedUser.location).toBeNull();
+      expect(updatedUser.stripeAccountId).toBeNull();
+
+      expect(new Date(updatedUser.updatedAt).getTime()).toBeGreaterThan(
+        new Date('2025-01-01').getTime(),
+      );
+    });
+
+    it('should isolate changes and not affect other users in the system', async () => {
+      const TARGET_USER_ID = 'delete_me_888';
+      const BACKUP_USER_ID = 'keep_me_safe_777';
+
+      await testDb.insert(users).values([
+        {
+          id: TARGET_USER_ID,
+          name: 'Target User',
+          email: 'target@example.com',
+        },
+        {
+          id: BACKUP_USER_ID,
+          name: 'Safe User',
+          email: 'safe@example.com',
+          stripeOnboardingComplete: true,
+        },
+      ]);
+
+      await userRepository.anonymize(TARGET_USER_ID);
+
+      const safeUser = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, BACKUP_USER_ID))
+        .then((res: any[]) => res[0]);
+
+      expect(safeUser.name).toBe('Safe User');
+      expect(safeUser.email).toBe('safe@example.com');
+      expect(safeUser.stripeOnboardingComplete).toBe(true);
+    });
   });
 });

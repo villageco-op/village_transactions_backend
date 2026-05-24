@@ -11,3 +11,4 @@ export type ScheduleType = InferEnum<typeof schema.fulfillmentTypeEnum>;
 export type OrderStatus = InferEnum<typeof schema.orderStatusEnum>;
 export type ProduceType = InferEnum<typeof schema.produceTypeEnum>;
 export type Order = InferSelectModel<typeof schema.orders>;
+export type Produce = InferSelectModel<typeof schema.produce>;

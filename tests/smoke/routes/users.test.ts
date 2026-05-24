@@ -57,4 +57,11 @@ describe('Users API - Smoke Tests', { timeout: 60_000 }, () => {
     const res = await request('/api/users/any_seller_id');
     expect(res.status).not.toBe(500);
   });
+
+  it('DELETE /api/users/:id should not return a 500 error', async () => {
+    const res = await request('/api/users/any_seller_id', {
+      method: 'DELETE',
+    });
+    expect(res.status).not.toBe(500);
+  });
 });

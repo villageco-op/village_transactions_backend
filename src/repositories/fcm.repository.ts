@@ -53,4 +53,12 @@ export const fcmRepository = {
     if (tokens.length === 0) return;
     await this.db.delete(fcmTokens).where(inArray(fcmTokens.token, tokens));
   },
+
+  /**
+   * Wipes out all registered mobile/web push notification tokens linked to this user.
+   * @param userId - The targeted user ID
+   */
+  async deleteByUserId(userId: string): Promise<void> {
+    await this.db.delete(fcmTokens).where(eq(fcmTokens.userId, userId));
+  },
 };
