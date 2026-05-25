@@ -28,7 +28,6 @@ export async function processGeocoding(
 
   try {
     const response = await fetch(mapboxUrl);
-    console.log(JSON.stringify(response));
 
     if (!response.ok) {
       log.error({ status: response.status }, 'Mapbox API request returned an upstream error');
@@ -49,7 +48,6 @@ export async function processGeocoding(
     return { lat, lng };
   } catch (error) {
     if (error instanceof HTTPException) throw error;
-    console.log(error);
     log.error({ error }, 'Unexpected error encountered while processing Mapbox transaction');
     throw new HTTPException(500, { message: 'An internal error occurred during geocoding' });
   }
