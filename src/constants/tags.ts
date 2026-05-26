@@ -16,4 +16,5 @@ export const TAGS = {
   UPLOAD: 'Upload',
   GROWERS: 'Growers',
   SOURCE_MAP: 'SourceMap',
+  LOCATION: 'Location',
 } as const;

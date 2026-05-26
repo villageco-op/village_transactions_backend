@@ -53,4 +53,5 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           EMAIL_SERVER: ${{ secrets.EMAIL_SERVER }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
   

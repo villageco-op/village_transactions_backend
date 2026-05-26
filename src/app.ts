@@ -20,6 +20,7 @@ import { checkoutRoute } from './routes/checkout.js';
 import { contactRoute } from './routes/contact.js';
 import { cronRoute } from './routes/cron.js';
 import { growersRoute } from './routes/growers.js';
+import { locationRoute } from './routes/location.js';
 import { messagingRoute } from './routes/messaging.js';
 import { ordersRoute } from './routes/orders.js';
 import { produceRoute } from './routes/produce.js';
@@ -181,6 +182,7 @@ app.route('/api/growers', growersRoute);
 app.route('/api/source-map', sourceMapRoute);
 app.route('/api/cron', cronRoute);
 app.route('/api/contact', contactRoute);
+app.route('/api/location', locationRoute);
 
 app.doc('/api/doc', openApiConfig);
 

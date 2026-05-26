@@ -8,6 +8,7 @@ import * as Checkout from '../schemas/checkout.schema.js';
 import * as Common from '../schemas/common.schema.js';
 import * as Contact from '../schemas/contact.schema.js';
 import * as Growers from '../schemas/grower.schema.js';
+import * as Location from '../schemas/location.schema.js';
 import * as Messaging from '../schemas/messaging.schema.js';
 import * as Orders from '../schemas/order.schema.js';
 import * as Produce from '../schemas/produce.schema.js';
@@ -191,4 +192,8 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
     'SourceMapAnalyticsResponse',
     SourceMap.SourceMapAnalyticsResponseSchema,
   );
+
+  // Location
+  app.openAPIRegistry.register('GeocodePayload', Location.GeocodeRequestSchema);
+  app.openAPIRegistry.register('GeocodeCoordinates', Location.GeocodeResponseSchema);
 }
