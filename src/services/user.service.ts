@@ -11,11 +11,12 @@ import { reviewRepository } from '../repositories/review.repository.js';
 import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
 import { sessionRepository } from '../repositories/session.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
-import type {
-  ReviewBreakdown,
-  UpdateScheduleRulesPayload,
-  UpdateUserPayload,
-  Window,
+import {
+  transformUserProfile,
+  type ReviewBreakdown,
+  type UpdateScheduleRulesPayload,
+  type UpdateUserPayload,
+  type Window,
 } from '../schemas/user.schema.js';
 
 import {
@@ -38,7 +39,7 @@ export async function getCurrentUser(id: string, log: AppLogger = noopLogger) {
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  return user;
+  return transformUserProfile(user);
 }
 
 /**
