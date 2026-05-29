@@ -121,6 +121,7 @@ describe('UserService - getCurrentUser', () => {
       address: '456 Seller Ave',
       stripeAccountId: 'acct_999',
       stripeOnboardingComplete: false,
+      isOnboardingComplete: false,
     });
 
     expect(userRepository.findById).toHaveBeenCalledWith('user_123');

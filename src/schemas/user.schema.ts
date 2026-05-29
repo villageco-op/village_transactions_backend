@@ -11,7 +11,28 @@ import {
   UserIdSchema,
 } from './common.schema.js';
 
-export const UserProfileSchema = createSelectSchema(users).omit({ location: true }).openapi('User');
+const BaseProfileSchema = createSelectSchema(users).omit({
+  location: true,
+  stripeAccountId: true,
+});
+
+export const UserProfileSchema = BaseProfileSchema.extend({
+  isOnboardingComplete: z.boolean(),
+}).openapi('User');
+
+/**
+ * Adds the computed field (isOnboardingComplete) to the user object.
+ * @param user - The user database object
+ * @returns The user with the isOnboardingComplete field
+ */
+export function transformUserProfile(user: typeof users.$inferSelect) {
+  return {
+    ...user,
+    isOnboardingComplete: Boolean(
+      user.name && user.address && user.city && user.state && user.country && user.zip,
+    ),
+  };
+}
 
 export const UpdateUserSchema = z
   .object({
@@ -144,3 +165,4 @@ export type Window = z.infer<typeof WindowSchema>;
 export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;
 export type PublicUserProfile = z.infer<typeof PublicUserProfileSchema>;
 export type ReviewBreakdown = PublicUserProfile['reviewBreakdown'];
+export type UserProfile = z.infer<typeof UserProfileSchema>;

@@ -7,7 +7,7 @@ describe('Auth Callbacks', () => {
       const token = { iat: 123 };
       const user = { id: 'user-123' };
 
-      const result = jwtCallback({ token, user });
+      const result = await jwtCallback({ token, user });
 
       expect(result.id).toBe('user-123');
       expect(result.iat).toBe(123); // preserves existing data
@@ -16,7 +16,7 @@ describe('Auth Callbacks', () => {
     it('should return unmodified token if user is not provided', async () => {
       const token = { iat: 123 };
 
-      const result = jwtCallback({ token, user: undefined });
+      const result = await jwtCallback({ token, user: undefined });
 
       expect(result.id).toBeUndefined();
       expect(result.iat).toBe(123);
