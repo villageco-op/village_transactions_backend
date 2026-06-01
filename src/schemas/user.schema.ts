@@ -159,7 +159,33 @@ export const RegisterFcmTokenSchema = z
   })
   .openapi('RegisterFcmTokenPayload');
 
+export const UnregisterFcmTokenSchema = z
+  .object({
+    platform: z.enum(['ios', 'android', 'web']).openapi({
+      example: 'ios',
+      description: 'The operating system of the device unregistering the token',
+    }),
+  })
+  .openapi('UnregisterFcmTokenPayload');
+
+export const GetFcmStatusQuerySchema = z
+  .object({
+    platform: z.enum(['ios', 'android', 'web']).openapi({
+      example: 'ios',
+      description: 'The operating system of the device',
+    }),
+  })
+  .openapi('GetFcmStatusQuery');
+
+export const FcmStatusResponseSchema = z
+  .object({
+    status: z.boolean(),
+  })
+  .openapi('FcmStatusResponse');
+
 export type RegisterFcmTokenPayload = z.infer<typeof RegisterFcmTokenSchema>;
+export type UnregisterFcmTokenPayload = z.infer<typeof UnregisterFcmTokenSchema>;
+export type GetFcmStatusQuery = z.infer<typeof GetFcmStatusQuerySchema>;
 export type UpdateScheduleRulesPayload = z.infer<typeof UpdateScheduleRulesSchema>;
 export type Window = z.infer<typeof WindowSchema>;
 export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;

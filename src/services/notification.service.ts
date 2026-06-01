@@ -1,9 +1,6 @@
-import { HTTPException } from 'hono/http-exception';
-
 import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { messaging } from '../lib/firebase.js';
 import { fcmRepository } from '../repositories/fcm.repository.js';
-import { userRepository } from '../repositories/user.repository.js';
 
 /**
  * Dispatches an FCM push notification to a specific user.
@@ -70,13 +67,32 @@ export async function registerFcmToken(
   platform: string,
   log: AppLogger = noopLogger,
 ) {
-  const user = await userRepository.findById(id);
-
-  if (!user) {
-    log.warn('Attempted to register FCM token for non-existent user');
-    throw new HTTPException(404, { message: 'User not found' });
-  }
-
   await fcmRepository.upsertToken(id, token, platform);
   log.info({ platform }, 'FCM device token registered');
+}
+
+/**
+ * Deletes all Firebase Messaging Tokens for a user and platform.
+ * @param id - User's unique ID
+ * @param platform - Device platform identifier (e.g. 'ios', 'android', 'web')
+ * @param log - App logger that defaults to a blank logger
+ */
+export async function unregisterFcmToken(
+  id: string,
+  platform: string,
+  log: AppLogger = noopLogger,
+) {
+  await fcmRepository.deleteByPlatform(id, platform);
+  log.info({ platform }, 'FCM device tokens unregistered for platform');
+}
+
+/**
+ * Checks if a token exists for a given user and platform.
+ * @param id - User's unique ID
+ * @param platform - Device platform identifier (e.g. 'ios', 'android', 'web')
+ * @returns True if any matching tokens exist
+ */
+export async function getFcmStatus(id: string, platform: string): Promise<boolean> {
+  const tokens = await fcmRepository.getTokensByPlatform(id, platform);
+  return tokens.length > 0;
 }
