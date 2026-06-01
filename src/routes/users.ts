@@ -18,8 +18,15 @@ import {
   UpdateUserSchema,
   PublicUserProfileSchema,
   RegisterFcmTokenSchema,
+  UnregisterFcmTokenSchema,
+  FcmStatusResponseSchema,
+  GetFcmStatusQuerySchema,
 } from '../schemas/user.schema.js';
-import { registerFcmToken } from '../services/notification.service.js';
+import {
+  getFcmStatus,
+  registerFcmToken,
+  unregisterFcmToken,
+} from '../services/notification.service.js';
 import { getSellerReviews } from '../services/review.service.js';
 import {
   getCurrentUser,
@@ -148,10 +155,6 @@ usersRoute.openapi(
         description: 'Unauthorized',
         content: { 'application/json': { schema: ErrorResponseSchema } },
       },
-      404: {
-        description: 'User not found',
-        content: { 'application/json': { schema: ErrorResponseSchema } },
-      },
     },
   }),
   async (c) => {
@@ -172,6 +175,91 @@ usersRoute.openapi(
     await registerFcmToken(userId, token, platform, log);
 
     return c.json({ success: true }, 200);
+  },
+);
+
+usersRoute.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/fcm-token',
+    operationId: 'unregisterFcmToken',
+    description: "Remove the user's Firebase Cloud Messaging token for the given platform.",
+    tags: [TAGS.USERS],
+    middleware: [verifyAuth()],
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: UnregisterFcmTokenSchema },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Token deleted',
+        content: { 'application/json': { schema: SuccessResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { platform } = c.req.valid('json');
+
+    const log = c.get('logger').child({
+      action: 'unregisterFcmToken',
+      platform,
+    });
+
+    await unregisterFcmToken(userId, platform, log);
+
+    return c.json({ success: true }, 200);
+  },
+);
+
+usersRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/fcm-status',
+    operationId: 'GetFcmStatus',
+    description: 'Checks if a token exists for the current user and a given platform.',
+    tags: [TAGS.USERS],
+    middleware: [verifyAuth()],
+    request: {
+      query: GetFcmStatusQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'Status recieved',
+        content: { 'application/json': { schema: FcmStatusResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { platform } = c.req.valid('query');
+
+    const status = await getFcmStatus(userId, platform);
+
+    return c.json({ status }, 200);
   },
 );
 

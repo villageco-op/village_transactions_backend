@@ -37,6 +37,23 @@ describe('Users API - Smoke Tests', { timeout: 60_000 }, () => {
     expect(res.status).not.toBe(500);
   });
 
+  it('DELETE /api/users/fcm-token should not return a 500 error', async () => {
+    const res = await authedRequest('/api/users/fcm-token', {
+      method: 'DELETE',
+      body: JSON.stringify({
+        platform: 'ios',
+      }),
+    });
+
+    expect(res.status).not.toBe(500);
+  });
+
+  it('GET /api/users/fcm-status should not return a 500 error', async () => {
+    const res = await authedRequest('/api/users/fcm-status?platform=ios');
+
+    expect(res.status).not.toBe(500);
+  });
+
   it('PUT /api/users/me/schedule-rules should not return a 500 error', async () => {
     const res = await authedRequest('/api/users/me/schedule-rules', {
       method: 'PUT',
