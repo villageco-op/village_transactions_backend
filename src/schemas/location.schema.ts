@@ -2,13 +2,13 @@ import { z } from '@hono/zod-openapi';
 
 export const GeocodeRequestSchema = z
   .object({
-    address: z.string().min(1, 'Address is required').openapi({
+    address: z.string().optional().openapi({
       example: '123 Farm Lane',
     }),
-    city: z.string().min(1, 'City is required').openapi({
+    city: z.string().optional().openapi({
       example: 'Gary',
     }),
-    state: z.string().min(2, 'State code is required').openapi({
+    state: z.string().optional().openapi({
       example: 'IN',
     }),
     zip: z.string().min(5, 'ZIP code is required').openapi({
