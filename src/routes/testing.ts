@@ -1,4 +1,4 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
+import { Hono } from 'hono';
 
 import type { RouteEnv } from '../app.js';
 import {
@@ -8,7 +8,7 @@ import {
 } from '../services/testing.service.js';
 import { getLatestVerificationToken } from '../services/verification.service.js';
 
-export const testingRoute = new OpenAPIHono<RouteEnv>();
+export const testingRoute = new Hono<RouteEnv>();
 
 if (process.env.VERCEL_ENV === 'preview') {
   testingRoute.get('/', async (c) => {
