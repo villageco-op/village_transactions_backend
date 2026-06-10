@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { eq, type SQL, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
@@ -171,5 +173,65 @@ export const userRepository = {
         updatedAt: sql`now()`,
       })
       .where(eq(users.id, id));
+  },
+
+  /**
+   * TESTING ONLY: Forcefully inserts a completely pre-configured test user.
+   * @param data Payload to structure the new seeded user record
+   * @param data.email - The user email
+   * @param data.name - The users name
+   * @param data.stripeOnboarded - Did the user complete Stripe onboarding
+   * @param data.profile - The user name and address
+   * @param data.profile.address - The users address
+   * @param data.profile.city - The users city
+   * @param data.profile.state - The users state
+   * @param data.profile.zip - The users zip code
+   * @param data.profile.country - The users country
+   * @param data.profile.lat - The users latitude
+   * @param data.profile.lng - The users longitude
+   * @returns The user entry
+   */
+  async seedUser(data: {
+    email: string;
+    name?: string;
+    stripeOnboarded?: boolean;
+    profile?: {
+      address: string;
+      city: string;
+      state: string;
+      zip: string;
+      country?: string;
+      lat?: number;
+      lng?: number;
+    };
+  }): Promise<User> {
+    const id = `test_usr_${randomUUID()}`;
+    const lat = data.profile?.lat ?? 30.2672;
+    const lng = data.profile?.lng ?? -97.7431;
+
+    const insertPayload: typeof users.$inferInsert = {
+      id,
+      email: data.email,
+      name: data.name ?? 'Test User',
+      emailVerified: new Date(),
+      address: data.profile?.address ?? null,
+      city: data.profile?.city ?? null,
+      state: data.profile?.state ?? null,
+      country: data.profile?.country ?? 'USA',
+      zip: data.profile?.zip ?? null,
+      lat,
+      lng,
+      location: sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)` as unknown as string,
+      stripeAccountId: data.stripeOnboarded ? `acct_test_${randomUUID().substring(0, 8)}` : null,
+      stripeOnboardingComplete: data.stripeOnboarded ?? false,
+    };
+
+    const [newUser] = await this.db.insert(users).values(insertPayload).returning();
+
+    if (!newUser) {
+      throw new Error('Failed to seed user into test database.');
+    }
+
+    return newUser;
   },
 };

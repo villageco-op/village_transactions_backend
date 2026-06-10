@@ -2,12 +2,15 @@ import 'dotenv/config';
 import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { Pool } from '@neondatabase/serverless';
+import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { pinoLogger } from 'hono-pino';
 import type { Logger } from 'pino';
 
+import { dbContext } from './db/index.js';
 import type { DatabaseError } from './interfaces/error.interface.js';
 import { getAuthConfig } from './lib/auth-config.js';
 import { logger as rootLogger } from './lib/logger.js';
@@ -29,6 +32,7 @@ import { sellerRoute } from './routes/seller.js';
 import { sourceMapRoute } from './routes/source-map.js';
 import { stripeRoute } from './routes/stripe.js';
 import { subscriptionsRoute } from './routes/subscriptions.js';
+import { testingRoute } from './routes/testing.js';
 import { uploadRoute } from './routes/upload.js';
 import { usersRoute } from './routes/users.js';
 import { isDatabaseError } from './utils.js';
@@ -46,6 +50,8 @@ export type RouteEnv = {
 };
 
 export const app = new OpenAPIHono<AppBindings>();
+
+const e2ePools = new Map<string, NeonDatabase<Record<string, never>> & { $client: Pool }>();
 
 app.onError((err, c) => {
   const log = c.get('logger') || rootLogger;
@@ -90,7 +96,7 @@ app.use(
       return undefined;
     },
     credentials: true,
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Content-Type', 'Authorization', 'x-e2e-neon-db-url'],
   }),
 );
 
@@ -112,6 +118,24 @@ app.get('/api/staging-unlock', (c) => {
   });
 
   return c.json({ success: true, message: 'Staging access granted.' });
+});
+
+app.use('*', async (c, next) => {
+  const e2eDbUrl = c.req.header('x-e2e-neon-db-url');
+  const isPreview = process.env.VERCEL_ENV === 'preview';
+
+  if (e2eDbUrl && isPreview) {
+    if (!e2ePools.has(e2eDbUrl)) {
+      const e2ePool = new Pool({ connectionString: e2eDbUrl });
+      e2ePools.set(e2eDbUrl, drizzle(e2ePool));
+    }
+
+    const scopedDb = e2ePools.get(e2eDbUrl);
+
+    return dbContext.run(scopedDb, () => next());
+  }
+
+  await next();
 });
 
 app.use('*', async (c, next) => {
@@ -183,6 +207,7 @@ app.route('/api/source-map', sourceMapRoute);
 app.route('/api/cron', cronRoute);
 app.route('/api/contact', contactRoute);
 app.route('/api/location', locationRoute);
+app.route('/api/testing', testingRoute);
 
 app.doc('/api/doc', openApiConfig);
 
