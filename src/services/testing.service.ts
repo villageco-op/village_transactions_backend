@@ -1,4 +1,5 @@
 import { encode } from '@auth/core/jwt';
+import { HTTPException } from 'hono/http-exception';
 
 import type { AppLogger } from '../interfaces/logger.interface.js';
 import { produceRepository } from '../repositories/produce.repository.js';
@@ -45,12 +46,14 @@ export async function seedTestUser(
 export async function generateAuthJsCookieValue(email: string): Promise<string> {
   const user = await userRepository.findByEmail(email);
   if (!user) {
-    throw new Error(`Cannot authenticate non-existent user: ${email}`);
+    throw new HTTPException(404, { message: 'Cannot authenticate non-existent user: ${email}' });
   }
 
   const secret = process.env.AUTH_SECRET;
   if (!secret) {
-    throw new Error('AUTH_SECRET environment variable is missing; cannot sign test sessions.');
+    throw new HTTPException(500, {
+      message: 'AUTH_SECRET environment variable is missing; cannot sign test sessions.',
+    });
   }
 
   const tokenPayload = {
@@ -92,7 +95,9 @@ export async function seedTestProduce(
 
   const user = await userRepository.findByEmail(payload.email);
   if (!user) {
-    throw new Error(`Cannot seed produce for non-existent user: ${payload.email}`);
+    throw new HTTPException(404, {
+      message: 'Cannot seed produce for non-existent user: ${payload.email}',
+    });
   }
 
   const fallbackProduceData: CreateProducePayload = {
