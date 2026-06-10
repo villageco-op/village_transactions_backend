@@ -1,0 +1,18 @@
+name: Trigger E2E Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  trigger-e2e:
+    if: github.head_ref == 'staging'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger E2E Repo
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.API_TOKEN_GITHUB_API_SPECS }}
+          repository: villageco-op/e2e-tests
+          event-type: staging-to-main-pr
+          client-payload: '{"repo": "${{ github.repository }}", "pr_num": "${{ github.event.pull_request.number }}"}'

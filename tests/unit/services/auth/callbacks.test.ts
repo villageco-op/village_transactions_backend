@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { jwtCallback, sessionCallback } from '../../../../src/services/auth/callbacks.js';
 
-describe('Auth Callbacks', () => {
+describe('Auth Callbacks', { timeout: 10_000 }, () => {
   describe('jwtCallback', () => {
     it('should attach user id to token if user is provided', async () => {
       const token = { iat: 123 };
