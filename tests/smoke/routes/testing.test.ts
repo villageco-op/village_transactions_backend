@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+
 import { request } from '../../test-utils/request.js';
-import { isTestingEnvironment } from '../../../src/routes/testing.js';
+
+import { isTestingEnvironment } from '../../../src/utils.js';
 
 describe.skipIf(!isTestingEnvironment)('Testing API - Smoke Tests', { timeout: 60_000 }, () => {
   it('GET /api/testing should not return a 500 error', async () => {
