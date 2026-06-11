@@ -7,12 +7,10 @@ import {
   seedTestUser,
 } from '../services/testing.service.js';
 import { getLatestVerificationToken } from '../services/verification.service.js';
+import { cookieName, isLocal, isTestingEnvironment } from '../utils.js';
 
 export const testingRoute = new Hono<RouteEnv>();
 
-export const isTestingEnvironment =
-  process.env.NODE_ENV === 'test' || process.env.VERCEL_ENV === 'preview';
-console.log('node env: ' + process.env.NODE_ENV);
 if (isTestingEnvironment) {
   testingRoute.get('/', async (c) => {
     const { email } = c.req.query();
@@ -38,9 +36,6 @@ if (isTestingEnvironment) {
     }
 
     const cookieValue = await generateAuthJsCookieValue(email);
-
-    const isLocal = process.env.NODE_ENV === 'development' || !process.env.VERCEL_ENV;
-    const cookieName = isLocal ? 'authjs.session-token' : '__Secure-authjs.session-token';
 
     c.header(
       'Set-Cookie',

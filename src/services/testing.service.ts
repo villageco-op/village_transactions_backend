@@ -5,6 +5,7 @@ import type { AppLogger } from '../interfaces/logger.interface.js';
 import { produceRepository } from '../repositories/produce.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import type { CreateProducePayload } from '../schemas/produce.schema.js';
+import { cookieName } from '../utils.js';
 
 /**
  * Creates a user profile directly in the database with custom attributes.
@@ -70,7 +71,7 @@ export async function generateAuthJsCookieValue(email: string): Promise<string> 
     token: tokenPayload,
     secret,
     maxAge,
-    salt: '',
+    salt: cookieName,
   });
 
   return encryptedToken;
