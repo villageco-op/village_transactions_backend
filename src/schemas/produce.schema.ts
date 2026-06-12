@@ -38,7 +38,7 @@ const ProduceFields = z.object({
     example: '160.00',
     description: 'Optional maximum ounces a single user can order per checkout',
   }),
-  availableBy: IsoDateTimeSchema.optional().openapi({
+  availableBy: z.string().datetime().pipe(z.coerce.date()).optional().openapi({
     example: '2026-03-25T10:00:00Z',
     description: 'The date and time when the produce will be ready for pickup or delivery',
   }),

@@ -97,14 +97,10 @@ export const LocationSchema = z
   })
   .openapi('Location');
 
-export const IsoDateTimeSchema = z
-  .string()
-  .datetime()
-  .pipe(z.coerce.date())
-  .openapi('IsoDateTime', {
-    example: '2026-03-27T09:00:00Z',
-    description: 'ISO 8601 UTC timestamp',
-  });
+export const IsoDateTimeSchema = z.string().datetime().openapi('IsoDateTime', {
+  example: '2026-03-27T09:00:00Z',
+  description: 'ISO 8601 UTC timestamp',
+});
 
 export const IsoDateSchema = z.string().date().openapi('IsoDate', {
   format: 'date',
