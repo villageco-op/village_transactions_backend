@@ -41,18 +41,38 @@ export async function seedTestUser(
   if (payload.stripeOnboarded) {
     try {
       const account = await stripe.accounts.create({
-        type: 'express',
+        type: 'custom',
+        country: 'US',
         email: payload.email,
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
+        business_type: 'individual',
+        individual: {
+          first_name: payload.profile?.name?.split(' ')[0] || 'Jane',
+          last_name: payload.profile?.name?.split(' ')[1] || 'Doe',
+          email: payload.email,
+          dob: { day: 1, month: 1, year: 1990 },
+          address: {
+            line1: payload.profile?.address || '123 Farm Lane',
+            city: payload.profile?.city || 'Austin',
+            state: payload.profile?.state || 'TX',
+            postal_code: payload.profile?.zip || '78701',
+            country: 'US',
+          },
+        },
+        tos_acceptance: {
+          date: Math.floor(Date.now() / 1000),
+          ip: '127.0.0.1',
+        },
         metadata: {
           runId: payload.testRunId || 'unknown',
         },
       });
+
       stripeAccountId = account.id;
-      log.info({ stripeAccountId }, 'Successfully created real Stripe test account');
+      log.info({ stripeAccountId }, 'Successfully created active Stripe test account');
     } catch (err) {
       log.error({ err }, 'Failed to create Stripe test account during seeding');
       throw new HTTPException(500, { message: 'Stripe account creation failed.' });
