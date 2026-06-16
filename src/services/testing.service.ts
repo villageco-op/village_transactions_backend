@@ -1,5 +1,6 @@
 import { encode } from '@auth/core/jwt';
 import { HTTPException } from 'hono/http-exception';
+import Stripe from 'stripe';
 
 import type { AppLogger } from '../interfaces/logger.interface.js';
 import { produceRepository } from '../repositories/produce.repository.js';
@@ -12,6 +13,7 @@ import { cookieName } from '../utils.js';
  * @param payload - The user data
  * @param payload.email - The user email
  * @param payload.stripeOnboarded - Did the user complete Stripe onboarding
+ * @param payload.testRunId - The unique test run id
  * @param payload.profile - The user name and address
  * @param payload.profile.name - The users name
  * @param payload.profile.address - The users address
@@ -25,16 +27,43 @@ export async function seedTestUser(
   payload: {
     email: string;
     stripeOnboarded: boolean;
+    testRunId?: string;
     profile?: { name: string; address: string; city: string; state: string; zip: string };
   },
   log: AppLogger,
 ) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+
   log.info({ email: payload.email }, 'Seeding e2e test user profile');
+
+  let stripeAccountId: string | null = null;
+
+  if (payload.stripeOnboarded) {
+    try {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email: payload.email,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+        metadata: {
+          runId: payload.testRunId || 'unknown',
+        },
+      });
+      stripeAccountId = account.id;
+      log.info({ stripeAccountId }, 'Successfully created real Stripe test account');
+    } catch (err) {
+      log.error({ err }, 'Failed to create Stripe test account during seeding');
+      throw new HTTPException(500, { message: 'Stripe account creation failed.' });
+    }
+  }
 
   return await userRepository.seedUser({
     email: payload.email,
     name: payload.profile?.name,
     stripeOnboarded: payload.stripeOnboarded,
+    stripeAccountId,
     profile: payload.profile,
   });
 }

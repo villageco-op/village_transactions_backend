@@ -181,6 +181,7 @@ export const userRepository = {
    * @param data.email - The user email
    * @param data.name - The users name
    * @param data.stripeOnboarded - Did the user complete Stripe onboarding
+   * @param data.stripeAccountId - The users Stripe account id
    * @param data.profile - The user name and address
    * @param data.profile.address - The users address
    * @param data.profile.city - The users city
@@ -195,6 +196,7 @@ export const userRepository = {
     email: string;
     name?: string;
     stripeOnboarded?: boolean;
+    stripeAccountId?: string | null;
     profile?: {
       address: string;
       city: string;
@@ -222,7 +224,7 @@ export const userRepository = {
       lat,
       lng,
       location: sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)` as unknown as string,
-      stripeAccountId: data.stripeOnboarded ? `acct_test_${randomUUID().substring(0, 8)}` : null,
+      stripeAccountId: data.stripeAccountId ?? null,
       stripeOnboardingComplete: data.stripeOnboarded ?? false,
     };
 
