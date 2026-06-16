@@ -228,7 +228,21 @@ export const userRepository = {
       stripeOnboardingComplete: data.stripeOnboarded ?? false,
     };
 
-    const [newUser] = await this.db.insert(users).values(insertPayload).returning();
+    const query = insertPayload.stripeAccountId
+      ? this.db
+          .insert(users)
+          .values(insertPayload)
+          .onConflictDoUpdate({
+            target: users.stripeAccountId,
+            set: {
+              email: insertPayload.email,
+              name: insertPayload.name,
+              stripeOnboardingComplete: insertPayload.stripeOnboardingComplete,
+            },
+          })
+      : this.db.insert(users).values(insertPayload);
+
+    const [newUser] = await query.returning();
 
     if (!newUser) {
       throw new Error('Failed to seed user into test database.');
