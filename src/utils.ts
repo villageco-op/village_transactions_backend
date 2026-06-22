@@ -62,3 +62,17 @@ export const isLocal = process.env.NODE_ENV === 'development' || !process.env.VE
  * Dynamic cookie name for test route authentication.
  */
 export const cookieName = isLocal ? 'authjs.session-token' : '__Secure-authjs.session-token';
+
+/**
+ * Normalizes a string into a URL-friendly slug.
+ * @param text - String to be normalized
+ * @returns The URL-friendly slug
+ */
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}

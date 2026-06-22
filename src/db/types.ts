@@ -5,6 +5,8 @@ import type * as schema from './schema.js';
 
 export type User = InferSelectModel<typeof schema.users>;
 export type NewUser = InferInsertModel<typeof schema.users>;
+export type Organization = InferSelectModel<typeof schema.organizations>;
+export type NewOrganization = InferInsertModel<typeof schema.organizations>;
 export type DbClient = NeonHttpDatabase<typeof schema>;
 export type Subscription = InferSelectModel<typeof schema.subscriptions>;
 export type ScheduleType = InferEnum<typeof schema.fulfillmentTypeEnum>;
