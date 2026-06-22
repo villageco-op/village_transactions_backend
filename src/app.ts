@@ -26,6 +26,7 @@ import { growersRoute } from './routes/growers.js';
 import { locationRoute } from './routes/location.js';
 import { messagingRoute } from './routes/messaging.js';
 import { ordersRoute } from './routes/orders.js';
+import { organizationsRoute } from './routes/organizations.js';
 import { produceRoute } from './routes/produce.js';
 import { reviewsRoute } from './routes/reviews.js';
 import { sellerRoute } from './routes/seller.js';
@@ -189,6 +190,7 @@ registerSharedSchemas(app);
 app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
 app.route('/api/users', usersRoute);
+app.route('/api/organizations', organizationsRoute);
 app.route('/api/produce', produceRoute);
 app.route('/api/upload', uploadRoute);
 app.route('/api/cart', cartRoute);

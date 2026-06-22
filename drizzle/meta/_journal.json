@@ -190,6 +190,13 @@
       "when": 1779189787254,
       "tag": "0026_fancy_jackal",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1782085939026,
+      "tag": "0027_stormy_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

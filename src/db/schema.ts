@@ -59,11 +59,35 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'paused',
   'canceled',
 ]);
+export const orgTypeEnum = pgEnum('org_type', ['pantry', 'restaurant']);
 
 const geography = customType<{ data: string }>({
   dataType() {
     return 'geography';
   },
+});
+
+export const organizations = pgTable('organizations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  type: orgTypeEnum('type').notNull(),
+  name: text('name').notNull(),
+  subdomain: text('subdomain').notNull().unique(),
+  email: text('email').unique(),
+  website: text('website'),
+  phone: text('phone'),
+  image: text('image'),
+
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  country: text('country'),
+  zip: text('zip'),
+  lat: doublePrecision('lat'),
+  lng: doublePrecision('lng'),
+  location: geography('location'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 export const users = pgTable('users', {
