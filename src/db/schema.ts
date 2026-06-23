@@ -60,6 +60,7 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'canceled',
 ]);
 export const orgTypeEnum = pgEnum('org_type', ['pantry', 'restaurant']);
+export const orgRoleEnum = pgEnum('org_role', ['admin', 'member']);
 
 const geography = customType<{ data: string }>({
   dataType() {
@@ -96,7 +97,8 @@ export const users = pgTable('users', {
   email: text('email').unique(),
   emailVerified: timestamp('email_verified'),
   image: text('image'),
-  organization: text('organization'),
+  organizationId: uuid('organization_id'),
+  orgRole: orgRoleEnum('org_role'),
 
   aboutMe: text('about_me'),
   specialties: jsonb('specialties').$type<string[]>().default([]),
@@ -166,6 +168,22 @@ export const fcmTokens = pgTable('fcm_tokens', {
   platform: text('platform').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const invites = pgTable(
+  'invites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    orgId: uuid('org_id')
+      .references(() => organizations.id, { onDelete: 'cascade' })
+      .notNull(),
+    code: varchar('code', { length: 255 }).notNull(),
+    role: orgRoleEnum().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique().on(t.email, t.orgId)],
+);
 
 export const scheduleRules = pgTable(
   'schedule_rules',

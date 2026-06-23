@@ -6,6 +6,8 @@ import {
   fulfillmentTypeEnum,
   subscriptionStatusEnum,
   produceTypeEnum,
+  orgRoleEnum,
+  orgTypeEnum,
 } from '../db/schema.js';
 
 /**
@@ -44,6 +46,16 @@ export const SeasonSchema = z
 export const OrderStatusSchema = z.enum(orderStatusEnum.enumValues).openapi('OrderStatus', {
   example: 'pending',
   description: 'The lifecycle status of the order',
+});
+
+export const OrgRoleSchema = z.enum(orgRoleEnum.enumValues).openapi('OrgRole', {
+  example: 'member',
+  description: 'The organization role for a user. Defines their permission level.',
+});
+
+export const OrgTypeSchema = z.enum(orgTypeEnum.enumValues).openapi('OrgType', {
+  example: 'pantry',
+  description: 'The organization type.',
 });
 
 export const FulfillmentTypeSchema = z

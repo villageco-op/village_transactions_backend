@@ -3,13 +3,11 @@ import { createSelectSchema } from 'drizzle-zod';
 
 import { organizations } from '../db/schema.js';
 
-import { LatitudeSchema, LongitudeSchema } from './common.schema.js';
+import { LatitudeSchema, LongitudeSchema, OrgTypeSchema } from './common.schema.js';
 
 export const BaseOrganizationSchema = createSelectSchema(organizations).omit({
   location: true,
 });
-
-export const OrgTypeSchema = z.enum(['pantry', 'restaurant']).openapi('OrgType');
 
 export const OrganizationSchema = BaseOrganizationSchema.extend({
   type: OrgTypeSchema,
@@ -60,7 +58,7 @@ export const CheckSubdomainQuerySchema = z.object({
       SUBDOMAIN_REGEX,
       'Subdomain must contain only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen',
     )
-    .openapi({
+    .openapi('CheckSubdomainQuery', {
       param: {
         name: 'subdomain',
         in: 'query',

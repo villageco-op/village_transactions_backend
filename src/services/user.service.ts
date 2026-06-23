@@ -1,11 +1,12 @@
 import { del } from '@vercel/blob';
 import { HTTPException } from 'hono/http-exception';
 
-import type { ScheduleType } from '../db/types.js';
+import type { Organization, ScheduleType } from '../db/types.js';
 import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { accountRepository } from '../repositories/account.repository.js';
 import { fcmRepository } from '../repositories/fcm.repository.js';
 import { orderRepository } from '../repositories/order.repository.js';
+import { organizationRepository } from '../repositories/organization.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
 import { reviewRepository } from '../repositories/review.repository.js';
 import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
@@ -185,11 +186,17 @@ export async function getPublicUserProfile(id: string, log: AppLogger = noopLogg
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const activeBuyerCount = await orderRepository.getActiveBuyerCount(id, startOfMonth);
 
+  let organization: Organization | null = null;
+  if (user.organizationId) {
+    organization = await organizationRepository.findById(user.organizationId);
+  }
+
   return {
     id: user.id,
     name: user.name,
     image: user.image,
-    organization: user.organization,
+    organization: organization?.name || null,
+    organizationId: user.organizationId,
     aboutMe: user.aboutMe,
     specialties: user.specialties,
     country: user.country,

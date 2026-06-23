@@ -4,7 +4,7 @@ import { eq, type SQL, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { users } from '../db/schema.js';
-import type { DbClient, User } from '../db/types.js';
+import type { DbClient, OrgRole, User } from '../db/types.js';
 import type { UpdateUserPayload } from '../schemas/user.schema.js';
 
 export const userRepository = {
@@ -54,7 +54,6 @@ export const userRepository = {
     if (data.image !== undefined) updatePayload.image = data.image;
     if (data.aboutMe !== undefined) updatePayload.aboutMe = data.aboutMe;
     if (data.specialties !== undefined) updatePayload.specialties = data.specialties;
-    if (data.organization !== undefined) updatePayload.organization = data.organization;
 
     if (data.goal !== undefined) {
       updatePayload.goal = data.goal.toString();
@@ -143,6 +142,29 @@ export const userRepository = {
   },
 
   /**
+   * Associates the user with an organization and assigns their organization role.
+   * @param userId - The user Id
+   * @param organizationId - The organization Id
+   * @param role - The users assigned organization role
+   * @returns The updated user or null
+   */
+  async updateOrgAndRole(
+    userId: string,
+    organizationId: string,
+    role: OrgRole,
+  ): Promise<User | null> {
+    const [updated] = await this.db
+      .update(users)
+      .set({
+        organizationId,
+        orgRole: role,
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated ?? null;
+  },
+
+  /**
    * Anonymizes a user's profile to act as a soft delete while maintaining
    * foreign key integrity for past orders and order items.
    * @param id - The unique user ID to anonymize
@@ -155,7 +177,8 @@ export const userRepository = {
         email: `deleted-${id}@example.local`,
         emailVerified: null,
         image: null,
-        organization: null,
+        organizationId: null,
+        orgRole: null,
         aboutMe: null,
         specialties: [],
         goal: null,

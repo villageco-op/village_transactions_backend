@@ -72,7 +72,6 @@ export async function getCart(
         seller: {
           id: seller.id,
           name: seller.name,
-          organization: seller.organization,
         },
         items: [],
       });

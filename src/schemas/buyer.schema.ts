@@ -29,10 +29,6 @@ export const GrowerSchema = z
       example: 'Jane Apple',
       description: 'The name of the grower',
     }),
-    organization: z.string().nullable().openapi({
-      example: 'Green Valley Farm',
-      description: 'The organization of the grower',
-    }),
     location: LocationSchema.nullable(),
     city: z.string().nullable(),
     produceTypesOrdered: z.array(ProduceTypeSchema).openapi({

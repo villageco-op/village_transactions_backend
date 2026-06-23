@@ -86,7 +86,6 @@ export const ProduceListItemSchema = z
     thumbnail: ImageUrlSchema.nullable(),
     name: z.string().openapi({ example: 'Honeycrisp Apples' }),
     sellerName: z.string().nullable().openapi({ example: 'John Smith' }),
-    sellerOrg: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
     sellerId: UserIdSchema,
     price: z.string().openapi({ example: '4.50', description: 'Formatted price string' }),
     amount: z
@@ -203,7 +202,6 @@ export const SellerMapGroupSchema = z
   .object({
     sellerId: UserIdSchema,
     name: z.string().openapi({ description: 'The sellers name' }),
-    organization: z.string().nullable().openapi({ example: 'Doe Berry Orchard' }),
     lat: z.number().openapi({ example: 43.0731 }),
     lng: z.number().openapi({ example: -89.4012 }),
     produce: z.array(ProduceMapItemSchema).openapi({
@@ -220,7 +218,6 @@ export const ProduceOrderBuyerSchema = z
   .object({
     id: UserIdSchema,
     name: z.string().nullable().openapi({ example: 'John Doe' }),
-    organization: z.string().nullable().openapi({ example: 'Doe Berry Orchard' }),
     image: ImageUrlSchema.nullable(),
   })
   .openapi('ProduceOrderBuyer');
@@ -277,7 +274,6 @@ export const ProduceDetailSchema = ProduceSchema.extend({
   seller: z.object({
     id: UserIdSchema,
     name: z.string().nullable().openapi({ example: 'John Smith' }),
-    organization: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
     image: ImageUrlSchema.nullable(),
     canDeliver: z
       .boolean()

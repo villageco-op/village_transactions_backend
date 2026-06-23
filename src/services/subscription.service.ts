@@ -125,7 +125,6 @@ export async function getSubscriptionDetails(
     ? {
         id: buyerData.id,
         name: buyerData.name,
-        organization: buyerData.organization,
         email: buyerData.email,
         location: {
           lat: buyerData.lat ?? null,
@@ -143,7 +142,6 @@ export async function getSubscriptionDetails(
     ? {
         id: sellerData.id,
         name: sellerData.name,
-        organization: sellerData.organization,
         email: sellerData.email,
         location: {
           lat: sellerData.lat ?? null,
@@ -203,7 +201,6 @@ export async function getSubscriptions(
         ? {
             id: user.id,
             name: user.name,
-            organization: user.organization,
             email: user.email,
             location: {
               lat: user.lat ?? null,
