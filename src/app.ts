@@ -3,7 +3,7 @@ import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Pool } from '@neondatabase/serverless';
-import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
 import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
@@ -11,6 +11,8 @@ import { pinoLogger } from 'hono-pino';
 import type { Logger } from 'pino';
 
 import { dbContext } from './db/index.js';
+import * as schema from './db/schema.js';
+import type { DbClient } from './db/types.js';
 import type { DatabaseError } from './interfaces/error.interface.js';
 import { getAuthConfig } from './lib/auth-config.js';
 import { logger as rootLogger } from './lib/logger.js';
@@ -23,6 +25,7 @@ import { checkoutRoute } from './routes/checkout.js';
 import { contactRoute } from './routes/contact.js';
 import { cronRoute } from './routes/cron.js';
 import { growersRoute } from './routes/growers.js';
+import { invitesRoute } from './routes/invite.js';
 import { locationRoute } from './routes/location.js';
 import { messagingRoute } from './routes/messaging.js';
 import { ordersRoute } from './routes/orders.js';
@@ -52,7 +55,7 @@ export type RouteEnv = {
 
 export const app = new OpenAPIHono<AppBindings>();
 
-const e2ePools = new Map<string, NeonDatabase<Record<string, never>> & { $client: Pool }>();
+const e2ePools = new Map<string, DbClient>();
 
 app.onError((err, c) => {
   const log = c.get('logger') || rootLogger;
@@ -128,12 +131,14 @@ app.use('*', async (c, next) => {
   if (e2eDbUrl && isPreview) {
     if (!e2ePools.has(e2eDbUrl)) {
       const e2ePool = new Pool({ connectionString: e2eDbUrl });
-      e2ePools.set(e2eDbUrl, drizzle(e2ePool));
+      e2ePools.set(e2eDbUrl, drizzle(e2ePool, { schema }));
     }
 
     const scopedDb = e2ePools.get(e2eDbUrl);
 
-    return dbContext.run(scopedDb, () => next());
+    if (scopedDb) {
+      return dbContext.run(scopedDb, () => next());
+    }
   }
 
   await next();
@@ -191,6 +196,7 @@ app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
 app.route('/api/users', usersRoute);
 app.route('/api/organizations', organizationsRoute);
+app.route('/api/invites', invitesRoute);
 app.route('/api/produce', produceRoute);
 app.route('/api/upload', uploadRoute);
 app.route('/api/cart', cartRoute);

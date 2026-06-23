@@ -4,6 +4,7 @@ import { createSelectSchema } from 'drizzle-zod';
 import { users } from '../db/schema.js';
 
 import {
+  EntityIdField,
   ImageUrlSchema,
   LatitudeSchema,
   LongitudeSchema,
@@ -43,9 +44,6 @@ export const UpdateUserSchema = z
     image: z.url().optional().openapi({
       example: 'https://blob.vercel.com/image.png',
       description: 'The url to the image in vercel blob from the upload image response.',
-    }),
-    organization: z.string().optional().openapi({
-      description: 'The users organization they are representing if any.',
     }),
     aboutMe: z.string().optional().openapi({
       example: 'Growing organic berries since 2010.',
@@ -109,6 +107,7 @@ export const PublicUserProfileSchema = z
     name: z.string().nullable().openapi({ example: 'Green Acres' }),
     image: ImageUrlSchema.nullable(),
     organization: z.string().nullable().openapi({ example: 'Green Hill Farms' }),
+    organizationId: EntityIdField.nullable(),
     aboutMe: z.string().nullable().openapi({
       description: 'Public bio displayed on the seller storefront',
     }),

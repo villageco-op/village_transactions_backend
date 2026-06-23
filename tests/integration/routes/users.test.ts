@@ -97,7 +97,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     await testDb.insert(users).values({
       id: TEST_USER_ID,
       name: 'Old Api Name',
-      organization: 'Old Org Name',
       email: 'update.api@example.com',
       address: 'Old Address',
     });
@@ -108,7 +107,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
         method: 'PUT',
         body: JSON.stringify({
           name: 'John Doe',
-          organization: 'Doe Berry Orchard',
           aboutMe: 'Updated bio from API',
           specialties: ['squash', 'pumpkins'],
           goal: 2000.5,
@@ -130,7 +128,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
 
     const updatedDbUser = await userRepository.findById(TEST_USER_ID);
     expect(updatedDbUser?.name).toBe('John Doe');
-    expect(updatedDbUser?.organization).toBe('Doe Berry Orchard');
     expect(updatedDbUser?.aboutMe).toBe('Updated bio from API');
     expect(updatedDbUser?.specialties).toEqual(['squash', 'pumpkins']);
     expect(updatedDbUser?.goal).toBe('2000.50');
@@ -467,7 +464,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       await testDb.insert(users).values({
         id: CURRENT_USER_ID,
         name: 'John Doe',
-        organization: 'Doe Grocers',
         email: 'johndoe@example.com',
         image: 'https://blob.vercel-storage.com/avatars/john.png',
       });

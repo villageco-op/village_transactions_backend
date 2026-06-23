@@ -82,13 +82,11 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
     await testDb.insert(users).values({
       id: 'update_user_123',
       name: 'Old Name',
-      organization: 'Old Org Name',
       email: 'update@example.com',
     });
 
     const updatedUser = await userRepository.updateById('update_user_123', {
       name: 'New Name',
-      organization: 'New Org Name',
       aboutMe: 'Updated bio',
       specialties: ['apples', 'peaches'],
       goal: 1000,
@@ -104,7 +102,6 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
     expect(updatedUser).toBeDefined();
     expect(updatedUser?.name).toBe('New Name');
-    expect(updatedUser?.organization).toBe('New Org Name');
     expect(updatedUser?.aboutMe).toBe('Updated bio');
     expect(updatedUser?.specialties).toEqual(['apples', 'peaches']);
     expect(updatedUser?.goal).toBe('1000.00');
@@ -207,7 +204,7 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
         email: 'jane.doe@example.com',
         emailVerified: new Date('2025-01-01'),
         image: 'https://example.com/avatar.jpg',
-        organization: 'Jane’s Farm LLC',
+        orgRole: 'member',
         aboutMe: 'Local grower since 2010.',
         specialties: ['organic-berries', 'honey'],
         goal: '1500.00',
@@ -242,7 +239,8 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
 
       expect(updatedUser.emailVerified).toBeNull();
       expect(updatedUser.image).toBeNull();
-      expect(updatedUser.organization).toBeNull();
+      expect(updatedUser.organizationId).toBeNull();
+      expect(updatedUser.orgRole).toBeNull();
       expect(updatedUser.aboutMe).toBeNull();
       expect(updatedUser.specialties).toEqual([]);
       expect(updatedUser.goal).toBeNull();
@@ -290,6 +288,81 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       expect(safeUser.name).toBe('Safe User');
       expect(safeUser.email).toBe('safe@example.com');
       expect(safeUser.stripeOnboardingComplete).toBe(true);
+    });
+  });
+
+  describe('updateOrgAndRole', () => {
+    it('should successfully associate a user with an organization and update their role', async () => {
+      const USER_ID = 'test_user_123';
+      const ORG_ID = crypto.randomUUID();
+      const ROLE = 'admin';
+
+      await testDb.insert(users).values({
+        id: USER_ID,
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        organizationId: null,
+        orgRole: null,
+      });
+
+      const updatedUser = await userRepository.updateOrgAndRole(USER_ID, ORG_ID, ROLE);
+
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser?.id).toBe(USER_ID);
+      expect(updatedUser?.organizationId).toBe(ORG_ID);
+      expect(updatedUser?.orgRole).toBe(ROLE);
+
+      const dbUser = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, USER_ID))
+        .then((res: any[]) => res[0]);
+
+      expect(dbUser.organizationId).toBe(ORG_ID);
+      expect(dbUser.orgRole).toBe(ROLE);
+    });
+
+    it('should return null if the target user does not exist', async () => {
+      const NON_EXISTENT_USER_ID = 'ghost_user_404';
+      const ORG_ID = crypto.randomUUID();
+
+      const result = await userRepository.updateOrgAndRole(NON_EXISTENT_USER_ID, ORG_ID, 'member');
+
+      expect(result).toBeNull();
+    });
+
+    it('should only update the targeted user and leave others untouched', async () => {
+      const TARGET_USER_ID = 'target_user';
+      const OTHER_USER_ID = 'other_user';
+      const ORG_ID = crypto.randomUUID();
+
+      await testDb.insert(users).values([
+        {
+          id: TARGET_USER_ID,
+          name: 'Target',
+          email: 'target@example.com',
+          organizationId: null,
+          orgRole: null,
+        },
+        {
+          id: OTHER_USER_ID,
+          name: 'Untouched',
+          email: 'untouched@example.com',
+          organizationId: ORG_ID,
+          orgRole: 'admin',
+        },
+      ]);
+
+      await userRepository.updateOrgAndRole(TARGET_USER_ID, ORG_ID, 'member');
+
+      const otherUser = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, OTHER_USER_ID))
+        .then((res: any[]) => res[0]);
+
+      expect(otherUser.organizationId).toBe(ORG_ID);
+      expect(otherUser.orgRole).toBe('admin');
     });
   });
 });

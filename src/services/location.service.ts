@@ -5,8 +5,8 @@ import type { GeocodePayload } from '../schemas/location.schema.js';
 
 /**
  * Contacts Mapbox API to translate raw address strings into latitude and longitude coordinates.
- * @param data Individual pieces of the address setup
- * @param log Runtime application logger
+ * @param data - Individual pieces of the address setup
+ * @param log - App logger that defaults to a blank logger
  * @returns The latitude and longitude
  */
 export async function processGeocoding(

@@ -46,7 +46,8 @@ export async function jwtCallback({ token, user }: JWTParams) {
           name: dbUser.name,
           email: dbUser.email,
           picture: dbUser.image,
-          organization: dbUser.organization,
+          organizationId: dbUser.organizationId,
+          orgRole: dbUser.orgRole,
           aboutMe: dbUser.aboutMe,
           specialties: dbUser.specialties,
           goal: dbUser.goal,
@@ -83,7 +84,8 @@ export function sessionCallback({ session, token }: SessionParams) {
     session.user.name = token.name || null;
     session.user.email = token.email || null;
     session.user.image = token.picture || null;
-    session.user.organization = token.organization || null;
+    session.user.organizationId = token.organizationId || null;
+    session.user.orgRole = token.orgRole || null;
     session.user.aboutMe = token.aboutMe || null;
     session.user.specialties = token.specialties || null;
     session.user.goal = token.goal || null;

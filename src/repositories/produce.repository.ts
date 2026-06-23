@@ -33,7 +33,6 @@ export const produceRepository = {
           id: users.id,
           name: users.name,
           image: users.image,
-          organization: users.organization,
           deliveryRangeMiles: users.deliveryRangeMiles,
           lat: users.lat,
           lng: users.lng,
@@ -59,7 +58,6 @@ export const produceRepository = {
       seller: {
         id: item.seller.id,
         name: item.seller.name,
-        organization: item.seller.organization,
         image: item.seller.image,
         deliveryRangeMiles: range,
         canDeliver: range > 0,
@@ -263,7 +261,7 @@ export const produceRepository = {
       const searchPattern = `%${params.search}%`;
       conditions.push(
         sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern}
-         OR ${users.name} ILIKE ${searchPattern} OR ${users.organization} ILIKE ${searchPattern})`,
+         OR ${users.name} ILIKE ${searchPattern})`,
       );
     }
 
@@ -331,7 +329,6 @@ export const produceRepository = {
         description: produce.description,
         sellerId: users.id,
         sellerName: users.name,
-        sellerOrg: users.organization,
         distance: distanceMiles.as('distance'),
       })
       .from(produce)
@@ -410,7 +407,7 @@ export const produceRepository = {
       const searchPattern = `%${params.search}%`;
       conditions.push(
         sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern} 
-        OR ${users.name} ILIKE ${searchPattern} OR ${users.organization} ILIKE ${searchPattern})`,
+        OR ${users.name} ILIKE ${searchPattern})`,
       );
     }
 
@@ -463,7 +460,6 @@ export const produceRepository = {
         isSubscribable: produce.isSubscribable,
         sellerId: users.id,
         sellerName: users.name,
-        sellerOrg: users.organization,
         lat: sql<number>`ST_Y(${users.location}::geometry)`,
         lng: sql<number>`ST_X(${users.location}::geometry)`,
       })
@@ -512,7 +508,6 @@ export const produceRepository = {
         buyer: {
           id: users.id,
           name: users.name,
-          organization: users.organization,
           image: users.image,
         },
       })
