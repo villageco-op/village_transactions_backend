@@ -50,22 +50,20 @@ export const UpdateOrganizationSchema = RawOrganizationSchema.partial().openapi(
   'UpdateOrganizationPayload',
 );
 
-export const CheckSubdomainQuerySchema = z.object({
-  subdomain: z
-    .string()
-    .min(1, 'Subdomain parameter is required')
-    .regex(
-      SUBDOMAIN_REGEX,
-      'Subdomain must contain only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen',
-    )
-    .openapi('CheckSubdomainQuery', {
-      param: {
-        name: 'subdomain',
-        in: 'query',
-      },
-      example: 'mypantry',
-    }),
-});
+export const CheckSubdomainQuerySchema = z
+  .object({
+    subdomain: z
+      .string()
+      .min(1, 'Subdomain parameter is required')
+      .regex(
+        SUBDOMAIN_REGEX,
+        'Subdomain must contain only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen',
+      )
+      .openapi({
+        example: 'mypantry',
+      }),
+  })
+  .openapi('CheckSubdomainQuery');
 
 export const CheckSubdomainResponseSchema = z
   .object({
