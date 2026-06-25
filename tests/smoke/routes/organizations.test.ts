@@ -50,4 +50,12 @@ describe('Organizations API - Smoke Tests', { timeout: 60_000 }, () => {
 
     expect(res.status).not.toBe(500);
   });
+
+  it('GET /api/organizations/:id should not return a 500 error', async () => {
+    const res = await authedRequest(`/api/organizations/${dummyUuid}`, {
+      method: 'GET',
+    });
+
+    expect(res.status).not.toBe(500);
+  });
 });

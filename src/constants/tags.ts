@@ -18,4 +18,5 @@ export const TAGS = {
   SOURCE_MAP: 'SourceMap',
   LOCATION: 'Location',
   ORGANIZATIONS: 'Organizations',
+  INVITES: 'Invites',
 } as const;
