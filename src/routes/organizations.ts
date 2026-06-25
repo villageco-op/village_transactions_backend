@@ -19,6 +19,7 @@ import {
   checkSubdomainAvailability,
   createOrganization,
   deleteOrganization,
+  getOrganization,
   updateOrganization,
 } from '../services/organization.service.js';
 
@@ -197,5 +198,35 @@ organizationsRoute.openapi(
 
     await deleteOrganization(id, log);
     return c.json({ success: true }, 200);
+  },
+);
+
+organizationsRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}',
+    operationId: 'getOrganization',
+    description: 'Retrieve an organization using its ID.',
+    tags: [TAGS.ORGANIZATIONS],
+    request: {
+      params: EntityParamSchema,
+    },
+    responses: {
+      200: {
+        description: 'Organization retrieved successfully',
+        content: { 'application/json': { schema: OrganizationSchema } },
+      },
+      404: {
+        description: 'Organization not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const log = c.get('logger').child({ action: 'getOrganization', orgId: id });
+
+    const organization = await getOrganization(id, log);
+    return c.json(organization, 200);
   },
 );

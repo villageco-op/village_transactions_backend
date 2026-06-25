@@ -16,7 +16,7 @@ invitesRoute.openapi(
     path: '/invite',
     operationId: 'inviteToOrg',
     description: 'Invite a user to the organization by email.',
-    tags: [TAGS.ORGANIZATIONS],
+    tags: [TAGS.INVITES],
     middleware: [verifyAuth()],
     request: {
       body: {
@@ -68,7 +68,7 @@ invitesRoute.openapi(
     path: '/accept',
     operationId: 'acceptInvite',
     description: 'Accept an invitation and update user profile roles.',
-    tags: [TAGS.ORGANIZATIONS],
+    tags: [TAGS.INVITES],
     request: {
       body: {
         content: {

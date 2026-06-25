@@ -262,4 +262,44 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(404);
     });
   });
+
+  describe('GET /api/organizations/:id', () => {
+    it('should return 200 and organization properties when matching record is found', async () => {
+      const [org] = await testDb
+        .insert(organizations)
+        .values({
+          name: 'Target Pantry',
+          type: 'pantry',
+          subdomain: 'target-pantry',
+          city: 'Madison',
+          state: 'WI',
+          country: 'United States',
+          zip: '53703',
+        })
+        .returning();
+
+      const res = await authedRequest(
+        `/api/organizations/${org.id}`,
+        { method: 'GET' },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.id).toBe(org.id);
+      expect(body.name).toBe('Target Pantry');
+      expect(body.subdomain).toBe('target-pantry');
+    });
+
+    it('should return 404 when referencing an organization ID that does not exist', async () => {
+      const randomId = crypto.randomUUID();
+      const res = await authedRequest(
+        `/api/organizations/${randomId}`,
+        { method: 'GET' },
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+    });
+  });
 });

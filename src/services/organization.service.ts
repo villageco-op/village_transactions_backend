@@ -177,3 +177,19 @@ export async function checkSubdomainAvailability(
     }
   }
 }
+
+/**
+ * Retrieves an organization by its ID.
+ * @param id - The organization Id
+ * @param log - App logger that defaults to a blank logger
+ * @returns The organization
+ */
+export async function getOrganization(id: string, log: AppLogger = noopLogger) {
+  const organization = await organizationRepository.findById(id);
+  if (!organization) {
+    throw new HTTPException(404, { message: 'Organization not found' });
+  }
+
+  log.info({ orgId: id }, 'Organization retrieved successfully');
+  return organization;
+}
