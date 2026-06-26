@@ -9,6 +9,7 @@ import {
   checkSubdomainAvailability,
 } from '../../../src/services/organization.service.js';
 import { organizationRepository } from '../../../src/repositories/organization.repository.js';
+import { removeOrganizationFromUsers } from '../../../src/services/user.service.js';
 
 vi.mock('@vercel/blob', () => ({
   del: vi.fn().mockResolvedValue(undefined),
@@ -22,6 +23,10 @@ vi.mock('../../../src/repositories/organization.repository.js', () => ({
     updateById: vi.fn(),
     deleteById: vi.fn(),
   },
+}));
+
+vi.mock('../../../src/services/user.service.js', () => ({
+  removeOrganizationFromUsers: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockLogger = {
@@ -248,26 +253,35 @@ describe('OrganizationService Unit Tests', () => {
       await expect(deleteOrganization('org_none', mockLogger)).rejects.toThrowError(
         new HTTPException(404, { message: 'Organization not found' }),
       );
+
+      expect(removeOrganizationFromUsers).not.toHaveBeenCalled();
+      expect(organizationRepository.deleteById).not.toHaveBeenCalled();
     });
 
-    it('should delete the organization and invoke Vercel blob cleanup when repository delete succeeds', async () => {
+    it('should disassociate users, delete the organization, and invoke Vercel blob cleanup when repository delete succeeds', async () => {
       vi.mocked(organizationRepository.findById).mockResolvedValueOnce(existingOrg as any);
       vi.mocked(organizationRepository.deleteById).mockResolvedValueOnce(true);
 
       await deleteOrganization('org_123', mockLogger);
 
+      expect(removeOrganizationFromUsers).toHaveBeenCalledWith('org_123', mockLogger);
+
       expect(organizationRepository.deleteById).toHaveBeenCalledWith('org_123');
       expect(del).toHaveBeenCalledWith(existingOrg.image);
-      expect(mockLogger.info).toHaveBeenCalled();
+      expect(mockLogger.info).toHaveBeenCalledWith({ orgId: 'org_123' }, expect.any(String));
     });
 
-    it('should throw a 500 HTTPException if the repository fails to drop the record', async () => {
+    it('should still call user disassociation but throw a 500 HTTPException if the repository fails to drop the record', async () => {
       vi.mocked(organizationRepository.findById).mockResolvedValueOnce(existingOrg as any);
       vi.mocked(organizationRepository.deleteById).mockResolvedValueOnce(false);
 
       await expect(deleteOrganization('org_123', mockLogger)).rejects.toThrowError(
         new HTTPException(500, { message: 'Failed to delete organization' }),
       );
+
+      expect(removeOrganizationFromUsers).toHaveBeenCalledWith('org_123', mockLogger);
+      expect(organizationRepository.deleteById).toHaveBeenCalledWith('org_123');
+      expect(del).not.toHaveBeenCalled();
     });
   });
 

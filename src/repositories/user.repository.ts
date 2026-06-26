@@ -165,6 +165,20 @@ export const userRepository = {
   },
 
   /**
+   * Clears the organization ID and role for all users associated with a specific organization ID.
+   * @param organizationId - The ID of the organization being disassociated
+   */
+  async clearOrganizationFromUsers(organizationId: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        organizationId: null,
+        orgRole: null,
+      })
+      .where(eq(users.organizationId, organizationId));
+  },
+
+  /**
    * Anonymizes a user's profile to act as a soft delete while maintaining
    * foreign key integrity for past orders and order items.
    * @param id - The unique user ID to anonymize
