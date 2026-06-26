@@ -365,4 +365,111 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       expect(otherUser.orgRole).toBe('admin');
     });
   });
+
+  describe('clearOrganizationFromUsers', () => {
+    it('should nullify organizationId and orgRole for all users in the target organization', async () => {
+      const TARGET_ORG_ID = crypto.randomUUID();
+      const USER_1_ID = 'user_one';
+      const USER_2_ID = 'user_two';
+
+      await testDb.insert(users).values([
+        {
+          id: USER_1_ID,
+          name: 'Alice Smith',
+          email: 'alice@example.com',
+          organizationId: TARGET_ORG_ID,
+          orgRole: 'admin',
+        },
+        {
+          id: USER_2_ID,
+          name: 'Bob Jones',
+          email: 'bob@example.com',
+          organizationId: TARGET_ORG_ID,
+          orgRole: 'member',
+        },
+      ]);
+
+      await userRepository.clearOrganizationFromUsers(TARGET_ORG_ID);
+
+      const updatedUsers = await testDb
+        .select()
+        .from(users)
+        .where(sql`${users.id} IN (${USER_1_ID}, ${USER_2_ID})`);
+
+      expect(updatedUsers).toHaveLength(2);
+      for (const user of updatedUsers) {
+        expect(user.organizationId).toBeNull();
+        expect(user.orgRole).toBeNull();
+      }
+    });
+
+    it('should only clear targeted organization users and leave other organizations untouched', async () => {
+      const TARGET_ORG_ID = crypto.randomUUID();
+      const OTHER_ORG_ID = crypto.randomUUID();
+      const TARGET_USER_ID = 'target_org_user';
+      const OTHER_USER_ID = 'other_org_user';
+
+      await testDb.insert(users).values([
+        {
+          id: TARGET_USER_ID,
+          name: 'Target Org User',
+          email: 'target_org@example.com',
+          organizationId: TARGET_ORG_ID,
+          orgRole: 'member',
+        },
+        {
+          id: OTHER_USER_ID,
+          name: 'Other Org User',
+          email: 'other_org@example.com',
+          organizationId: OTHER_ORG_ID,
+          orgRole: 'admin',
+        },
+      ]);
+
+      await userRepository.clearOrganizationFromUsers(TARGET_ORG_ID);
+
+      const targetUser = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, TARGET_USER_ID))
+        .then((res: any[]) => res[0]);
+
+      expect(targetUser.organizationId).toBeNull();
+      expect(targetUser.orgRole).toBeNull();
+
+      const otherUser = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, OTHER_USER_ID))
+        .then((res: any[]) => res[0]);
+
+      expect(otherUser.organizationId).toBe(OTHER_ORG_ID);
+      expect(otherUser.orgRole).toBe('admin');
+    });
+
+    it('should resolve successfully and do nothing if no users belong to the organization', async () => {
+      const EMPTY_ORG_ID = crypto.randomUUID();
+      const ACTIVE_ORG_ID = crypto.randomUUID();
+      const EXISTING_USER_ID = 'existing_user';
+
+      await testDb.insert(users).values({
+        id: EXISTING_USER_ID,
+        name: 'John Wayne',
+        email: 'john.wayne@example.com',
+        organizationId: ACTIVE_ORG_ID,
+        orgRole: 'member',
+      });
+
+      await expect(userRepository.clearOrganizationFromUsers(EMPTY_ORG_ID)).resolves.not.toThrow();
+
+      const dbUser = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, EXISTING_USER_ID))
+        .then((res: any[]) => res[0]);
+
+      expect(dbUser.organizationId).toBe(ACTIVE_ORG_ID);
+      expect(dbUser.orgRole).toBe('member');
+    });
+  });
 });

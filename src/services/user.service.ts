@@ -1,7 +1,7 @@
 import { del } from '@vercel/blob';
 import { HTTPException } from 'hono/http-exception';
 
-import type { Organization, ScheduleType } from '../db/types.js';
+import type { Organization, OrgRole, ScheduleType } from '../db/types.js';
 import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { accountRepository } from '../repositories/account.repository.js';
 import { fcmRepository } from '../repositories/fcm.repository.js';
@@ -214,7 +214,7 @@ export async function getPublicUserProfile(id: string, log: AppLogger = noopLogg
  * Anonymizes the user account and cleans up related active records
  * to preserve database FK integrity for past orders.
  * @param id - User's unique ID injected by Auth.js session
- * @param log - App logger
+ * @param log - App logger that defaults to a blank logger
  */
 export async function deleteAccount(id: string, log: AppLogger = noopLogger) {
   const currentUser = await userRepository.findById(id);
@@ -258,4 +258,45 @@ export async function deleteAccount(id: string, log: AppLogger = noopLogger) {
   await fcmRepository.deleteByUserId(id);
 
   log.info('User account successfully anonymized and dependent records sanitized');
+}
+
+/**
+ * Assigns an organization and role to a user.
+ * @param userId - The ID of the user
+ * @param organizationId - The ID of the organization
+ * @param role - The role to assign
+ * @param log - App logger that defaults to a blank logger
+ * @returns The updated user
+ */
+export async function assignOrganizationToUser(
+  userId: string,
+  organizationId: string,
+  role: OrgRole,
+  log: AppLogger = noopLogger,
+) {
+  const updatedUser = await userRepository.updateOrgAndRole(userId, organizationId, role);
+
+  if (!updatedUser) {
+    log.warn({ userId, organizationId }, 'Attempted to assign organization to non-existent user');
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  log.info({ userId, organizationId, role }, 'Successfully assigned organization and role to user');
+  return updatedUser;
+}
+
+/**
+ * Removes organization association (ID and role) from all users belonging to the given organization.
+ * @param organizationId - The organization ID
+ * @param log - App logger that defaults to a blank logger
+ */
+export async function removeOrganizationFromUsers(
+  organizationId: string,
+  log: AppLogger = noopLogger,
+) {
+  await userRepository.clearOrganizationFromUsers(organizationId);
+  log.info(
+    { organizationId },
+    'Removed organization association and roles from all connected users',
+  );
 }

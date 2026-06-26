@@ -9,6 +9,8 @@ import {
   updateInternalStripeAccountId,
   updateScheduleRules,
   deleteAccount,
+  removeOrganizationFromUsers,
+  assignOrganizationToUser,
 } from '../../../src/services/user.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
@@ -34,6 +36,8 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
     updateById: vi.fn(),
     updateStripeAccountId: vi.fn(),
     anonymize: vi.fn(),
+    updateOrgAndRole: vi.fn(),
+    clearOrganizationFromUsers: vi.fn(),
   },
 }));
 
@@ -84,7 +88,7 @@ vi.mock('../../../src/services/subscription.service.js', () => ({
   batchCancelProductSubscriptions: vi.fn(),
 }));
 
-describe('UserService - getCurrentUser', () => {
+describe('getCurrentUser', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -394,7 +398,7 @@ describe('getPublicUserProfile', () => {
   });
 });
 
-describe('UserService - deleteAccount', () => {
+describe('deleteAccount', () => {
   const mockUserId = 'user_del_777';
 
   const mockLogger = {
@@ -482,5 +486,90 @@ describe('UserService - deleteAccount', () => {
         'Failed to delete orphaned blob image during account deletion',
       );
     });
+  });
+});
+
+describe('assignOrganizationToUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully update and return the user when the user exists', async () => {
+    const USER_ID = 'user_abc';
+    const ORG_ID = 'org_123';
+    const ROLE = 'admin';
+    const mockUpdatedUser = { id: USER_ID, organizationId: ORG_ID, orgRole: ROLE };
+
+    vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(mockUpdatedUser as any);
+
+    const mockLogger = { info: vi.fn(), warn: vi.fn() } as any;
+
+    const result = await assignOrganizationToUser(USER_ID, ORG_ID, ROLE, mockLogger);
+
+    expect(result).toEqual(mockUpdatedUser);
+    expect(userRepository.updateOrgAndRole).toHaveBeenCalledWith(USER_ID, ORG_ID, ROLE);
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      { userId: USER_ID, organizationId: ORG_ID, role: ROLE },
+      expect.any(String),
+    );
+  });
+
+  it('should log a warning and throw a 404 HTTPException if the repository returns null', async () => {
+    const USER_ID = 'ghost_user';
+    const ORG_ID = 'org_123';
+    const ROLE = 'member';
+
+    vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(null);
+
+    const mockLogger = { info: vi.fn(), warn: vi.fn() } as any;
+
+    await expect(assignOrganizationToUser(USER_ID, ORG_ID, ROLE, mockLogger)).rejects.toThrow(
+      HTTPException,
+    );
+
+    await expect(assignOrganizationToUser(USER_ID, ORG_ID, ROLE, mockLogger)).rejects.toMatchObject(
+      { status: 404, message: 'User not found' },
+    );
+
+    expect(userRepository.updateOrgAndRole).toHaveBeenCalledWith(USER_ID, ORG_ID, ROLE);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      { userId: USER_ID, organizationId: ORG_ID },
+      expect.any(String),
+    );
+  });
+
+  it('should run fine with the default noop logger when no logger is passed', async () => {
+    const USER_ID = 'user_abc';
+    const ORG_ID = 'org_123';
+    const mockUpdatedUser = { id: USER_ID, organizationId: ORG_ID, orgRole: 'member' };
+
+    vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(mockUpdatedUser as any);
+
+    await expect(assignOrganizationToUser(USER_ID, ORG_ID, 'member')).resolves.toBeDefined();
+  });
+});
+
+describe('removeOrganizationFromUsers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should invoke clearOrganizationFromUsers and log the action', async () => {
+    const ORG_ID = 'org_to_wipe';
+    vi.mocked(userRepository.clearOrganizationFromUsers).mockResolvedValueOnce();
+
+    const mockLogger = { info: vi.fn() } as any;
+
+    await removeOrganizationFromUsers(ORG_ID, mockLogger);
+
+    expect(userRepository.clearOrganizationFromUsers).toHaveBeenCalledWith(ORG_ID);
+    expect(mockLogger.info).toHaveBeenCalledWith({ organizationId: ORG_ID }, expect.any(String));
+  });
+
+  it('should run fine with the default noop logger when no logger is passed', async () => {
+    const ORG_ID = 'org_to_wipe';
+    vi.mocked(userRepository.clearOrganizationFromUsers).mockResolvedValueOnce();
+
+    await expect(removeOrganizationFromUsers(ORG_ID)).resolves.not.toThrow();
   });
 });

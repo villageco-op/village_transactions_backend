@@ -22,6 +22,7 @@ import {
   getOrganization,
   updateOrganization,
 } from '../services/organization.service.js';
+import { assignOrganizationToUser } from '../services/user.service.js';
 
 export const organizationsRoute = new OpenAPIHono<RouteEnv>();
 
@@ -92,7 +93,8 @@ organizationsRoute.openapi(
   async (c) => {
     console.log('Creating a repository!');
     const authUser = c.get('authUser');
-    if (!authUser?.session?.user?.id) {
+    const userId = authUser?.session?.user?.id;
+    if (!userId) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
@@ -100,6 +102,11 @@ organizationsRoute.openapi(
     const log = c.get('logger').child({ action: 'createOrganization' });
 
     const newOrg = await createOrganization(payload, log);
+
+    if (newOrg) {
+      await assignOrganizationToUser(userId, newOrg.id, 'admin', log);
+    }
+
     return c.json(newOrg, 201);
   },
 );

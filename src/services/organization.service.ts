@@ -9,6 +9,8 @@ import {
   type UpdateOrganizationPayload,
 } from '../schemas/organization.schema.js';
 
+import { removeOrganizationFromUsers } from './user.service.js';
+
 /**
  * Creates a new organization. Ensures the subdomain is valid and unique.
  * @param data - The organization fields
@@ -117,7 +119,7 @@ export async function updateOrganization(
 }
 
 /**
- * Deletes an organization and its profile image.
+ * Deletes an organization, disassociates connected users, and removes its profile image.
  * @param id - The organization Id
  * @param log - App logger that defaults to a blank logger
  */
@@ -126,6 +128,8 @@ export async function deleteOrganization(id: string, log: AppLogger = noopLogger
   if (!currentOrg) {
     throw new HTTPException(404, { message: 'Organization not found' });
   }
+
+  await removeOrganizationFromUsers(id, log);
 
   const success = await organizationRepository.deleteById(id);
   if (!success) {

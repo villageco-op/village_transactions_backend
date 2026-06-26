@@ -8,7 +8,8 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { organizationRepository } from '../../../src/repositories/organization.repository.js';
-import { organizations } from '../../../src/db/schema.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
+import { organizations, users } from '../../../src/db/schema.js';
 
 describe('Organizations API - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -17,6 +18,7 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     organizationRepository.setDb(testDb);
+    userRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -83,7 +85,17 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
       subdomain,
     });
 
-    it('should return 201 and persist record to database when request payload is valid', async () => {
+    beforeEach(async () => {
+      await testDb.insert(users).values({
+        id: TEST_USER_ID,
+        name: 'Test Admin User',
+        email: 'admin-test@example.com',
+        organizationId: null,
+        orgRole: null,
+      });
+    });
+
+    it('should return 201, persist record to database, and link the user as an admin', async () => {
       const validPayload = getValidPayload();
       const res = await authedRequest(
         '/api/organizations',
@@ -99,15 +111,21 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
       expect(body).toHaveProperty('id');
       expect(body.name).toBe(validPayload.name);
 
-      const [dbRow] = await testDb
+      const [dbOrgRow] = await testDb
         .select()
         .from(organizations)
         .where(eq(organizations.id, body.id));
-      expect(dbRow).toBeDefined();
-      expect(dbRow.subdomain).toBe(validPayload.subdomain);
+      expect(dbOrgRow).toBeDefined();
+      expect(dbOrgRow.subdomain).toBe(validPayload.subdomain);
+
+      const [dbUserRow] = await testDb.select().from(users).where(eq(users.id, TEST_USER_ID));
+
+      expect(dbUserRow).toBeDefined();
+      expect(dbUserRow.organizationId).toBe(body.id);
+      expect(dbUserRow.orgRole).toBe('admin');
     });
 
-    it('should return 400 if layout validation rules are violated', async () => {
+    it('should return 400 if layout validation rules are violated and NOT link the user', async () => {
       const invalidPayload = {
         ...getValidPayload(),
         name: '',
@@ -123,9 +141,13 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
       );
 
       expect(res.status).toBe(400);
+
+      const [dbUserRow] = await testDb.select().from(users).where(eq(users.id, TEST_USER_ID));
+      expect(dbUserRow.organizationId).toBeNull();
+      expect(dbUserRow.orgRole).toBeNull();
     });
 
-    it('should return 409 Conflict if trying to secure an unoriginal subdomain', async () => {
+    it('should return 409 Conflict if trying to secure an unoriginal subdomain and NOT link the user', async () => {
       await testDb.insert(organizations).values({
         name: 'Duplicate Place',
         type: 'pantry',
@@ -142,6 +164,10 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
       );
 
       expect(res.status).toBe(409);
+
+      const [dbUserRow] = await testDb.select().from(users).where(eq(users.id, TEST_USER_ID));
+      expect(dbUserRow.organizationId).toBeNull();
+      expect(dbUserRow.orgRole).toBeNull();
     });
 
     it('should return 401 Unauthorized if request context fails identity check', async () => {
@@ -227,7 +253,7 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
   });
 
   describe('DELETE /api/organizations/:id', () => {
-    it('should return 200 and remove organization matching parameters', async () => {
+    it('should return 200, remove organization, and disassociate connected users', async () => {
       const [org] = await testDb
         .insert(organizations)
         .values({
@@ -236,6 +262,34 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
           subdomain: 'dump-me',
         })
         .returning();
+
+      const CONNECTED_USER_ID = 'connected_user_555';
+      const UNRELATED_USER_ID = 'unrelated_user_777';
+      const OTHER_ORG_ID = crypto.randomUUID();
+
+      await testDb.insert(organizations).values({
+        id: OTHER_ORG_ID,
+        name: 'Safe Org',
+        type: 'pantry',
+        subdomain: 'safe-zone',
+      });
+
+      await testDb.insert(users).values([
+        {
+          id: CONNECTED_USER_ID,
+          name: 'Target Employee',
+          email: 'employee@dumpme.com',
+          organizationId: org.id,
+          orgRole: 'member',
+        },
+        {
+          id: UNRELATED_USER_ID,
+          name: 'Other Employee',
+          email: 'employee@safezone.com',
+          organizationId: OTHER_ORG_ID,
+          orgRole: 'admin',
+        },
+      ]);
 
       const res = await authedRequest(
         `/api/organizations/${org.id}`,
@@ -247,8 +301,27 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
       const body = await res.json();
       expect(body).toEqual({ success: true });
 
-      const [dbRow] = await testDb.select().from(organizations).where(eq(organizations.id, org.id));
-      expect(dbRow).toBeUndefined();
+      const [dbOrgRow] = await testDb
+        .select()
+        .from(organizations)
+        .where(eq(organizations.id, org.id));
+      expect(dbOrgRow).toBeUndefined();
+
+      const [dbConnectedUser] = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, CONNECTED_USER_ID));
+      expect(dbConnectedUser).toBeDefined();
+      expect(dbConnectedUser.organizationId).toBeNull();
+      expect(dbConnectedUser.orgRole).toBeNull();
+
+      const [dbUnrelatedUser] = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, UNRELATED_USER_ID));
+      expect(dbUnrelatedUser).toBeDefined();
+      expect(dbUnrelatedUser.organizationId).toBe(OTHER_ORG_ID);
+      expect(dbUnrelatedUser.orgRole).toBe('admin');
     });
 
     it('should return 404 when referencing missing organization structures during drop routine', async () => {
