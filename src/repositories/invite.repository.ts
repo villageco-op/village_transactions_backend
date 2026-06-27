@@ -1,4 +1,4 @@
-import { eq, and, lt } from 'drizzle-orm';
+import { eq, and, lt, desc } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { invites } from '../db/schema.js';
@@ -81,5 +81,22 @@ export const inviteRepository = {
   async deleteExpired(now: Date): Promise<number> {
     const result = await this.db.delete(invites).where(lt(invites.expiresAt, now));
     return result.rowCount ?? 0;
+  },
+
+  /**
+   * TESTING ONLY: Retrieves the most recent invite code record for a specific email and organization.
+   * @param email - Target invited user email
+   * @param orgId - Target organization ID
+   * @returns The invite record details or null
+   */
+  async findLatestTestInvite(email: string, orgId: string): Promise<Invite | null> {
+    const [invite] = await this.db
+      .select()
+      .from(invites)
+      .where(and(eq(invites.email, email), eq(invites.orgId, orgId)))
+      .orderBy(desc(invites.expiresAt))
+      .limit(1);
+
+    return invite ?? null;
   },
 };

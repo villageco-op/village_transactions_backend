@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import type { RouteEnv } from '../app.js';
 import {
   generateAuthJsCookieValue,
+  getTestLatestInviteCode,
+  seedTestOrganization,
   seedTestProduce,
   seedTestUser,
 } from '../services/testing.service.js';
@@ -63,5 +65,28 @@ if (isTestingEnvironment) {
     );
 
     return c.json({ success: true, produce: newProduce }, 201);
+  });
+
+  testingRoute.post('/seed-organization', async (c) => {
+    const log = c.get('logger').child({ action: 'seedTestOrganization' });
+    const body = await c.req.json();
+
+    const newOrg = await seedTestOrganization(body, log);
+    return c.json({ success: true, organization: newOrg }, 201);
+  });
+
+  testingRoute.get('/get-invite-code', async (c) => {
+    const { email, orgId } = c.req.query();
+    const log = c.get('logger').child({ action: 'getTestLatestInviteCode', email, orgId });
+
+    if (!email || !orgId) {
+      return c.json({ error: 'Missing required query parameters: email and orgId' }, 400);
+    }
+
+    const inviteData = await getTestLatestInviteCode(email, orgId, log);
+    if (!inviteData) {
+      return c.json({ error: 'No invite code found for the provided email and orgId' }, 404);
+    }
+    return c.json({ success: true, invite: inviteData }, 200);
   });
 }
