@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { encode } from '@auth/core/jwt';
 import { HTTPException } from 'hono/http-exception';
 
@@ -177,4 +179,41 @@ export async function getTestLatestInviteCode(email: string, orgId: string, log:
   log.info({ email, orgId }, 'Retrieving latest test invite code context via repository');
 
   return await inviteRepository.findLatestTestInvite(email, orgId);
+}
+
+/**
+ * TESTING ONLY: Forcefully inserts an organization invitation record directly.
+ * @param payload - Setup details for the test invitation record
+ * @param payload.email
+ * @param payload.orgId
+ * @param payload.role
+ * @param payload.code
+ * @param payload.expiresAt
+ * @param log - App logger
+ * @returns The created invitation record containing the target validation token code
+ */
+export async function seedTestInvite(
+  payload: {
+    email: string;
+    orgId: string;
+    role?: 'member' | 'admin';
+    code?: string;
+    expiresAt?: string;
+  },
+  log: AppLogger,
+) {
+  log.info({ email: payload.email, orgId: payload.orgId }, 'Seeding e2e test organization invite');
+
+  const fallbackExpiresAt = payload.expiresAt
+    ? new Date(payload.expiresAt)
+    : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  return await inviteRepository.upsert({
+    id: randomUUID(),
+    email: payload.email,
+    orgId: payload.orgId,
+    code: payload.code ?? randomUUID().split('-')[0].toUpperCase(),
+    role: payload.role ?? 'member',
+    expiresAt: fallbackExpiresAt,
+  });
 }
