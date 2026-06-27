@@ -4,6 +4,7 @@ import type { RouteEnv } from '../app.js';
 import {
   generateAuthJsCookieValue,
   getTestLatestInviteCode,
+  seedTestInvite,
   seedTestOrganization,
   seedTestProduce,
   seedTestUser,
@@ -73,6 +74,18 @@ if (isTestingEnvironment) {
 
     const newOrg = await seedTestOrganization(body, log);
     return c.json({ success: true, organization: newOrg }, 201);
+  });
+
+  testingRoute.post('/seed-invite', async (c) => {
+    const log = c.get('logger').child({ action: 'seedTestInvite' });
+    const body = await c.req.json();
+
+    if (!body.email || !body.orgId) {
+      return c.json({ error: 'Missing required fields: email and orgId' }, 400);
+    }
+
+    const invite = await seedTestInvite(body, log);
+    return c.json({ success: true, invite }, 201);
   });
 
   testingRoute.get('/get-invite-code', async (c) => {
