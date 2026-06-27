@@ -2,8 +2,11 @@ import { encode } from '@auth/core/jwt';
 import { HTTPException } from 'hono/http-exception';
 
 import type { AppLogger } from '../interfaces/logger.interface.js';
+import { inviteRepository } from '../repositories/invite.repository.js';
+import { organizationRepository } from '../repositories/organization.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
+import type { CreateOrganizationPayload } from '../schemas/organization.schema.js';
 import type { CreateProducePayload } from '../schemas/produce.schema.js';
 import { cookieName } from '../utils.js';
 
@@ -129,4 +132,49 @@ export async function seedTestProduce(
   };
 
   return await produceRepository.create(user.id, fallbackProduceData);
+}
+
+/**
+ * TESTING ONLY: Forcefully inserts or sets up an organization for E2E testing.
+ * @param payload - Partial organization payload data matching CreateOrganizationPayload
+ * @param log - App logger
+ * @returns The created organization record
+ */
+export async function seedTestOrganization(
+  payload: Partial<CreateOrganizationPayload> & { name: string; subdomain: string },
+  log: AppLogger,
+) {
+  log.info({ subdomain: payload.subdomain }, 'Seeding e2e test organization profile');
+
+  const fallbackOrgData: CreateOrganizationPayload = {
+    name: payload.name,
+    type: payload.type ?? 'pantry',
+    address: payload.address ?? '123 Test St',
+    city: payload.city ?? 'Madison',
+    state: payload.state ?? 'WI',
+    country: payload.country ?? 'United States',
+    zip: payload.zip ?? '53703',
+    lat: payload.lat ?? 43.0731,
+    lng: payload.lng ?? -89.4012,
+    subdomain: payload.subdomain,
+    email: payload.email ?? 'test@example.org',
+    website: payload.website ?? 'https://example.org',
+    phone: payload.phone ?? '+16085550199',
+    image: payload.image ?? undefined,
+  };
+
+  return await organizationRepository.create(fallbackOrgData);
+}
+
+/**
+ * TESTING ONLY: Fetches the invite code tracking record using clean repository layers.
+ * @param email - Target invited user email
+ * @param orgId - Target organization ID
+ * @param log - App logger
+ * @returns The invite record details or null
+ */
+export async function getTestLatestInviteCode(email: string, orgId: string, log: AppLogger) {
+  log.info({ email, orgId }, 'Retrieving latest test invite code context via repository');
+
+  return await inviteRepository.findLatestTestInvite(email, orgId);
 }
