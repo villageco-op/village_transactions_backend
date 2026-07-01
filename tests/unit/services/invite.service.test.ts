@@ -9,6 +9,7 @@ import {
 import { inviteRepository } from '../../../src/repositories/invite.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { db } from '../../../src/db/index.js';
+import { emailService } from '../../../src/services/email.service.js';
 
 vi.mock('../../../src/repositories/invite.repository.js', () => ({
   inviteRepository: {
@@ -33,17 +34,17 @@ vi.mock('../../../src/db/index.js', () => ({
   },
 }));
 
+vi.mock('../../../src/services/email.service.js', () => ({
+  emailService: {
+    send: vi.fn(),
+  },
+}));
+
 const mockLogger = {
   info: vi.fn(),
   error: vi.fn(),
   warn: vi.fn(),
   debug: vi.fn(),
-} as any;
-
-const mockResendClient = {
-  emails: {
-    send: vi.fn(),
-  },
 } as any;
 
 describe('InviteService Unit Tests', () => {
@@ -66,9 +67,7 @@ describe('InviteService Unit Tests', () => {
     it('should throw 400 HTTPException if the caller user profile cannot be found', async () => {
       vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
 
-      await expect(
-        createOrgInvite(mockResendClient, callerId, payload, mockLogger),
-      ).rejects.toThrowError(
+      await expect(createOrgInvite(callerId, payload, mockLogger)).rejects.toThrowError(
         new HTTPException(400, { message: 'Caller is not associated with any organization' }),
       );
     });
@@ -79,9 +78,7 @@ describe('InviteService Unit Tests', () => {
         organizationId: null,
       } as any);
 
-      await expect(
-        createOrgInvite(mockResendClient, callerId, payload, mockLogger),
-      ).rejects.toThrowError(
+      await expect(createOrgInvite(callerId, payload, mockLogger)).rejects.toThrowError(
         new HTTPException(400, { message: 'Caller is not associated with any organization' }),
       );
     });
@@ -92,12 +89,11 @@ describe('InviteService Unit Tests', () => {
         organizationId: 'org_abc123',
       } as any);
 
-      vi.mocked(mockResendClient.emails.send).mockResolvedValueOnce({
-        data: { id: 'email_id' },
-        error: null,
+      vi.mocked(emailService.send).mockResolvedValueOnce({
+        success: true,
       });
 
-      const result = await createOrgInvite(mockResendClient, callerId, payload, mockLogger);
+      const result = await createOrgInvite(callerId, payload, mockLogger);
 
       expect(result.success).toBe(true);
       expect(result.id).toBeDefined();
@@ -114,30 +110,31 @@ describe('InviteService Unit Tests', () => {
         }),
       );
 
-      expect(mockResendClient.emails.send).toHaveBeenCalledWith(
+      expect(emailService.send).toHaveBeenCalledWith(
         expect.objectContaining({
           to: payload.email,
           subject: expect.any(String),
           text: expect.any(String),
         }),
+        mockLogger,
       );
       expect(mockLogger.info).toHaveBeenCalled();
     });
 
-    it('should throw 502 HTTPException and log errors if Resend service delivery fails', async () => {
+    it('should throw 502 HTTPException and log errors if EmailService delivery fails', async () => {
       vi.mocked(userRepository.findById).mockResolvedValueOnce({
         id: callerId,
         organizationId: 'org_abc123',
       } as any);
 
-      vi.mocked(mockResendClient.emails.send).mockResolvedValueOnce({
-        data: null,
-        error: { message: 'API key invalidated or daily quota limit breached' },
-      } as any);
+      vi.mocked(emailService.send).mockResolvedValueOnce({
+        success: false,
+        error: new Error('API key invalidated or daily quota limit breached'),
+      });
 
-      await expect(
-        createOrgInvite(mockResendClient, callerId, payload, mockLogger),
-      ).rejects.toThrowError(new HTTPException(502, { message: 'Failed to send invite email' }));
+      await expect(createOrgInvite(callerId, payload, mockLogger)).rejects.toThrowError(
+        new HTTPException(502, { message: 'Failed to send invite email' }),
+      );
 
       expect(mockLogger.error).toHaveBeenCalled();
     });

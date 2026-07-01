@@ -179,6 +179,23 @@ export const userRepository = {
   },
 
   /**
+   * Removes a user from their organization by clearing organizationId and orgRole.
+   * @param userId - The ID of the user to be removed
+   * @returns The updated user or null
+   */
+  async removeFromOrganization(userId: string): Promise<User | null> {
+    const [updated] = await this.db
+      .update(users)
+      .set({
+        organizationId: null,
+        orgRole: null,
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated ?? null;
+  },
+
+  /**
    * Anonymizes a user's profile to act as a soft delete while maintaining
    * foreign key integrity for past orders and order items.
    * @param id - The unique user ID to anonymize

@@ -212,6 +212,12 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
     'CheckSubdomainResponse',
     Organizations.CheckSubdomainResponseSchema,
   );
+  app.openAPIRegistry.register('RemoveUserFromOrgPayload', Organizations.RemoveUserFromOrgSchema);
+  app.openAPIRegistry.register('UpdateUserRolePayload', Organizations.UpdateUserRoleSchema);
+  app.openAPIRegistry.register(
+    'UpdateUserRoleResponse',
+    Organizations.UpdateUserRoleResponseSchema,
+  );
 
   // Invites
   app.openAPIRegistry.register('CreateInvitePayload', Invites.CreateInviteSchema);

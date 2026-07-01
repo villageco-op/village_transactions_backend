@@ -10,17 +10,18 @@ import {
 import { inviteRepository } from '../../../src/repositories/invite.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { invites, organizations, users } from '../../../src/db/schema.js';
-import { resend } from '../../../src/lib/resend.js';
 import { organizationRepository } from '../../../src/repositories/organization.repository.js';
 import { transactionRepository } from '../../../src/repositories/transaction.repository.js';
 
-vi.mock('../../../src/lib/resend.js', () => ({
-  resend: {
-    emails: {
-      send: vi.fn(),
+vi.mock('../../../src/services/email.service.js', () => {
+  return {
+    emailService: {
+      send: vi.fn().mockResolvedValue({ success: true }),
     },
-  },
-}));
+  };
+});
+
+import { emailService as mockEmailService } from '../../../src/services/email.service.js';
 
 describe('Invites API - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -117,10 +118,8 @@ describe('Invites API - Integration', { timeout: 60_000 }, () => {
         organizationId: defaultOrgId,
       });
 
-      vi.mocked(resend.emails.send).mockResolvedValueOnce({
-        data: { id: 'email_id' },
-        error: null,
-        headers: null,
+      vi.mocked(mockEmailService.send).mockResolvedValueOnce({
+        success: true,
       });
 
       const invitePayload = { email: 'invited-collaborator@example.com', role: 'admin' };
@@ -145,7 +144,7 @@ describe('Invites API - Integration', { timeout: 60_000 }, () => {
       expect(dbRow.email).toBe(invitePayload.email);
       expect(dbRow.role).toBe(invitePayload.role);
       expect(dbRow.orgId).toBe(defaultOrgId);
-      expect(resend.emails.send).toHaveBeenCalled();
+      expect(mockEmailService.send).toHaveBeenCalled();
     });
 
     it('should return 502 Bad Gateway if the downstream Resend communication network fails', async () => {
@@ -155,8 +154,8 @@ describe('Invites API - Integration', { timeout: 60_000 }, () => {
         organizationId: defaultOrgId,
       });
 
-      vi.mocked(resend.emails.send).mockResolvedValueOnce({
-        data: null,
+      vi.mocked(mockEmailService.send).mockResolvedValueOnce({
+        success: false,
         error: { message: 'Out of mail credits' },
       } as any);
 

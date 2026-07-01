@@ -13,14 +13,19 @@ import {
   CheckSubdomainResponseSchema,
   CreateOrganizationSchema,
   OrganizationSchema,
+  RemoveUserFromOrgSchema,
   UpdateOrganizationSchema,
+  UpdateUserRoleResponseSchema,
+  UpdateUserRoleSchema,
 } from '../schemas/organization.schema.js';
 import {
   checkSubdomainAvailability,
   createOrganization,
   deleteOrganization,
   getOrganization,
+  removeUserFromOrganization,
   updateOrganization,
+  updateUserRoleInOrganization,
 } from '../services/organization.service.js';
 import { assignOrganizationToUser } from '../services/user.service.js';
 
@@ -235,5 +240,117 @@ organizationsRoute.openapi(
 
     const organization = await getOrganization(id, log);
     return c.json(organization, 200);
+  },
+);
+
+organizationsRoute.openapi(
+  createRoute({
+    method: 'post',
+    path: '/members/remove',
+    operationId: 'removeOrgMember',
+    description: 'Remove a user from the organization (Admin only).',
+    tags: [TAGS.ORGANIZATIONS],
+    middleware: [verifyAuth()],
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: RemoveUserFromOrgSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'User removed successfully',
+        content: { 'application/json': { schema: SuccessResponseSchema } },
+      },
+      400: {
+        description: 'Bad request or validation error',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized user context',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: 'Forbidden: Insufficient permissions or organization mismatch',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'User or Organization not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const callerId = authUser?.session?.user?.id;
+    if (!callerId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { userId } = c.req.valid('json');
+    const log = c.get('logger').child({ action: 'removeOrgMember', targetUserId: userId });
+
+    await removeUserFromOrganization(callerId, userId, log);
+    return c.json({ success: true }, 200);
+  },
+);
+
+organizationsRoute.openapi(
+  createRoute({
+    method: 'put',
+    path: '/members/role',
+    operationId: 'updateOrgMemberRole',
+    description: "Update a user's role within the organization (Admin only).",
+    tags: [TAGS.ORGANIZATIONS],
+    middleware: [verifyAuth()],
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: UpdateUserRoleSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'User role updated successfully',
+        content: { 'application/json': { schema: UpdateUserRoleResponseSchema } },
+      },
+      400: {
+        description: 'Bad request or validation error',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized user context',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: 'Forbidden: Insufficient permissions or organization mismatch',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'User or Organization not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const callerId = authUser?.session?.user?.id;
+    if (!callerId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { userId, role } = c.req.valid('json');
+    const log = c
+      .get('logger')
+      .child({ action: 'updateOrgMemberRole', targetUserId: userId, role });
+
+    await updateUserRoleInOrganization(callerId, userId, role, log);
+    return c.json({ success: true, userId, role }, 200);
   },
 );

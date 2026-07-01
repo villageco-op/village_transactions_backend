@@ -1,14 +1,18 @@
 import { del } from '@vercel/blob';
 import { HTTPException } from 'hono/http-exception';
 
+import type { OrgRole } from '../db/types.js';
 import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { organizationRepository } from '../repositories/organization.repository.js';
+import { userRepository } from '../repositories/user.repository.js';
 import {
   type CreateOrganizationPayload,
   SUBDOMAIN_REGEX,
   type UpdateOrganizationPayload,
 } from '../schemas/organization.schema.js';
 
+import { emailService } from './email.service.js';
+import { sendPushNotification } from './notification.service.js';
 import { removeOrganizationFromUsers } from './user.service.js';
 
 /**
@@ -196,4 +200,151 @@ export async function getOrganization(id: string, log: AppLogger = noopLogger) {
 
   log.info({ orgId: id }, 'Organization retrieved successfully');
   return organization;
+}
+
+/**
+ * Removes a user from an organization. Checks that the caller is an admin of the same org.
+ * @param callerId - The calling users Id
+ * @param targetUserId - The Id of the user being updated
+ * @param log - App logger that defaults to a blank logger
+ * @returns Success status
+ */
+export async function removeUserFromOrganization(
+  callerId: string,
+  targetUserId: string,
+  log: AppLogger = noopLogger,
+) {
+  const caller = await userRepository.findById(callerId);
+  if (!caller) {
+    throw new HTTPException(401, { message: 'Caller not found' });
+  }
+
+  if (caller.orgRole !== 'admin' || !caller.organizationId) {
+    throw new HTTPException(403, { message: 'Insufficient organization permissions' });
+  }
+
+  const targetUser = await userRepository.findById(targetUserId);
+  if (!targetUser) {
+    throw new HTTPException(404, { message: 'Target user not found' });
+  }
+
+  if (targetUser.organizationId !== caller.organizationId) {
+    throw new HTTPException(403, { message: 'User does not belong to your organization' });
+  }
+
+  const updatedTarget = await userRepository.removeFromOrganization(targetUserId);
+  if (!updatedTarget) {
+    throw new HTTPException(500, { message: 'Failed to disassociate user from organization' });
+  }
+
+  const org = await organizationRepository.findById(caller.organizationId);
+  const orgName = org?.name || 'the organization';
+
+  if (targetUser.email) {
+    const emailResult = await emailService.send(
+      {
+        to: targetUser.email,
+        subject: `Membership ended at ${orgName}`,
+        text: `Hi ${targetUser.name || 'there'},\n\nWe are writing to inform you that you have been removed from the organization "${orgName}" by an administrator.\n\nBest regards,\nThe Village Team`,
+      },
+      log,
+    );
+
+    if (emailResult.success) {
+      log.info({ targetUserId }, 'Removal notification email sent');
+    }
+  }
+
+  try {
+    await sendPushNotification(
+      targetUserId,
+      'Organization Update',
+      `You have been removed from ${orgName}`,
+      log,
+    );
+  } catch (err) {
+    log.error(
+      { error: err instanceof Error ? err.message : err },
+      'Failed to dispatch push notification',
+    );
+  }
+
+  return { success: true };
+}
+
+/**
+ * Updates a user's role within an organization. Checks that the caller is an admin of the same org.
+ * @param callerId - The calling users Id
+ * @param targetUserId - The Id of the user being updated
+ * @param newRole - The new role for the user
+ * @param log - App logger that defaults to a blank logger
+ * @returns The updated target user
+ */
+export async function updateUserRoleInOrganization(
+  callerId: string,
+  targetUserId: string,
+  newRole: OrgRole,
+  log: AppLogger = noopLogger,
+) {
+  const caller = await userRepository.findById(callerId);
+  if (!caller) {
+    throw new HTTPException(401, { message: 'Caller not found' });
+  }
+
+  if (caller.orgRole !== 'admin' || !caller.organizationId) {
+    throw new HTTPException(403, { message: 'Insufficient organization permissions' });
+  }
+
+  const targetUser = await userRepository.findById(targetUserId);
+  if (!targetUser) {
+    throw new HTTPException(404, { message: 'Target user not found' });
+  }
+
+  if (targetUser.organizationId !== caller.organizationId) {
+    throw new HTTPException(403, { message: 'User does not belong to your organization' });
+  }
+
+  const updatedTarget = await userRepository.updateOrgAndRole(
+    targetUserId,
+    caller.organizationId,
+    newRole,
+  );
+
+  if (!updatedTarget) {
+    throw new HTTPException(500, { message: 'Failed to update user role' });
+  }
+
+  const org = await organizationRepository.findById(caller.organizationId);
+  const orgName = org?.name || 'the organization';
+
+  if (targetUser.email) {
+    const { success } = await emailService.send(
+      {
+        to: targetUser.email,
+        subject: `Role Updated in ${orgName}`,
+        text: `Hi ${targetUser.name || 'there'},\n\nYour organization role in "${orgName}" has been updated to "${newRole}" by an administrator.\n\nBest regards,\nThe Village Team`,
+      },
+      log,
+    );
+
+    if (success) {
+      log.info({ targetUserId, newRole }, 'Role update notification email sent');
+    }
+  }
+
+  try {
+    await sendPushNotification(
+      targetUserId,
+      'Role Updated',
+      `Your role in ${orgName} has been updated to ${newRole}`,
+      log,
+    );
+  } catch (err) {
+    log.error(
+      { error: err instanceof Error ? err.message : err },
+      'Failed to dispatch push notification',
+    );
+  }
+
+  return updatedTarget;
 }

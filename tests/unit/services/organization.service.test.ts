@@ -7,9 +7,14 @@ import {
   updateOrganization,
   deleteOrganization,
   checkSubdomainAvailability,
+  removeUserFromOrganization,
+  updateUserRoleInOrganization,
 } from '../../../src/services/organization.service.js';
 import { organizationRepository } from '../../../src/repositories/organization.repository.js';
 import { removeOrganizationFromUsers } from '../../../src/services/user.service.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
+import { emailService } from '../../../src/services/email.service.js';
+import { sendPushNotification } from '../../../src/services/notification.service.js';
 
 vi.mock('@vercel/blob', () => ({
   del: vi.fn().mockResolvedValue(undefined),
@@ -25,8 +30,27 @@ vi.mock('../../../src/repositories/organization.repository.js', () => ({
   },
 }));
 
+vi.mock('../../../src/repositories/user.repository.js', () => ({
+  userRepository: {
+    findById: vi.fn(),
+    findByEmail: vi.fn(),
+    updateOrgAndRole: vi.fn(),
+    removeFromOrganization: vi.fn(),
+  },
+}));
+
 vi.mock('../../../src/services/user.service.js', () => ({
   removeOrganizationFromUsers: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../../src/services/email.service.js', () => ({
+  emailService: {
+    send: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/services/notification.service.js', () => ({
+  sendPushNotification: vi.fn(),
 }));
 
 const mockLogger = {
@@ -332,6 +356,256 @@ describe('OrganizationService Unit Tests', () => {
 
       await expect(checkSubdomainAvailability('infinite')).rejects.toThrowError(
         new HTTPException(500, { message: 'Unable to generate a unique subdomain suggestion' }),
+      );
+    });
+  });
+
+  describe('removeUserFromOrganization', () => {
+    const callerId = 'admin_caller';
+    const targetUserId = 'target_user_123';
+    const orgId = 'org_abc123';
+
+    const mockAdminCaller = { id: callerId, orgRole: 'admin', organizationId: orgId };
+    const mockTargetUser = {
+      id: targetUserId,
+      organizationId: orgId,
+      email: 'target@example.com',
+      name: 'John Doe',
+    };
+    const mockOrg = { id: orgId, name: 'Test Org' };
+
+    it('should successfully remove a user, send email, and send a push notification', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any) // caller check
+        .mockResolvedValueOnce(mockTargetUser as any); // target check
+
+      vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce({
+        id: targetUserId,
+      } as any);
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce(mockOrg as any);
+      vi.mocked(emailService.send).mockResolvedValueOnce({ success: true });
+      vi.mocked(sendPushNotification).mockResolvedValueOnce(undefined as any);
+
+      const result = await removeUserFromOrganization(callerId, targetUserId, mockLogger);
+
+      expect(result).toEqual({ success: true });
+      expect(userRepository.removeFromOrganization).toHaveBeenCalledWith(targetUserId);
+      expect(emailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'target@example.com',
+          subject: 'Membership ended at Test Org',
+        }),
+        mockLogger,
+      );
+      expect(sendPushNotification).toHaveBeenCalledWith(
+        targetUserId,
+        'Organization Update',
+        'You have been removed from Test Org',
+        mockLogger,
+      );
+    });
+
+    it('should throw 401 if caller is not found', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+      await expect(
+        removeUserFromOrganization(callerId, targetUserId, mockLogger),
+      ).rejects.toThrowError(new HTTPException(401, { message: 'Caller not found' }));
+    });
+
+    it('should throw 403 if caller is not an admin', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        ...mockAdminCaller,
+        orgRole: 'member',
+      } as any);
+
+      await expect(
+        removeUserFromOrganization(callerId, targetUserId, mockLogger),
+      ).rejects.toThrowError(
+        new HTTPException(403, { message: 'Insufficient organization permissions' }),
+      );
+    });
+
+    it('should throw 404 if target user is not found', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        removeUserFromOrganization(callerId, targetUserId, mockLogger),
+      ).rejects.toThrowError(new HTTPException(404, { message: 'Target user not found' }));
+    });
+
+    it('should throw 403 if target user belongs to a different organization', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce({ ...mockTargetUser, organizationId: 'different_org' } as any);
+
+      await expect(
+        removeUserFromOrganization(callerId, targetUserId, mockLogger),
+      ).rejects.toThrowError(
+        new HTTPException(403, { message: 'User does not belong to your organization' }),
+      );
+    });
+
+    it('should throw 500 if database operation to remove user fails', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce(mockTargetUser as any);
+      vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce(null);
+
+      await expect(
+        removeUserFromOrganization(callerId, targetUserId, mockLogger),
+      ).rejects.toThrowError(
+        new HTTPException(500, { message: 'Failed to disassociate user from organization' }),
+      );
+    });
+
+    it('should catch push notification failure gracefully and log an error', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce(mockTargetUser as any);
+      vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce({
+        id: targetUserId,
+      } as any);
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce(mockOrg as any);
+      vi.mocked(emailService.send).mockResolvedValueOnce({ success: true });
+      vi.mocked(sendPushNotification).mockRejectedValueOnce(new Error('Push gateway down'));
+
+      const result = await removeUserFromOrganization(callerId, targetUserId, mockLogger);
+
+      expect(result).toEqual({ success: true });
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Push gateway down' }),
+        'Failed to dispatch push notification',
+      );
+    });
+  });
+
+  describe('updateUserRoleInOrganization', () => {
+    const callerId = 'admin_caller';
+    const targetUserId = 'target_user_123';
+    const orgId = 'org_abc123';
+    const newRole = 'admin';
+
+    const mockAdminCaller = { id: callerId, orgRole: 'admin', organizationId: orgId };
+    const mockTargetUser = {
+      id: targetUserId,
+      organizationId: orgId,
+      email: 'target@example.com',
+      name: 'John Doe',
+    };
+    const mockOrg = { id: orgId, name: 'Test Org' };
+    const mockUpdatedUser = { ...mockTargetUser, orgRole: newRole };
+
+    it('should successfully update role, send email, and dispatch push notification', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce(mockTargetUser as any);
+
+      vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(mockUpdatedUser as any);
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce(mockOrg as any);
+      vi.mocked(emailService.send).mockResolvedValueOnce({ success: true });
+      vi.mocked(sendPushNotification).mockResolvedValueOnce(undefined as any);
+
+      const result = await updateUserRoleInOrganization(
+        callerId,
+        targetUserId,
+        newRole,
+        mockLogger,
+      );
+
+      expect(result).toEqual(mockUpdatedUser);
+      expect(userRepository.updateOrgAndRole).toHaveBeenCalledWith(targetUserId, orgId, newRole);
+      expect(emailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'target@example.com',
+          subject: 'Role Updated in Test Org',
+        }),
+        mockLogger,
+      );
+      expect(sendPushNotification).toHaveBeenCalledWith(
+        targetUserId,
+        'Role Updated',
+        `Your role in Test Org has been updated to ${newRole}`,
+        mockLogger,
+      );
+    });
+
+    it('should throw 401 if caller profile is missing', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+      await expect(
+        updateUserRoleInOrganization(callerId, targetUserId, newRole, mockLogger),
+      ).rejects.toThrowError(new HTTPException(401, { message: 'Caller not found' }));
+    });
+
+    it('should throw 403 if caller lacks proper permissions', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        ...mockAdminCaller,
+        orgRole: 'member',
+      } as any);
+
+      await expect(
+        updateUserRoleInOrganization(callerId, targetUserId, newRole, mockLogger),
+      ).rejects.toThrowError(
+        new HTTPException(403, { message: 'Insufficient organization permissions' }),
+      );
+    });
+
+    it('should throw 404 if target user cannot be found', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        updateUserRoleInOrganization(callerId, targetUserId, newRole, mockLogger),
+      ).rejects.toThrowError(new HTTPException(404, { message: 'Target user not found' }));
+    });
+
+    it('should throw 403 if target user is in a different org structure', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce({ ...mockTargetUser, organizationId: 'external_org_id' } as any);
+
+      await expect(
+        updateUserRoleInOrganization(callerId, targetUserId, newRole, mockLogger),
+      ).rejects.toThrowError(
+        new HTTPException(403, { message: 'User does not belong to your organization' }),
+      );
+    });
+
+    it('should throw 500 if repository role update routine fails', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce(mockTargetUser as any);
+      vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(null);
+
+      await expect(
+        updateUserRoleInOrganization(callerId, targetUserId, newRole, mockLogger),
+      ).rejects.toThrowError(new HTTPException(500, { message: 'Failed to update user role' }));
+    });
+
+    it('should catch push notification error gracefully and return updated target structure', async () => {
+      vi.mocked(userRepository.findById)
+        .mockResolvedValueOnce(mockAdminCaller as any)
+        .mockResolvedValueOnce(mockTargetUser as any);
+      vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(mockUpdatedUser as any);
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce(mockOrg as any);
+      vi.mocked(emailService.send).mockResolvedValueOnce({ success: true });
+      vi.mocked(sendPushNotification).mockRejectedValueOnce('Network Timeout');
+
+      const result = await updateUserRoleInOrganization(
+        callerId,
+        targetUserId,
+        newRole,
+        mockLogger,
+      );
+
+      expect(result).toEqual(mockUpdatedUser);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Network Timeout' }),
+        'Failed to dispatch push notification',
       );
     });
   });

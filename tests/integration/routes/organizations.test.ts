@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { authedRequest } from '../../test-utils/auth.js';
@@ -10,6 +10,16 @@ import {
 import { organizationRepository } from '../../../src/repositories/organization.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { organizations, users } from '../../../src/db/schema.js';
+
+import { emailService as mockEmailService } from '../../../src/services/email.service.js';
+
+vi.mock('../../../src/services/email.service.js', () => {
+  return {
+    emailService: {
+      send: vi.fn().mockResolvedValue({ success: true }),
+    },
+  };
+});
 
 describe('Organizations API - Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -26,6 +36,7 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
   });
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     await truncateTables(testDb);
   });
 
@@ -370,6 +381,245 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
         `/api/organizations/${randomId}`,
         { method: 'GET' },
         { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/organizations/members/remove', () => {
+    it('should allow an admin to successfully remove a member from their organization', async () => {
+      const ORG_ID = crypto.randomUUID();
+      const ADMIN_ID = 'caller_admin_user';
+      const TARGET_MEMBER_ID = 'target_member_user';
+
+      await testDb.insert(organizations).values({
+        id: ORG_ID,
+        name: 'The Village Pantry',
+        type: 'pantry',
+        subdomain: 'village-pantry',
+        city: 'Madison',
+        state: 'WI',
+        country: 'United States',
+        zip: '53703',
+      });
+
+      await testDb.insert(users).values([
+        {
+          id: ADMIN_ID,
+          name: 'Admin User',
+          email: 'admin@village.org',
+          organizationId: ORG_ID,
+          orgRole: 'admin',
+        },
+        {
+          id: TARGET_MEMBER_ID,
+          name: 'Regular Member',
+          email: 'member@village.org',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+      ]);
+
+      const res = await authedRequest(
+        '/api/organizations/members/remove',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: TARGET_MEMBER_ID }),
+        },
+        { id: ADMIN_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ success: true });
+
+      const [updatedUser] = await testDb.select().from(users).where(eq(users.id, TARGET_MEMBER_ID));
+
+      expect(updatedUser.organizationId).toBeNull();
+      expect(updatedUser.orgRole).toBeNull();
+
+      expect(mockEmailService.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return 403 if the caller is a member and attempts to remove someone', async () => {
+      const ORG_ID = crypto.randomUUID();
+      const MEMBER_CALLER_ID = 'caller_regular_user';
+      const TARGET_MEMBER_ID = 'other_member_user';
+
+      await testDb.insert(users).values([
+        {
+          id: MEMBER_CALLER_ID,
+          name: 'Regular Member',
+          email: 'member1@village.org',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+        {
+          id: TARGET_MEMBER_ID,
+          name: 'Another Member',
+          email: 'member2@village.org',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+      ]);
+
+      const res = await authedRequest(
+        '/api/organizations/members/remove',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: TARGET_MEMBER_ID }),
+        },
+        { id: MEMBER_CALLER_ID },
+      );
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should return 403 if target user belongs to a completely different organization', async () => {
+      const ORG_A_ID = crypto.randomUUID();
+      const ORG_B_ID = crypto.randomUUID();
+      const ADMIN_A_ID = 'admin_org_a';
+      const USER_B_ID = 'user_org_b';
+
+      await testDb.insert(users).values([
+        {
+          id: ADMIN_A_ID,
+          name: 'Admin Org A',
+          email: 'admin@orga.com',
+          organizationId: ORG_A_ID,
+          orgRole: 'admin',
+        },
+        {
+          id: USER_B_ID,
+          name: 'User Org B',
+          email: 'user@orgb.com',
+          organizationId: ORG_B_ID,
+          orgRole: 'member',
+        },
+      ]);
+
+      const res = await authedRequest(
+        '/api/organizations/members/remove',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: USER_B_ID }),
+        },
+        { id: ADMIN_A_ID },
+      );
+
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe('PUT /api/organizations/members/role', () => {
+    it('should successfully update a user role when executed by a valid organization admin', async () => {
+      const ORG_ID = crypto.randomUUID();
+      const ADMIN_ID = 'admin_user_role_test';
+      const TARGET_USER_ID = 'target_user_role_test';
+
+      await testDb.insert(organizations).values({
+        id: ORG_ID,
+        name: 'The Village Pantry',
+        type: 'pantry',
+        subdomain: 'village-pantry-role',
+        city: 'Madison',
+        state: 'WI',
+        country: 'United States',
+        zip: '53703',
+      });
+
+      await testDb.insert(users).values([
+        {
+          id: ADMIN_ID,
+          name: 'Admin User',
+          email: 'admin@village.org',
+          organizationId: ORG_ID,
+          orgRole: 'admin',
+        },
+        {
+          id: TARGET_USER_ID,
+          name: 'Regular Member',
+          email: 'member@village.org',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+      ]);
+
+      const res = await authedRequest(
+        '/api/organizations/members/role',
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: TARGET_USER_ID, role: 'admin' }),
+        },
+        { id: ADMIN_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({
+        success: true,
+        userId: TARGET_USER_ID,
+        role: 'admin',
+      });
+
+      const [updatedUser] = await testDb.select().from(users).where(eq(users.id, TARGET_USER_ID));
+
+      expect(updatedUser.orgRole).toBe('admin');
+
+      expect(mockEmailService.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return 400 when an invalid organization role variant is provided', async () => {
+      const ADMIN_ID = 'admin_user_validation';
+
+      await testDb.insert(users).values({
+        id: ADMIN_ID,
+        name: 'Admin User',
+        email: 'admin@validation.org',
+        organizationId: crypto.randomUUID(),
+        orgRole: 'admin',
+      });
+
+      const res = await authedRequest(
+        '/api/organizations/members/role',
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: 'some_user', role: 'super-emperor' }),
+        },
+        { id: ADMIN_ID },
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should return 404 when trying to update a user that does not exist', async () => {
+      const ORG_ID = crypto.randomUUID();
+      const ADMIN_ID = 'admin_user_404_test';
+
+      await testDb.insert(users).values({
+        id: ADMIN_ID,
+        name: 'Admin User',
+        email: 'admin@village.org',
+        organizationId: ORG_ID,
+        orgRole: 'admin',
+      });
+
+      const missingUserId = crypto.randomUUID();
+
+      const res = await authedRequest(
+        '/api/organizations/members/role',
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: missingUserId, role: 'member' }),
+        },
+        { id: ADMIN_ID },
       );
 
       expect(res.status).toBe(404);
