@@ -3,7 +3,13 @@ import { createSelectSchema } from 'drizzle-zod';
 
 import { organizations } from '../db/schema.js';
 
-import { LatitudeSchema, LongitudeSchema, OrgTypeSchema } from './common.schema.js';
+import {
+  LatitudeSchema,
+  LongitudeSchema,
+  OrgRoleSchema,
+  OrgTypeSchema,
+  UserIdSchema,
+} from './common.schema.js';
 
 export const BaseOrganizationSchema = createSelectSchema(organizations).omit({
   location: true,
@@ -71,6 +77,27 @@ export const CheckSubdomainResponseSchema = z
     suggestion: z.string().optional(),
   })
   .openapi('CheckSubdomainResponse');
+
+export const RemoveUserFromOrgSchema = z
+  .object({
+    userId: UserIdSchema,
+  })
+  .openapi('RemoveUserFromOrgPayload');
+
+export const UpdateUserRoleSchema = z
+  .object({
+    userId: UserIdSchema,
+    role: OrgRoleSchema,
+  })
+  .openapi('UpdateUserRolePayload');
+
+export const UpdateUserRoleResponseSchema = z
+  .object({
+    success: z.boolean(),
+    userId: UserIdSchema,
+    role: OrgRoleSchema,
+  })
+  .openapi('UpdateUserRoleResponse');
 
 export type UpdateOrganizationPayload = z.infer<typeof UpdateOrganizationSchema>;
 export type CreateOrganizationPayload = z.infer<typeof CreateOrganizationSchema>;

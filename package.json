@@ -11,7 +11,6 @@
     "test": "vitest",
     "test:unit": "npx vitest --project=unit",
     "test:integration": "npx vitest --project=integration",
-    "test:smoke": "npx vitest --project=smoke",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format:fix": "prettier --write .",

@@ -2,17 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { request } from '../../test-utils/request.js';
 
-vi.mock('../../../src/lib/resend.js', () => {
+vi.mock('../../../src/services/email.service.js', () => {
   return {
-    resend: {
-      emails: {
-        send: vi.fn().mockResolvedValue({ data: { id: 'mocked_msg_id' }, error: null }),
-      },
+    emailService: {
+      send: vi.fn().mockResolvedValue({ success: true }),
     },
   };
 });
 
-import { resend as mockResend } from '../../../src/lib/resend.js';
+import { emailService as mockEmailService } from '../../../src/services/email.service.js';
 
 describe('Contact API Integration', () => {
   beforeEach(() => {
@@ -39,7 +37,7 @@ describe('Contact API Integration', () => {
     const body = await res.json();
     expect(body).toEqual({ success: true });
 
-    expect(mockResend.emails.send).toHaveBeenCalledTimes(2);
+    expect(mockEmailService.send).toHaveBeenCalledTimes(2);
   });
 
   it('POST /api/contact should return validation error (400) if required fields are missing', async () => {

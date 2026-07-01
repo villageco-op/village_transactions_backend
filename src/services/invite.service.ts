@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 
 import { HTTPException } from 'hono/http-exception';
-import type { Resend } from 'resend';
 
 import type { OrgRole } from '../db/types.js';
 import type { AppLogger } from '../interfaces/logger.interface.js';
@@ -9,9 +8,10 @@ import { inviteRepository } from '../repositories/invite.repository.js';
 import { transactionRepository } from '../repositories/transaction.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
+import { emailService } from './email.service.js';
+
 /**
  * Creates an invite record and sends an notification email.
- * @param client - The resend client
  * @param callerUserId - The user creating the invite
  * @param payload - The invite payload
  * @param payload.email - The invited users email
@@ -20,7 +20,6 @@ import { userRepository } from '../repositories/user.repository.js';
  * @returns Success status and the invite Id
  */
 export async function createOrgInvite(
-  client: Resend,
   callerUserId: string,
   payload: { email: string; role: OrgRole },
   log: AppLogger,
@@ -46,21 +45,22 @@ export async function createOrgInvite(
     expiresAt,
   });
 
-  const fromEmail = process.env.VILLAGE_FROM_EMAIL || 'noreply@e.villageco-op.com';
   const frontendUrl = process.env.FRONTEND_URL || 'https://villageco-op.com';
   const inviteLink = `${frontendUrl}/verify-invite?org=${organizationId}&code=${inviteCode}&email=${encodeURIComponent(payload.email)}`;
 
-  const { error } = await client.emails.send({
-    from: `Village Team <${fromEmail}>`,
-    to: payload.email,
-    subject: `You've been invited to join an organization`,
-    text: `You have been invited to join the organization as an ${payload.role}.\n\nClick the link below to accept the invitation:\n${inviteLink}\n\nThis invitation link will expire in 7 days.`,
-  });
+  const emailResult = await emailService.send(
+    {
+      to: payload.email,
+      subject: `You've been invited to join an organization`,
+      text: `You have been invited to join the organization as an ${payload.role}.\n\nClick the link below to accept the invitation:\n${inviteLink}\n\nThis invitation link will expire in 7 days.`,
+    },
+    log,
+  );
 
-  if (error) {
+  if (!emailResult.success) {
     log.error(
-      { error: error.message, email: payload.email },
-      'Failed to send invite email via Resend',
+      { error: emailResult.error?.message, email: payload.email },
+      'Failed to send invite email via EmailService',
     );
     throw new HTTPException(502, { message: 'Failed to send invite email' });
   }

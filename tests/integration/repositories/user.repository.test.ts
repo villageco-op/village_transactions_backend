@@ -472,4 +472,72 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       expect(dbUser.orgRole).toBe('member');
     });
   });
+
+  describe('removeFromOrganization', () => {
+    it('should successfully nullify organizationId and orgRole for the specified user and return the updated user record', async () => {
+      const ORG_ID = crypto.randomUUID();
+      const TARGET_USER_ID = 'user_to_remove';
+
+      await testDb.insert(users).values({
+        id: TARGET_USER_ID,
+        name: 'Jane Doe',
+        email: 'jane.doe@example.com',
+        organizationId: ORG_ID,
+        orgRole: 'member',
+      });
+
+      const updatedUser = await userRepository.removeFromOrganization(TARGET_USER_ID);
+
+      expect(updatedUser).not.toBeNull();
+      expect(updatedUser?.id).toBe(TARGET_USER_ID);
+      expect(updatedUser?.organizationId).toBeNull();
+      expect(updatedUser?.orgRole).toBeNull();
+
+      const [dbUser] = await testDb.select().from(users).where(eq(users.id, TARGET_USER_ID));
+
+      expect(dbUser.organizationId).toBeNull();
+      expect(dbUser.orgRole).toBeNull();
+    });
+
+    it('should leave other users in the same organization intact when one user is removed', async () => {
+      const ORG_ID = crypto.randomUUID();
+      const TARGET_USER_ID = 'remove_me';
+      const SURVIVOR_USER_ID = 'stay_put';
+
+      await testDb.insert(users).values([
+        {
+          id: TARGET_USER_ID,
+          name: 'Target User',
+          email: 'target@example.com',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+        {
+          id: SURVIVOR_USER_ID,
+          name: 'Survivor User',
+          email: 'survivor@example.com',
+          organizationId: ORG_ID,
+          orgRole: 'admin',
+        },
+      ]);
+
+      await userRepository.removeFromOrganization(TARGET_USER_ID);
+
+      const [survivorUser] = await testDb
+        .select()
+        .from(users)
+        .where(eq(users.id, SURVIVOR_USER_ID));
+
+      expect(survivorUser.organizationId).toBe(ORG_ID);
+      expect(survivorUser.orgRole).toBe('admin');
+    });
+
+    it('should return null if the targeted user does not exist in the database', async () => {
+      const NON_EXISTENT_USER_ID = 'ghost_user_999';
+
+      const result = await userRepository.removeFromOrganization(NON_EXISTENT_USER_ID);
+
+      expect(result).toBeNull();
+    });
+  });
 });

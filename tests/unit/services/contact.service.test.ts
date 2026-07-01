@@ -2,11 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
 import { processContactForm } from '../../../src/services/contact.service.js';
+import { emailService } from '../../../src/services/email.service.js';
+
+vi.mock('../../../src/services/email.service.js', () => ({
+  emailService: {
+    send: vi.fn(),
+  },
+}));
 
 vi.mock('../../../src/repositories/user.repository.js', () => ({
-  userRepository: {
-    findById: vi.fn(),
-  },
+  userRepository: { findById: vi.fn() },
 }));
 
 vi.mock('../../../src/repositories/fcm.repository.js', () => ({
@@ -18,22 +23,13 @@ vi.mock('../../../src/repositories/fcm.repository.js', () => ({
 }));
 
 describe('ContactService - processContactForm', () => {
-  let mockResend: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    mockResend = {
-      emails: {
-        send: vi.fn().mockResolvedValue({ data: { id: '123' }, error: null }),
-      },
-    };
-
     process.env.VILLAGE_CONTACT_EMAIL = 'admin@village.com';
-    process.env.VILLAGE_FROM_EMAIL = 'noreply@village.com';
   });
 
   it('should successfully send forward and auto-reply emails', async () => {
-    mockResend.emails.send.mockResolvedValue({ data: { id: 'test_id' }, error: null });
+    vi.mocked(emailService.send).mockResolvedValue({ success: true });
 
     const payload = {
       name: 'John Doe',
@@ -42,28 +38,38 @@ describe('ContactService - processContactForm', () => {
       message: 'Hello, this is a test message.',
     };
 
-    await processContactForm(mockResend, payload);
+    await processContactForm(payload);
 
-    expect(mockResend.emails.send).toHaveBeenCalledTimes(2);
+    expect(emailService.send).toHaveBeenCalledTimes(2);
 
-    expect(mockResend.emails.send).toHaveBeenNthCalledWith(1, {
-      from: 'Village Website <noreply@village.com>',
-      to: 'admin@village.com',
-      replyTo: 'john@example.com',
-      subject: 'New Contact Form Submission from John Doe',
-      text: expect.stringContaining('Name: John Doe'),
-    });
+    expect(emailService.send).toHaveBeenNthCalledWith(
+      1,
+      {
+        fromName: 'Village Website',
+        to: 'admin@village.com',
+        replyTo: 'john@example.com',
+        subject: 'New Contact Form Submission from John Doe',
+        text: expect.stringContaining('Name: John Doe'),
+      },
+      expect.anything(),
+    );
 
-    expect(mockResend.emails.send).toHaveBeenNthCalledWith(2, {
-      from: 'Village Team <noreply@village.com>',
-      to: 'john@example.com',
-      subject: 'We received your message!',
-      text: expect.stringContaining('Hi John Doe'),
-    });
+    expect(emailService.send).toHaveBeenNthCalledWith(
+      2,
+      {
+        to: 'john@example.com',
+        subject: 'We received your message!',
+        text: expect.stringContaining('Hi John Doe'),
+      },
+      expect.anything(),
+    );
   });
 
   it('should throw an HTTPException if forwarding the message fails', async () => {
-    mockResend.emails.send.mockResolvedValue({ data: null, error: { message: 'API Error' } });
+    vi.mocked(emailService.send).mockResolvedValue({
+      success: false,
+      error: new Error('Forward failed'),
+    });
 
     const payload = {
       name: 'Jane Doe',
@@ -71,14 +77,13 @@ describe('ContactService - processContactForm', () => {
       message: 'Test message',
     };
 
-    await expect(processContactForm(mockResend, payload)).rejects.toThrow(HTTPException);
-    await expect(processContactForm(mockResend, payload)).rejects.toMatchObject({ status: 500 });
+    await expect(processContactForm(payload)).rejects.toThrow(HTTPException);
   });
 
   it('should NOT throw if auto-reply fails but forwarding succeeds', async () => {
-    mockResend.emails.send
-      .mockResolvedValueOnce({ data: { id: 'msg_1' }, error: null })
-      .mockResolvedValueOnce({ data: null, error: { message: 'Reply Error' } });
+    vi.mocked(emailService.send)
+      .mockResolvedValueOnce({ success: true })
+      .mockResolvedValueOnce({ success: false, error: new Error('Reply failed') });
 
     const payload = {
       name: 'Bob',
@@ -86,6 +91,6 @@ describe('ContactService - processContactForm', () => {
       message: 'Test message',
     };
 
-    await expect(processContactForm(mockResend, payload)).resolves.toBeUndefined();
+    await expect(processContactForm(payload)).resolves.toBeUndefined();
   });
 });

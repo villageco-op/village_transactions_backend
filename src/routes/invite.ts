@@ -3,7 +3,6 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
 import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
-import { resend } from '../lib/resend.js';
 import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.schema.js';
 import { AcceptInviteSchema, CreateInviteSchema } from '../schemas/invite.schema.js';
 import { createOrgInvite, acceptOrgInvite } from '../services/invite.service.js';
@@ -56,7 +55,7 @@ invitesRoute.openapi(
     const payload = c.req.valid('json');
     const log = c.get('logger').child({ action: 'inviteToOrg' });
 
-    const result = await createOrgInvite(resend, callerUserId, payload, log);
+    const result = await createOrgInvite(callerUserId, payload, log);
 
     return c.json(result, 200);
   },
