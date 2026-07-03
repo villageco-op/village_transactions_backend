@@ -218,6 +218,12 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
     'UpdateUserRoleResponse',
     Organizations.UpdateUserRoleResponseSchema,
   );
+  app.openAPIRegistry.register('GetOrgMembersQuery', Organizations.GetOrgMembersQuerySchema);
+  app.openAPIRegistry.register('OrgMember', Organizations.OrgMemberResponseSchema);
+  app.openAPIRegistry.register(
+    'OrgMembersListResponse',
+    Organizations.OrgMembersListResponseSchema,
+  );
 
   // Invites
   app.openAPIRegistry.register('CreateInvitePayload', Invites.CreateInviteSchema);

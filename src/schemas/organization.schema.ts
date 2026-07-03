@@ -8,6 +8,8 @@ import {
   LongitudeSchema,
   OrgRoleSchema,
   OrgTypeSchema,
+  PaginationQuerySchema,
+  UserBasicInfoSchema,
   UserIdSchema,
 } from './common.schema.js';
 
@@ -98,6 +100,36 @@ export const UpdateUserRoleResponseSchema = z
     role: OrgRoleSchema,
   })
   .openapi('UpdateUserRoleResponse');
+
+export const GetOrgMembersQuerySchema = z
+  .object({
+    search: z.string().optional().openapi({
+      description: 'Search string for member name or email address',
+      example: 'Jane Doe',
+    }),
+    role: OrgRoleSchema.optional().openapi({
+      description: 'Filter members by role (admin or member)',
+    }),
+  })
+  .extend(PaginationQuerySchema.shape)
+  .openapi('GetOrgMembersQuery');
+
+export const OrgMemberResponseSchema = UserBasicInfoSchema.omit({
+  organizationId: true,
+  location: true,
+}).openapi('OrgMember');
+
+export const OrgMembersListResponseSchema = z
+  .object({
+    data: z.array(OrgMemberResponseSchema),
+    meta: z.object({
+      total: z.number(),
+      page: z.number(),
+      limit: z.number(),
+      totalPages: z.number(),
+    }),
+  })
+  .openapi('OrgMembersListResponse');
 
 export type UpdateOrganizationPayload = z.infer<typeof UpdateOrganizationSchema>;
 export type CreateOrganizationPayload = z.infer<typeof CreateOrganizationSchema>;

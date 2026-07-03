@@ -9,6 +9,7 @@ import {
   checkSubdomainAvailability,
   removeUserFromOrganization,
   updateUserRoleInOrganization,
+  getOrganizationMembers,
 } from '../../../src/services/organization.service.js';
 import { organizationRepository } from '../../../src/repositories/organization.repository.js';
 import { removeOrganizationFromUsers } from '../../../src/services/user.service.js';
@@ -36,6 +37,7 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
     findByEmail: vi.fn(),
     updateOrgAndRole: vi.fn(),
     removeFromOrganization: vi.fn(),
+    getMembers: vi.fn(),
   },
 }));
 
@@ -607,6 +609,99 @@ describe('OrganizationService Unit Tests', () => {
         expect.objectContaining({ error: 'Network Timeout' }),
         'Failed to dispatch push notification',
       );
+    });
+  });
+
+  describe('getOrganizationMembers', () => {
+    const orgId = 'org_abc123';
+    const mockParams = {
+      orgId,
+      search: 'John',
+      role: 'member' as const,
+      page: 2,
+      limit: 10,
+      offset: 10,
+    };
+
+    const mockOrg = { id: orgId, name: 'Test Org' };
+    const mockItems = [
+      {
+        id: 'user_1',
+        name: 'John Doe',
+        email: 'john@example.com',
+        role: 'member',
+        joinedAt: new Date(),
+      },
+    ];
+
+    it('should successfully retrieve members and return correct paginated metadata', async () => {
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce(mockOrg as any);
+      vi.mocked(userRepository.getMembers).mockResolvedValueOnce({
+        items: mockItems,
+        total: 25, // Total cross-page count
+      } as any);
+
+      const result = await getOrganizationMembers(mockParams, mockLogger);
+
+      expect(organizationRepository.findById).toHaveBeenCalledWith(orgId);
+      expect(userRepository.getMembers).toHaveBeenCalledWith(mockParams);
+
+      expect(result).toEqual({
+        data: mockItems,
+        meta: {
+          total: 25,
+          page: 2,
+          limit: 10,
+          totalPages: 3, // Math.ceil(25 / 10)
+        },
+      });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        { orgId, total: 25 },
+        'Retrieved organization members list',
+      );
+    });
+
+    it('should throw 404 HTTPException if the target organization does not exist', async () => {
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce(null);
+
+      await expect(getOrganizationMembers(mockParams, mockLogger)).rejects.toThrowError(
+        new HTTPException(404, { message: 'Organization not found' }),
+      );
+
+      expect(userRepository.getMembers).not.toHaveBeenCalled();
+    });
+
+    it('should handle total pages logic gracefully when total is 0', async () => {
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce(mockOrg as any);
+      vi.mocked(userRepository.getMembers).mockResolvedValueOnce({
+        items: [],
+        total: 0,
+      } as any);
+
+      const result = await getOrganizationMembers({ ...mockParams, page: 1 }, mockLogger);
+
+      expect(result.meta.totalPages).toBe(0); // Math.ceil(0 / 10)
+      expect(result.data).toEqual([]);
+    });
+
+    it('should prevent Division by Zero edge case by defaulting fallback limits to 1', async () => {
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce(mockOrg as any);
+      vi.mocked(userRepository.getMembers).mockResolvedValueOnce({
+        items: mockItems,
+        total: 5,
+      } as any);
+
+      const result = await getOrganizationMembers(
+        {
+          ...mockParams,
+          limit: 0, // Edge case parameter condition
+        },
+        mockLogger,
+      );
+
+      // Math.ceil(5 / (0 || 1)) -> Math.ceil(5 / 1) -> 5
+      expect(result.meta.totalPages).toBe(5);
     });
   });
 });
