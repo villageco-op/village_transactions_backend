@@ -178,7 +178,7 @@ export const PaginationMetadataSchema = z
 export const UserBasicInfoSchema = z.object({
   id: z.string(),
   name: z.string().nullable().optional(),
-  organization: z.string().nullable().optional(),
+  organizationId: EntityIdField.nullable().optional(),
   email: z.string().nullable().optional(),
   location: LocationSchema.nullable().optional(),
 });

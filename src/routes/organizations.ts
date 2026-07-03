@@ -12,17 +12,21 @@ import {
   CheckSubdomainQuerySchema,
   CheckSubdomainResponseSchema,
   CreateOrganizationSchema,
+  GetOrgMembersQuerySchema,
   OrganizationSchema,
+  OrgMembersListResponseSchema,
   RemoveUserFromOrgSchema,
   UpdateOrganizationSchema,
   UpdateUserRoleResponseSchema,
   UpdateUserRoleSchema,
 } from '../schemas/organization.schema.js';
+import { getPaginationParams } from '../schemas/util/pagination.js';
 import {
   checkSubdomainAvailability,
   createOrganization,
   deleteOrganization,
   getOrganization,
+  getOrganizationMembers,
   removeUserFromOrganization,
   updateOrganization,
   updateUserRoleInOrganization,
@@ -352,5 +356,61 @@ organizationsRoute.openapi(
 
     await updateUserRoleInOrganization(callerId, userId, role, log);
     return c.json({ success: true, userId, role }, 200);
+  },
+);
+
+organizationsRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}/members',
+    operationId: 'getOrganizationMembers',
+    description:
+      'Retrieve a paginated and filterable list of members belonging to an organization.',
+    tags: [TAGS.ORGANIZATIONS],
+    middleware: [verifyAuth()],
+    request: {
+      params: EntityParamSchema,
+      query: GetOrgMembersQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'List of organization members retrieved successfully',
+        content: { 'application/json': { schema: OrgMembersListResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized user context',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Organization not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    if (!authUser?.session?.user?.id) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id } = c.req.valid('param');
+    const query = c.req.valid('query');
+    const { limit, offset } = getPaginationParams(query.page, query.limit);
+
+    const log = c.get('logger').child({ action: 'getOrganizationMembers', orgId: id });
+
+    const paginatedMembers = await getOrganizationMembers(
+      {
+        orgId: id,
+        search: query.search,
+        role: query.role,
+        page: query.page ?? 1,
+        limit,
+        offset,
+      },
+      log,
+    );
+
+    return c.json(paginatedMembers, 200);
   },
 );

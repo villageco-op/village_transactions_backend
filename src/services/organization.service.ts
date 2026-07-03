@@ -348,3 +348,46 @@ export async function updateUserRoleInOrganization(
 
   return updatedTarget;
 }
+
+/**
+ * Retrieves a paginated and filtered list of organization members.
+ * @param params - Configuration options for retrieving organization members.
+ * @param params.orgId - The organization Id
+ * @param params.search - Search by user name or email
+ * @param params.role - Filter by user organization role
+ * @param params.page
+ * @param params.limit - Maximum number of results
+ * @param params.offset - Pagination start index
+ * @param log - App logger that defaults to a blank logger
+ * @returns Paginated results containing the data array and response metadata.
+ */
+export async function getOrganizationMembers(
+  params: {
+    orgId: string;
+    search?: string;
+    role?: OrgRole;
+    page: number;
+    limit: number;
+    offset: number;
+  },
+  log: AppLogger = noopLogger,
+) {
+  const currentOrg = await organizationRepository.findById(params.orgId);
+  if (!currentOrg) {
+    throw new HTTPException(404, { message: 'Organization not found' });
+  }
+
+  const { items, total } = await userRepository.getMembers(params);
+
+  log.info({ orgId: params.orgId, total }, 'Retrieved organization members list');
+
+  return {
+    data: items,
+    meta: {
+      total,
+      page: params.page,
+      limit: params.limit,
+      totalPages: Math.ceil(total / (params.limit || 1)),
+    },
+  };
+}

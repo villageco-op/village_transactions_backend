@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 
-import { eq, type SQL, sql } from 'drizzle-orm';
+import { and, eq, type SQL, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { users } from '../db/schema.js';
@@ -303,5 +303,64 @@ export const userRepository = {
     }
 
     return newUser;
+  },
+
+  /**
+   * Retrieves organization members based on filters and pagination limits.
+   * @param params - Search parameters
+   * @param params.orgId - The organization Id
+   * @param params.search - Search by user name or email
+   * @param params.role - Filter by user organization role
+   * @param params.limit - Maximum number of results
+   * @param params.offset - Pagination start index
+   * @returns A list of users and the total
+   */
+  async getMembers(params: {
+    orgId: string;
+    search?: string;
+    role?: OrgRole;
+    limit: number;
+    offset: number;
+  }) {
+    const { orgId, search, role, limit, offset } = params;
+
+    const conditions = [eq(users.organizationId, orgId)];
+
+    if (role) {
+      conditions.push(eq(users.orgRole, role));
+    }
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      conditions.push(
+        sql`(${users.name} ILIKE ${searchPattern} OR ${users.email}::text ILIKE ${searchPattern})`,
+      );
+    }
+
+    const whereClause = and(...conditions);
+
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(users)
+      .where(whereClause);
+
+    const total = totalCountResult?.count || 0;
+
+    const items = await this.db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.orgRole,
+        joinedAt: users.createdAt,
+      })
+      .from(users)
+      .where(whereClause)
+      .limit(limit)
+      .offset(offset);
+
+    return { items, total };
   },
 };

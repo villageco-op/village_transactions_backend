@@ -540,4 +540,156 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('getMembers', () => {
+    const ORG_A = crypto.randomUUID();
+    const ORG_B = crypto.randomUUID();
+
+    beforeEach(async () => {
+      await testDb.insert(users).values([
+        {
+          id: 'user_1',
+          name: 'Alice Smith',
+          email: 'alice@example.com',
+          organizationId: ORG_A,
+          orgRole: 'admin',
+          createdAt: new Date('2026-01-01'),
+        },
+        {
+          id: 'user_2',
+          name: 'Bob Jones',
+          email: 'bob.jones@example.com',
+          organizationId: ORG_A,
+          orgRole: 'member',
+          createdAt: new Date('2026-01-02'),
+        },
+        {
+          id: 'user_3',
+          name: 'Charlie Smith',
+          email: 'charlie.s@test.com',
+          organizationId: ORG_A,
+          orgRole: 'member',
+          createdAt: new Date('2026-01-03'),
+        },
+        {
+          id: 'user_4',
+          name: null,
+          email: 'anonymous@example.com',
+          organizationId: ORG_A,
+          orgRole: 'member',
+          createdAt: new Date('2026-01-04'),
+        },
+        {
+          id: 'user_5',
+          name: 'Alice WrongOrg',
+          email: 'alice.wrong@example.com',
+          organizationId: ORG_B,
+          orgRole: 'admin',
+          createdAt: new Date('2026-01-01'),
+        },
+      ]);
+    });
+
+    it('should retrieve all members belonging to a specific organization and return the total count', async () => {
+      const result = await userRepository.getMembers({
+        orgId: ORG_A,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(4);
+      expect(result.items).toHaveLength(4);
+
+      const hasWrongOrg = result.items.some((item) => item.id === 'user_5');
+      expect(hasWrongOrg).toBe(false);
+    });
+
+    it('should respect limit and offset pagination parameters', async () => {
+      const page1 = await userRepository.getMembers({
+        orgId: ORG_A,
+        limit: 2,
+        offset: 0,
+      });
+
+      expect(page1.total).toBe(4);
+      expect(page1.items).toHaveLength(2);
+
+      const page2 = await userRepository.getMembers({
+        orgId: ORG_A,
+        limit: 2,
+        offset: 2,
+      });
+
+      expect(page2.items).toHaveLength(2);
+
+      // Ensure distinct items were returned across pages
+      const page1Ids = page1.items.map((i) => i.id);
+      const page2Ids = page2.items.map((i) => i.id);
+      expect(page1Ids).not.toEqual(expect.arrayContaining(page2Ids));
+    });
+
+    it('should filter results by orgRole when provided', async () => {
+      const result = await userRepository.getMembers({
+        orgId: ORG_A,
+        role: 'admin',
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe('user_1');
+      expect(result.items[0].role).toBe('admin');
+    });
+
+    it('should case-insensitively fuzzy-match search queries against name or email', async () => {
+      const nameSearchResult = await userRepository.getMembers({
+        orgId: ORG_A,
+        search: 'sMiTh',
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(nameSearchResult.total).toBe(2);
+      expect(nameSearchResult.items.map((i) => i.id)).toEqual(
+        expect.arrayContaining(['user_1', 'user_3']),
+      );
+
+      const emailSearchResult = await userRepository.getMembers({
+        orgId: ORG_A,
+        search: 'jones',
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(emailSearchResult.total).toBe(1);
+      expect(emailSearchResult.items[0].id).toBe('user_2');
+    });
+
+    it('should combine multiple filters (search + role) together cleanly', async () => {
+      const result = await userRepository.getMembers({
+        orgId: ORG_A,
+        search: 'Smith',
+        role: 'member',
+        limit: 10,
+        offset: 0,
+      });
+
+      // Matches Charlie Smith (member) but skips Alice Smith (admin)
+      expect(result.total).toBe(1);
+      expect(result.items[0].id).toBe('user_3');
+    });
+
+    it('should return empty lists and 0 total when no rows match criteria', async () => {
+      const result = await userRepository.getMembers({
+        orgId: ORG_A,
+        search: 'nonexistent-string-value',
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(0);
+      expect(result.items).toEqual([]);
+    });
+  });
 });

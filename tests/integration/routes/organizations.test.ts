@@ -625,4 +625,161 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(404);
     });
   });
+
+  describe('GET /api/organizations/:id/members', () => {
+    const CALLER_ID = 'auth_caller_user_id';
+
+    it('should successfully return a paginated list of organization members with status 200', async () => {
+      const ORG_ID = crypto.randomUUID();
+
+      await testDb.insert(organizations).values({
+        id: ORG_ID,
+        name: 'The Testing Hub',
+        type: 'pantry',
+        subdomain: 'test-hub-1',
+        city: 'Chicago',
+        state: 'IL',
+        country: 'United States',
+        zip: '60601',
+      });
+
+      await testDb.insert(users).values([
+        {
+          id: CALLER_ID,
+          name: 'Caller User',
+          email: 'caller@testhub.org',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+        {
+          id: 'member_2',
+          name: 'Jane Smith',
+          email: 'jane.smith@testhub.org',
+          organizationId: ORG_ID,
+          orgRole: 'admin',
+        },
+        {
+          id: 'member_3',
+          name: 'Bob Jackson',
+          email: 'bob.j@testhub.org',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+      ]);
+
+      const res = await authedRequest(
+        `/api/organizations/${ORG_ID}/members?page=1&limit=2`,
+        { method: 'GET' },
+        { id: CALLER_ID },
+      );
+
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+
+      expect(body).toHaveProperty('data');
+      expect(body).toHaveProperty('meta');
+
+      expect(body.data).toHaveLength(2);
+      expect(body.meta).toEqual({
+        total: 3,
+        page: 1,
+        limit: 2,
+        totalPages: 2,
+      });
+
+      const firstMember = body.data[0];
+      expect(firstMember).toHaveProperty('id');
+      expect(firstMember).toHaveProperty('name');
+      expect(firstMember).toHaveProperty('email');
+      expect(firstMember).toHaveProperty('role');
+      expect(firstMember).not.toHaveProperty('organizationId');
+    });
+
+    it('should correctly filter the output list using search and role query parameters', async () => {
+      const ORG_ID = crypto.randomUUID();
+
+      await testDb.insert(organizations).values({
+        id: ORG_ID,
+        name: 'The Testing Hub',
+        type: 'pantry',
+        subdomain: 'test-hub-2',
+        city: 'Chicago',
+        state: 'IL',
+        country: 'United States',
+        zip: '60601',
+      });
+
+      await testDb.insert(users).values([
+        {
+          id: CALLER_ID,
+          name: 'Caller User',
+          email: 'caller@testhub.org',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+        {
+          id: 'member_2',
+          name: 'Jane Smith',
+          email: 'jane.smith@testhub.org',
+          organizationId: ORG_ID,
+          orgRole: 'admin',
+        },
+        {
+          id: 'member_3',
+          name: 'Bob Jackson',
+          email: 'bob.j@testhub.org',
+          organizationId: ORG_ID,
+          orgRole: 'member',
+        },
+      ]);
+
+      const res = await authedRequest(
+        `/api/organizations/${ORG_ID}/members?search=Jane&role=admin`,
+        { method: 'GET' },
+        { id: CALLER_ID },
+      );
+
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].id).toBe('member_2');
+      expect(body.meta.total).toBe(1);
+    });
+
+    it('should return 404 error if target organization ID does not exist', async () => {
+      const nonExistentOrgId = crypto.randomUUID();
+
+      const res = await authedRequest(
+        `/api/organizations/${nonExistentOrgId}/members`,
+        { method: 'GET' },
+        { id: CALLER_ID },
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should return 401 error if the context authorization layer fails', async () => {
+      const ORG_ID = crypto.randomUUID();
+      await testDb.insert(organizations).values({
+        id: ORG_ID,
+        name: 'The Testing Hub',
+        type: 'pantry',
+        subdomain: 'test-hub-3',
+        city: 'Chicago',
+        state: 'IL',
+        country: 'United States',
+        zip: '60601',
+      });
+
+      const res = await authedRequest(
+        `/api/organizations/${ORG_ID}/members`,
+        { method: 'GET' },
+        { id: '' },
+      );
+
+      expect(res.status).toBe(401);
+    });
+  });
 });
