@@ -7,6 +7,7 @@ import {
   getTestDb,
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
+import { accountRepository } from '../../../src/repositories/account.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
 import {
@@ -19,7 +20,10 @@ import {
   produce,
 } from '../../../src/db/schema.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
+import { sessionRepository } from '../../../src/repositories/session.repository.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { request } from '../../test-utils/request.js';
 import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
 import * as stripeService from '../../../src/services/stripe.service.js';
@@ -47,6 +51,10 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     orderRepository.setDb(testDb);
     reviewRepository.setDb(testDb);
     fcmRepository.setDb(testDb);
+    subscriptionRepository.setDb(testDb);
+    produceRepository.setDb(testDb);
+    accountRepository.setDb(testDb);
+    sessionRepository.setDb(testDb);
   });
 
   afterAll(async () => {

@@ -692,7 +692,7 @@ describe('Organizations API - Integration', { timeout: 60_000 }, () => {
       expect(firstMember).toHaveProperty('id');
       expect(firstMember).toHaveProperty('name');
       expect(firstMember).toHaveProperty('email');
-      expect(firstMember).toHaveProperty('role');
+      expect(firstMember).toHaveProperty('orgRole');
       expect(firstMember).not.toHaveProperty('organizationId');
     });
 

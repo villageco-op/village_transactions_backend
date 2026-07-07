@@ -7,6 +7,7 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { buyerRepository } from '../../../src/repositories/buyer.repository.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { users, produce, orders, orderItems } from '../../../src/db/schema.js';
 import { sql } from 'drizzle-orm';
@@ -22,6 +23,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
     testDb = getTestDb();
     buyerRepository.setDb(testDb);
     userRepository.setDb(testDb);
+    subscriptionRepository.setDb(testDb);
   });
 
   afterAll(async () => {
