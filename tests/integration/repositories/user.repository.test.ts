@@ -639,7 +639,7 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       expect(result.total).toBe(1);
       expect(result.items).toHaveLength(1);
       expect(result.items[0].id).toBe('user_1');
-      expect(result.items[0].role).toBe('admin');
+      expect(result.items[0].orgRole).toBe('admin');
     });
 
     it('should case-insensitively fuzzy-match search queries against name or email', async () => {

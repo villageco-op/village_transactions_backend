@@ -353,7 +353,7 @@ export const userRepository = {
         id: users.id,
         name: users.name,
         email: users.email,
-        role: users.orgRole,
+        orgRole: users.orgRole,
         joinedAt: users.createdAt,
       })
       .from(users)

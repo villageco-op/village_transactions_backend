@@ -8,6 +8,8 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { users, produce, subscriptions } from '../../../src/db/schema.js';
+import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
+import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import * as stripeService from '../../../src/services/stripe.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
@@ -26,6 +28,8 @@ describe('Subscriptions API Integration', { timeout: 60_000 }, () => {
     testDb = getTestDb();
     subscriptionRepository.setDb(testDb);
     userRepository.setDb(testDb);
+    produceRepository.setDb(testDb);
+    fcmRepository.setDb(testDb);
   });
 
   afterAll(async () => {

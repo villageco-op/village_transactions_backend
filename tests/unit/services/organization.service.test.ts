@@ -629,7 +629,7 @@ describe('OrganizationService Unit Tests', () => {
         id: 'user_1',
         name: 'John Doe',
         email: 'john@example.com',
-        role: 'member',
+        orgRole: 'member',
         joinedAt: new Date(),
       },
     ];

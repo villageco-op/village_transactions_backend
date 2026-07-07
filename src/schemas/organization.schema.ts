@@ -117,7 +117,11 @@ export const GetOrgMembersQuerySchema = z
 export const OrgMemberResponseSchema = UserBasicInfoSchema.omit({
   organizationId: true,
   location: true,
-}).openapi('OrgMember');
+})
+  .extend({
+    orgRole: OrgRoleSchema.nullable(),
+  })
+  .openapi('OrgMember');
 
 export const OrgMembersListResponseSchema = z
   .object({
