@@ -15,6 +15,7 @@ export type Organization = InferSelectModel<typeof schema.organizations>;
 export type NewOrganization = InferInsertModel<typeof schema.organizations>;
 export type OrgRole = InferEnum<typeof schema.orgRoleEnum>;
 export type OrgType = InferEnum<typeof schema.orgTypeEnum>;
+export type OrgInviteStatus = InferEnum<typeof schema.orgInviteStatusEnum>;
 export type DbClient = PgDatabase<NeonQueryResultHKT, typeof schema>;
 export type DbTransaction = PgTransaction<
   NeonQueryResultHKT,

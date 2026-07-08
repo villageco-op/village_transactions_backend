@@ -4,8 +4,14 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.schema.js';
-import { AcceptInviteSchema, CreateInviteSchema } from '../schemas/invite.schema.js';
-import { createOrgInvite, acceptOrgInvite } from '../services/invite.service.js';
+import {
+  AcceptInviteSchema,
+  CreateInviteSchema,
+  GetInvitesQuerySchema,
+  InvitesListResponseSchema,
+} from '../schemas/invite.schema.js';
+import { getPaginationParams } from '../schemas/util/pagination.js';
+import { createOrgInvite, acceptOrgInvite, getOrgInvites } from '../services/invite.service.js';
 
 export const invitesRoute = new OpenAPIHono<RouteEnv>();
 
@@ -97,6 +103,66 @@ invitesRoute.openapi(
     const log = c.get('logger').child({ action: 'acceptInvite' });
 
     const result = await acceptOrgInvite(payload, log);
+    return c.json(result, 200);
+  },
+);
+
+invitesRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/list',
+    operationId: 'getOrgInvites',
+    description: 'Retrieve paginated invites for an organization. Accessible only by admins.',
+    tags: [TAGS.INVITES],
+    middleware: [verifyAuth()],
+    request: {
+      query: GetInvitesQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'Paginated list of organization invites',
+        content: { 'application/json': { schema: InvitesListResponseSchema } },
+      },
+      400: {
+        description: 'Bad request or malformed parameter values',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      401: {
+        description: 'Caller authentication failed',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: 'Insufficient permissions',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Missing organization',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const callerUserId = authUser?.session?.user?.id;
+    if (!callerUserId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const query = c.req.valid('query');
+    const { limit, offset } = getPaginationParams(query.page, query.limit);
+    const log = c.get('logger').child({ action: 'getOrgInvites' });
+
+    const result = await getOrgInvites(
+      callerUserId,
+      {
+        status: query.status,
+        page: Number(query.page || 1),
+        limit,
+        offset,
+      },
+      log,
+    );
+
     return c.json(result, 200);
   },
 );

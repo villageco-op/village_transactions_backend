@@ -61,6 +61,7 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
 ]);
 export const orgTypeEnum = pgEnum('org_type', ['pantry', 'restaurant']);
 export const orgRoleEnum = pgEnum('org_role', ['admin', 'member']);
+export const orgInviteStatusEnum = pgEnum('org_invite_status', ['pending', 'accepted', 'expired']);
 
 const geography = customType<{ data: string }>({
   dataType() {
@@ -177,8 +178,9 @@ export const invites = pgTable(
     orgId: uuid('org_id')
       .references(() => organizations.id, { onDelete: 'cascade' })
       .notNull(),
-    code: varchar('code', { length: 255 }).notNull(),
+    code: varchar('code', { length: 255 }),
     role: orgRoleEnum().notNull(),
+    status: orgInviteStatusEnum().default('pending').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },

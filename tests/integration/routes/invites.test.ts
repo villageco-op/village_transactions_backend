@@ -252,7 +252,7 @@ describe('Invites API - Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(404);
     });
 
-    it('should return 200, apply organization profile parameters to user, and remove the processed invite row', async () => {
+    it('should return 200, apply organization profile parameters to user, and mark the processed invite row as accepted', async () => {
       const inviteId = crypto.randomUUID();
       await testDb.insert(invites).values({
         id: inviteId,
@@ -281,13 +281,126 @@ describe('Invites API - Integration', { timeout: 60_000 }, () => {
       expect(body).toEqual({ success: true });
 
       const [updatedUser] = await testDb.select().from(users).where(eq(users.id, TARGET_USER_ID));
-
       expect(updatedUser.organizationId).toBe(defaultOrgId);
       expect(updatedUser.orgRole).toBe('admin');
 
-      const [deletedInvite] = await testDb.select().from(invites).where(eq(invites.id, inviteId));
+      const [updatedInvite] = await testDb.select().from(invites).where(eq(invites.id, inviteId));
+      expect(updatedInvite).toBeDefined();
+      expect(updatedInvite.status).toBe('accepted');
+      expect(updatedInvite.code).toBeNull();
+    });
+  });
 
-      expect(deletedInvite).toBeUndefined();
+  describe('GET /api/invites/list', () => {
+    const ADMIN_USER_ID = 'admin-user-uuid-888';
+    const MEMBER_USER_ID = 'member-user-uuid-444';
+
+    beforeEach(async () => {
+      await testDb.insert(users).values({
+        id: ADMIN_USER_ID,
+        email: 'admin@example.com',
+        organizationId: defaultOrgId,
+        orgRole: 'admin',
+      });
+
+      await testDb.insert(users).values({
+        id: MEMBER_USER_ID,
+        email: 'member@example.com',
+        organizationId: defaultOrgId,
+        orgRole: 'member',
+      });
+
+      await testDb.insert(invites).values([
+        {
+          id: crypto.randomUUID(),
+          email: 'invite1@example.com',
+          orgId: defaultOrgId,
+          code: 'CODE1',
+          role: 'member',
+          status: 'pending',
+          expiresAt: new Date('2026-06-30T12:00:00Z'),
+          createdAt: new Date('2026-06-23T11:00:00Z'),
+        },
+        {
+          id: crypto.randomUUID(),
+          email: 'invite2@example.com',
+          orgId: defaultOrgId,
+          code: 'CODE2',
+          role: 'member',
+          status: 'accepted',
+          expiresAt: new Date('2026-06-30T12:00:00Z'),
+          createdAt: new Date('2026-06-23T10:00:00Z'),
+        },
+      ]);
+    });
+
+    it('should return 401 Unauthorized if the client lacks a session', async () => {
+      const res = await authedRequest(
+        '/api/invites/list?page=1&limit=10',
+        { method: 'GET' },
+        { id: '' },
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 403 Forbidden if the calling user is not an organization admin', async () => {
+      const res = await authedRequest(
+        '/api/invites/list?page=1&limit=10',
+        { method: 'GET' },
+        { id: MEMBER_USER_ID },
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('should return 404 Not Found if the caller has no organization association profile', async () => {
+      const unaffiliatedUserId = crypto.randomUUID();
+      await testDb.insert(users).values({
+        id: unaffiliatedUserId,
+        email: 'lonewolf@example.com',
+        organizationId: null,
+        orgRole: 'admin',
+      });
+
+      const res = await authedRequest(
+        '/api/invites/list?page=1&limit=10',
+        { method: 'GET' },
+        { id: unaffiliatedUserId },
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it('should return 200 with paginated invites and metadata when executed by an admin', async () => {
+      const res = await authedRequest(
+        '/api/invites/list?page=1&limit=1',
+        { method: 'GET' },
+        { id: ADMIN_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.data).toBeInstanceOf(Array);
+      expect(body.data.length).toBe(1);
+      expect(body.meta).toEqual({
+        total: 2,
+        page: 1,
+        limit: 1,
+        totalPages: expect.any(Number),
+      });
+      expect(body.data[0].email).toBe('invite1@example.com');
+    });
+
+    it('should cleanly apply status parameter filters', async () => {
+      const res = await authedRequest(
+        '/api/invites/list?page=1&limit=10&status=accepted',
+        { method: 'GET' },
+        { id: ADMIN_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.data.every((invite: any) => invite.status === 'accepted')).toBe(true);
     });
   });
 });

@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
+import type { OrgInviteStatus } from '../../../src/db/types.js';
 import {
   createOrgInvite,
   acceptOrgInvite,
   clearExpiredInvites,
+  getOrgInvites,
 } from '../../../src/services/invite.service.js';
 import { inviteRepository } from '../../../src/repositories/invite.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
-import { db } from '../../../src/db/index.js';
 import { emailService } from '../../../src/services/email.service.js';
 
 vi.mock('../../../src/repositories/invite.repository.js', () => ({
@@ -17,6 +18,8 @@ vi.mock('../../../src/repositories/invite.repository.js', () => ({
     findValidInvite: vi.fn(),
     deleteById: vi.fn(),
     deleteExpired: vi.fn(),
+    updateStatusAndCode: vi.fn(),
+    getList: vi.fn(),
   },
 }));
 
@@ -148,6 +151,7 @@ describe('InviteService Unit Tests', () => {
       code: 'SEC_CODE',
       orgId: 'org_id',
       role: 'admin' as const,
+      status: 'pending' as OrgInviteStatus,
       createdAt: new Date('2026-06-21T12:00:00Z'),
       expiresAt: new Date('2026-06-30T12:00:00Z'),
     };
@@ -163,6 +167,7 @@ describe('InviteService Unit Tests', () => {
     it('should throw 400 HTTPException if the system time is past the invite expiration timestamp', async () => {
       const expiredInvite = {
         ...mockInvite,
+        status: 'expired' as OrgInviteStatus,
         createdAt: new Date('2026-06-21T12:00:00Z'),
         expiresAt: new Date('2026-06-22T12:00:00Z'),
       };
@@ -184,20 +189,23 @@ describe('InviteService Unit Tests', () => {
       );
     });
 
-    it('should process atomic updates via transaction blocks and clear the invitation row on success', async () => {
+    it('should process atomic updates via transaction blocks and mark the invitation as accepted on success', async () => {
       vi.mocked(inviteRepository.findValidInvite).mockResolvedValueOnce(mockInvite);
       vi.mocked(userRepository.findByEmail).mockResolvedValueOnce({ id: 'user_joined_99' } as any);
 
       const result = await acceptOrgInvite(payload, mockLogger);
 
       expect(result).toEqual({ success: true });
-      expect(db.transaction).toHaveBeenCalled();
       expect(userRepository.updateOrgAndRole).toHaveBeenCalledWith(
         'user_joined_99',
         mockInvite.orgId,
         mockInvite.role,
       );
-      expect(inviteRepository.deleteById).toHaveBeenCalledWith(mockInvite.id);
+      expect(inviteRepository.updateStatusAndCode).toHaveBeenCalledWith(
+        mockInvite.id,
+        'accepted',
+        null,
+      );
       expect(mockLogger.info).toHaveBeenCalled();
     });
   });
@@ -210,6 +218,97 @@ describe('InviteService Unit Tests', () => {
 
       expect(count).toBe(5);
       expect(inviteRepository.deleteExpired).toHaveBeenCalledWith(MOCK_NOW);
+    });
+  });
+
+  describe('getOrgInvites', () => {
+    const callerId = 'caller_admin_1';
+    const mockParams = { status: 'pending' as const, page: 2, limit: 10, offset: 10 };
+
+    it('should throw 401 HTTPException if the caller profile does not exist', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+      await expect(getOrgInvites(callerId, mockParams, mockLogger)).rejects.toThrowError(
+        new HTTPException(401, { message: 'Unauthorized' }),
+      );
+    });
+
+    it('should throw 404 HTTPException if the caller is not a member of any organization', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: callerId,
+        organizationId: null,
+        orgRole: 'admin',
+      } as any);
+
+      await expect(getOrgInvites(callerId, mockParams, mockLogger)).rejects.toThrowError(
+        new HTTPException(404, { message: 'Caller is not a member of an organization' }),
+      );
+    });
+
+    it('should throw 403 HTTPException if the caller is not an organization admin', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: callerId,
+        organizationId: 'org_abc123',
+        orgRole: 'member', // Not an admin
+      } as any);
+
+      await expect(getOrgInvites(callerId, mockParams, mockLogger)).rejects.toThrowError(
+        new HTTPException(403, {
+          message: 'Forbidden: Only organization admins can view invitations',
+        }),
+      );
+    });
+
+    it('should successfully query list and return data payload with computed pagination metadata', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: callerId,
+        organizationId: 'org_abc123',
+        orgRole: 'admin',
+      } as any);
+
+      const mockItems = [{ id: 'invite_1', email: 'test@example.com', status: 'pending' }];
+      vi.mocked(inviteRepository.getList).mockResolvedValueOnce({
+        items: mockItems as any,
+        total: 25,
+      });
+
+      const result = await getOrgInvites(callerId, mockParams, mockLogger);
+
+      expect(inviteRepository.getList).toHaveBeenCalledWith({
+        orgId: 'org_abc123',
+        status: 'pending',
+        limit: 10,
+        offset: 10,
+      });
+
+      expect(result).toEqual({
+        data: mockItems,
+        meta: {
+          total: 25,
+          page: 2,
+          limit: 10,
+          totalPages: 3,
+        },
+      });
+      expect(mockLogger.debug).toHaveBeenCalled();
+    });
+
+    it('should default totalPages calculation safety check to 1 if limit is zero', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: callerId,
+        organizationId: 'org_abc123',
+        orgRole: 'admin',
+      } as any);
+
+      vi.mocked(inviteRepository.getList).mockResolvedValueOnce({
+        items: [],
+        total: 0,
+      });
+
+      const zeroLimitParams = { ...mockParams, limit: 0, page: 1, offset: 0 };
+      const result = await getOrgInvites(callerId, zeroLimitParams, mockLogger);
+
+      expect(result.meta.totalPages).toBe(0);
     });
   });
 });

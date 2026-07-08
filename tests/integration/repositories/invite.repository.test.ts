@@ -250,4 +250,174 @@ describe('InviteRepository - Integration', { timeout: 120_000 }, () => {
       expect(checkedInvites[0].id).toBe(futureInviteId);
     });
   });
+
+  describe('updateStatusAndCode', () => {
+    it('should update both the status and code of an existing invite', async () => {
+      const inviteId = crypto.randomUUID();
+      const initialInvite = {
+        id: inviteId,
+        email: 'update-me@example.com',
+        orgId: defaultOrgId,
+        code: 'OLD_CODE',
+        status: 'pending' as const,
+        role: 'member' as const,
+        expiresAt: new Date(Date.now() + 3600000),
+      };
+
+      await testDb.insert(invites).values(initialInvite);
+
+      const result = await inviteRepository.updateStatusAndCode(inviteId, 'accepted', 'NEW_CODE');
+
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe('accepted');
+      expect(result?.code).toBe('NEW_CODE');
+
+      const [dbRow] = await testDb.select().from(invites).where(eq(invites.id, inviteId));
+      expect(dbRow.status).toBe('accepted');
+      expect(dbRow.code).toBe('NEW_CODE');
+    });
+
+    it('should clear the code when passed null', async () => {
+      const inviteId = crypto.randomUUID();
+      const initialInvite = {
+        id: inviteId,
+        email: 'clear-code@example.com',
+        orgId: defaultOrgId,
+        code: 'MUST_CLEAR',
+        status: 'pending' as const,
+        role: 'member' as const,
+        expiresAt: new Date(Date.now() + 3600000),
+      };
+
+      await testDb.insert(invites).values(initialInvite);
+
+      const result = await inviteRepository.updateStatusAndCode(inviteId, 'expired', null);
+
+      expect(result).not.toBeNull();
+      expect(result?.code).toBeNull();
+      expect(result?.status).toBe('expired');
+    });
+
+    it('should return null if trying to update a non-existent invite', async () => {
+      const nonExistentId = crypto.randomUUID();
+      const result = await inviteRepository.updateStatusAndCode(nonExistentId, 'accepted', 'CODE');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getList', () => {
+    const baseInvite = {
+      role: 'member' as const,
+      code: 'ABC',
+    };
+
+    beforeEach(async () => {
+      await testDb.insert(invites).values([
+        {
+          ...baseInvite,
+          id: crypto.randomUUID(),
+          email: 'pending-valid@example.com',
+          orgId: defaultOrgId,
+          status: 'pending',
+          expiresAt: new Date('2020-06-23T13:00:00Z'),
+          createdAt: new Date('2020-06-23T10:00:00Z'),
+        },
+        {
+          ...baseInvite,
+          id: crypto.randomUUID(),
+          email: 'pending-expired@example.com',
+          orgId: defaultOrgId,
+          status: 'pending',
+          expiresAt: new Date('2020-06-23T11:00:00Z'),
+          createdAt: new Date('2020-06-23T09:00:00Z'),
+        },
+        {
+          ...baseInvite,
+          id: crypto.randomUUID(),
+          email: 'explicit-accepted@example.com',
+          orgId: defaultOrgId,
+          status: 'accepted',
+          expiresAt: new Date('2020-06-23T14:00:00Z'),
+          createdAt: new Date('2020-06-23T08:00:00Z'),
+        },
+      ]);
+    });
+
+    it('should fetch list with total counts ordered by createdAt desc', async () => {
+      const result = await inviteRepository.getList({
+        orgId: defaultOrgId,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(3);
+      expect(result.items.length).toBe(3);
+
+      expect(result.items[0].email).toBe('pending-valid@example.com');
+      expect(result.items[1].email).toBe('pending-expired@example.com');
+      expect(result.items[2].email).toBe('explicit-accepted@example.com');
+    });
+
+    it('should respect pagination limit and offset parameters', async () => {
+      const result = await inviteRepository.getList({
+        orgId: defaultOrgId,
+        limit: 1,
+        offset: 1,
+      });
+
+      expect(result.total).toBe(3);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].email).toBe('pending-expired@example.com');
+    });
+
+    it('should correctly map dynamically expired invites and filter via status=expired', async () => {
+      const result = await inviteRepository.getList({
+        orgId: defaultOrgId,
+        status: 'expired',
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.items[0].email).toBe('pending-expired@example.com');
+      expect(result.items[0].status).toBe('expired');
+    });
+
+    it('should only return actually pending invites (not expired ones) when status=pending', async () => {
+      const result = await inviteRepository.getList({
+        orgId: defaultOrgId,
+        status: 'pending',
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.items[0].email).toBe('pending-valid@example.com');
+      expect(result.items[0].status).toBe('pending');
+    });
+
+    it('should filter cleanly by standard database statuses like status=accepted', async () => {
+      const result = await inviteRepository.getList({
+        orgId: defaultOrgId,
+        status: 'accepted',
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.items[0].email).toBe('explicit-accepted@example.com');
+    });
+
+    it('should isolate results by organization ID', async () => {
+      const emptyOrgId = crypto.randomUUID();
+      const result = await inviteRepository.getList({
+        orgId: emptyOrgId,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(0);
+      expect(result.items.length).toBe(0);
+    });
+  });
 });

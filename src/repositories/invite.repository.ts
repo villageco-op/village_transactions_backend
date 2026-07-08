@@ -1,8 +1,8 @@
-import { eq, and, lt, desc } from 'drizzle-orm';
+import { eq, and, lt, desc, gte, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { invites } from '../db/schema.js';
-import type { DbClient, Invite, NewInvite } from '../db/types.js';
+import type { DbClient, Invite, NewInvite, OrgInviteStatus } from '../db/types.js';
 
 export const inviteRepository = {
   db: defaultDb as unknown as DbClient,
@@ -81,6 +81,90 @@ export const inviteRepository = {
   async deleteExpired(now: Date): Promise<number> {
     const result = await this.db.delete(invites).where(lt(invites.expiresAt, now));
     return result.rowCount ?? 0;
+  },
+
+  /**
+   * Updates the status and code for an invitation.
+   * @param id - The invite Id
+   * @param status - The new status
+   * @param code - The new code (null clears it)
+   * @returns The updated invite
+   */
+  async updateStatusAndCode(
+    id: string,
+    status: OrgInviteStatus,
+    code: string | null,
+  ): Promise<Invite | null> {
+    const [updated] = await this.db
+      .update(invites)
+      .set({ status, code })
+      .where(eq(invites.id, id))
+      .returning();
+    return updated ?? null;
+  },
+
+  /**
+   * Gets a list of invites for an organization.
+   * @param params - Search parameters
+   * @param params.orgId - The organization Id
+   * @param params.status - Filter by status
+   * @param params.limit - Max number of invites
+   * @param params.offset - The start index
+   * @returns A list of invites and the total
+   */
+  async getList(params: {
+    orgId: string;
+    status?: OrgInviteStatus;
+    limit: number;
+    offset: number;
+  }) {
+    const { orgId, status, limit, offset } = params;
+    const conditions = [eq(invites.orgId, orgId)];
+
+    if (status) {
+      const now = new Date();
+      if (status === 'expired') {
+        conditions.push(eq(invites.status, 'pending'));
+        conditions.push(lt(invites.expiresAt, now));
+      } else if (status === 'pending') {
+        conditions.push(eq(invites.status, 'pending'));
+        conditions.push(gte(invites.expiresAt, now));
+      } else {
+        conditions.push(eq(invites.status, status));
+      }
+    }
+
+    const whereClause = and(...conditions);
+
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(invites)
+      .where(whereClause);
+
+    const total = totalCountResult?.count || 0;
+
+    const items = await this.db
+      .select()
+      .from(invites)
+      .where(whereClause)
+      .orderBy(desc(invites.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const mappedItems = items.map((item) => {
+      let currentStatus = item.status;
+      if (item.status === 'pending' && new Date() > item.expiresAt) {
+        currentStatus = 'expired';
+      }
+      return {
+        ...item,
+        status: currentStatus,
+      };
+    });
+
+    return { items: mappedItems, total };
   },
 
   /**
