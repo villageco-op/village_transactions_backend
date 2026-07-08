@@ -43,6 +43,7 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('Season', Common.SeasonSchema);
   app.openAPIRegistry.register('orgType', Common.OrgTypeSchema);
   app.openAPIRegistry.register('orgRole', Common.OrgRoleSchema);
+  app.openAPIRegistry.register('OrgInviteStatus', Common.OrgInviteStatusSchema);
 
   // Scalars & Specific Fields
   app.openAPIRegistry.register('UserId', Common.UserIdSchema);
@@ -228,4 +229,6 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   // Invites
   app.openAPIRegistry.register('CreateInvitePayload', Invites.CreateInviteSchema);
   app.openAPIRegistry.register('AcceptInvitePayload', Invites.AcceptInviteSchema);
+  app.openAPIRegistry.register('GetInvitesQuery', Invites.GetInvitesQuerySchema);
+  app.openAPIRegistry.register('InvitesListResponse', Invites.InvitesListResponseSchema);
 }

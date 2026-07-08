@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 
 import { HTTPException } from 'hono/http-exception';
 
-import type { OrgRole } from '../db/types.js';
+import type { OrgInviteStatus, OrgRole } from '../db/types.js';
 import type { AppLogger } from '../interfaces/logger.interface.js';
 import { inviteRepository } from '../repositories/invite.repository.js';
 import { transactionRepository } from '../repositories/transaction.repository.js';
@@ -105,7 +105,7 @@ export async function acceptOrgInvite(
 
   await transactionRepository.run([
     () => userRepository.updateOrgAndRole(targetUser.id, invite.orgId, invite.role),
-    () => inviteRepository.deleteById(invite.id),
+    () => inviteRepository.updateStatusAndCode(invite.id, 'accepted', null),
   ]);
 
   log.info(
@@ -113,6 +113,67 @@ export async function acceptOrgInvite(
     'User successfully accepted invite, joined organization, and was assigned an org role',
   );
   return { success: true };
+}
+
+/**
+ * Get a list of organization invites for the org associated with the calling user.
+ * @param callerUserId - The user Id
+ * @param params - Pagination and filter parameters
+ * @param params.status - Optional invite status filter
+ * @param params.page - The pagination page
+ * @param params.limit - The max number of results
+ * @param params.offset - The start index
+ * @param log - App logger that defaults to a blank logger
+ * @returns A list of organization invitations
+ */
+export async function getOrgInvites(
+  callerUserId: string,
+  params: {
+    status?: OrgInviteStatus;
+    page: number;
+    limit: number;
+    offset: number;
+  },
+  log: AppLogger,
+) {
+  const callerUser = await userRepository.findById(callerUserId);
+
+  if (!callerUser) {
+    throw new HTTPException(401, { message: 'Unauthorized' });
+  }
+
+  if (!callerUser.organizationId) {
+    throw new HTTPException(404, { message: 'Caller is not a member of an organization' });
+  }
+
+  const userRole = callerUser.orgRole;
+  if (userRole !== 'admin') {
+    throw new HTTPException(403, {
+      message: 'Forbidden: Only organization admins can view invitations',
+    });
+  }
+
+  log.debug(
+    { orgId: callerUser.organizationId, status: params.status },
+    'Fetching paginated organization invites',
+  );
+
+  const { items, total } = await inviteRepository.getList({
+    orgId: callerUser.organizationId,
+    status: params.status,
+    limit: params.limit,
+    offset: params.offset,
+  });
+
+  return {
+    data: items,
+    meta: {
+      total,
+      page: params.page,
+      limit: params.limit,
+      totalPages: Math.ceil(total / (params.limit || 1)),
+    },
+  };
 }
 
 /**
