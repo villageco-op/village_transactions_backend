@@ -10,7 +10,7 @@ import {
   PaginationQuerySchema,
 } from './common.schema.js';
 
-export const BaseInviteSchema = createSelectSchema(invites);
+export const BaseInviteSchema = createSelectSchema(invites).openapi('Invite');
 
 export const CreateInviteSchema = z
   .object({
