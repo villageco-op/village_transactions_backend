@@ -12,6 +12,7 @@ import {
   UserBasicInfoSchema,
   UserIdSchema,
 } from './common.schema.js';
+import { createPaginatedResponseSchema } from './util/pagination.js';
 
 export const BaseOrganizationSchema = createSelectSchema(organizations).omit({
   location: true,
@@ -123,17 +124,10 @@ export const OrgMemberResponseSchema = UserBasicInfoSchema.omit({
   })
   .openapi('OrgMember');
 
-export const OrgMembersListResponseSchema = z
-  .object({
-    data: z.array(OrgMemberResponseSchema),
-    meta: z.object({
-      total: z.number(),
-      page: z.number(),
-      limit: z.number(),
-      totalPages: z.number(),
-    }),
-  })
-  .openapi('OrgMembersListResponse');
+export const OrgMembersListResponseSchema = createPaginatedResponseSchema(
+  OrgMemberResponseSchema,
+  'OrgMembersListResponse',
+);
 
 export type UpdateOrganizationPayload = z.infer<typeof UpdateOrganizationSchema>;
 export type CreateOrganizationPayload = z.infer<typeof CreateOrganizationSchema>;
