@@ -9,6 +9,7 @@ import {
   OrgRoleSchema,
   PaginationQuerySchema,
 } from './common.schema.js';
+import { createPaginatedResponseSchema } from './util/pagination.js';
 
 export const BaseInviteSchema = createSelectSchema(invites).openapi('Invite');
 
@@ -36,14 +37,7 @@ export const GetInvitesQuerySchema = z
   .extend(PaginationQuerySchema.shape)
   .openapi('GetInvitesQuery');
 
-export const InvitesListResponseSchema = z
-  .object({
-    data: z.array(BaseInviteSchema),
-    meta: z.object({
-      total: z.number(),
-      page: z.number(),
-      limit: z.number(),
-      totalPages: z.number(),
-    }),
-  })
-  .openapi('InvitesListResponse');
+export const InvitesListResponseSchema = createPaginatedResponseSchema(
+  BaseInviteSchema,
+  'InvitesListResponse',
+);
