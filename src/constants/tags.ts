@@ -19,4 +19,5 @@ export const TAGS = {
   LOCATION: 'Location',
   ORGANIZATIONS: 'Organizations',
   INVITES: 'Invites',
+  CLIENTS: 'Clients',
 } as const;

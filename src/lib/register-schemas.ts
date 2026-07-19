@@ -5,6 +5,7 @@ import * as Availability from '../schemas/availability.schema.js';
 import * as Buyer from '../schemas/buyer.schema.js';
 import * as Cart from '../schemas/cart.schema.js';
 import * as Checkout from '../schemas/checkout.schema.js';
+import * as Clients from '../schemas/client.schema.js';
 import * as Common from '../schemas/common.schema.js';
 import * as Contact from '../schemas/contact.schema.js';
 import * as Growers from '../schemas/grower.schema.js';
@@ -232,4 +233,15 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('AcceptInvitePayload', Invites.AcceptInviteSchema);
   app.openAPIRegistry.register('GetInvitesQuery', Invites.GetInvitesQuerySchema);
   app.openAPIRegistry.register('InvitesListResponse', Invites.InvitesListResponseSchema);
+
+  // Clients
+  app.openAPIRegistry.register('Client', Clients.BaseClientSchema);
+  app.openAPIRegistry.register('Referral', Clients.BaseReferralSchema);
+  app.openAPIRegistry.register('SearchReferrerQuery', Clients.SearchReferrerQuerySchema);
+  app.openAPIRegistry.register('SearchReferrerResponse', Clients.SearchReferrerResponseSchema);
+  app.openAPIRegistry.register('CreateClientPayload', Clients.CreateClientSchema);
+  app.openAPIRegistry.register('UpdateClientPayload', Clients.UpdateClientSchema);
+  app.openAPIRegistry.register('GetClientsQuery', Clients.GetClientsQuerySchema);
+  app.openAPIRegistry.register('ClientResponse', Clients.ClientResponseSchema);
+  app.openAPIRegistry.register('ClientsListResponse', Clients.ClientsListResponseSchema);
 }
