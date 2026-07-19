@@ -325,3 +325,29 @@ export const reviews = pgTable(
   },
   (t) => [unique().on(t.buyerId, t.orderId)],
 );
+
+export const clients = pgTable('clients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  active: boolean('active').default(true).notNull(),
+  organizationId: uuid('organization_id')
+    .references(() => organizations.id, { onDelete: 'cascade' })
+    .notNull(),
+  createdById: text('created_by_id')
+    .references(() => users.id, { onDelete: 'set null' })
+    .notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const referrals = pgTable('referrals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  referrerId: uuid('referrer_id')
+    .references(() => clients.id, { onDelete: 'cascade' })
+    .notNull(),
+  referredId: uuid('referred_id').references(() => clients.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
