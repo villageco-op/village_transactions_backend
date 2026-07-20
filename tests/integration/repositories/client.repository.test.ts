@@ -81,6 +81,10 @@ describe('clientRepository - Integration', { timeout: 120_000 }, () => {
         email: 'jane@example.com',
         phone: '1234567890',
         address: '123 Main St',
+        city: 'Town',
+        state: 'WI',
+        country: 'USA',
+        zip: '51123',
         organizationId: defaultOrgId,
         createdById: defaultUserId,
       });

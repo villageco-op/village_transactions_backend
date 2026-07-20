@@ -332,6 +332,10 @@ export const clients = pgTable('clients', {
   email: text('email'),
   phone: text('phone'),
   address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  country: text('country'),
+  zip: text('zip'),
   active: boolean('active').default(true).notNull(),
   organizationId: uuid('organization_id')
     .references(() => organizations.id, { onDelete: 'cascade' })

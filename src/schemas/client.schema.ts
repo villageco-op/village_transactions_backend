@@ -38,6 +38,10 @@ export const CreateClientSchema = z
     email: z.string().email().optional().openapi({ example: 'johndoe@example.com' }),
     phone: z.string().optional().openapi({ example: '+15551234567' }),
     address: z.string().optional().openapi({ example: '123 Main St, Springfield' }),
+    city: z.string().optional().openapi({ example: 'Madison' }),
+    state: z.string().optional().openapi({ example: 'WI' }),
+    country: z.string().optional().openapi({ example: 'United States of America' }),
+    zip: z.string().optional().openapi({ example: '54751' }),
     referrerId: EntityIdField.optional().openapi({
       description: 'The explicit client ID of an existing client who referred this client',
       example: 'a6ccf67a-1ce9-4bba-95df-32efef42d2a4',
@@ -50,7 +54,11 @@ export const UpdateClientSchema = z
     name: z.string().min(1, 'Name is required').optional(),
     email: z.string().email().optional().nullable(),
     phone: z.string().optional().nullable(),
-    address: z.string().optional().nullable(),
+    address: z.string().optional().nullable().openapi({ example: '123 Main St, Springfield' }),
+    city: z.string().optional().openapi({ example: 'Madison' }),
+    state: z.string().optional().openapi({ example: 'WI' }),
+    country: z.string().optional().openapi({ example: 'United States of America' }),
+    zip: z.string().optional().openapi({ example: '54751' }),
   })
   .openapi('UpdateClientPayload');
 
