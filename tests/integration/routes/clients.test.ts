@@ -360,4 +360,148 @@ describe('Clients API - Integration', { timeout: 60_000 }, () => {
       expect(dbRow).toBeUndefined();
     });
   });
+
+  describe('GET /api/clients/:id/referrals', () => {
+    it('should return 401 Unauthorized if authorization credentials are missing', async () => {
+      const res = await authedRequest(
+        `/api/clients/${crypto.randomUUID()}/referrals`,
+        { method: 'GET' },
+        { id: '' },
+      );
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 404 if the referrer client profile does not exist', async () => {
+      const res = await authedRequest(
+        `/api/clients/${crypto.randomUUID()}/referrals`,
+        { method: 'GET' },
+        { id: AUTH_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should return 404 if the referrer client exists but belongs to a different organization', async () => {
+      const altOrgId = crypto.randomUUID();
+      const uniqueSubdomain = `alt-org-${crypto.randomUUID().substring(0, 5)}`;
+      await testDb.insert(organizations).values({
+        id: altOrgId,
+        name: 'Alt Org Route',
+        type: 'pantry',
+        subdomain: uniqueSubdomain,
+        city: 'Madison',
+        state: 'WI',
+        country: 'USA',
+      });
+
+      const altReferrerId = crypto.randomUUID();
+      await testDb.insert(clients).values({
+        id: altReferrerId,
+        name: 'Alt Referrer',
+        organizationId: altOrgId,
+        createdById: AUTH_USER_ID,
+      });
+
+      const res = await authedRequest(
+        `/api/clients/${altReferrerId}/referrals`,
+        { method: 'GET' },
+        { id: AUTH_USER_ID }, // Requests with defaultOrgId context
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should return 200 with an empty list and correct paginated structure if client has no referrals', async () => {
+      const referrerId = crypto.randomUUID();
+      await testDb.insert(clients).values({
+        id: referrerId,
+        name: 'Jane Referrer',
+        organizationId: defaultOrgId,
+        createdById: AUTH_USER_ID,
+      });
+
+      const res = await authedRequest(
+        `/api/clients/${referrerId}/referrals`,
+        { method: 'GET' },
+        { id: AUTH_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toEqual([]);
+      expect(body.meta).toEqual({
+        total: 0,
+        page: 1,
+        limit: 10,
+        totalPages: 0,
+      });
+    });
+
+    it('should return 200 with paginated referrals and correct metadata', async () => {
+      const referrerId = crypto.randomUUID();
+      await testDb.insert(clients).values({
+        id: referrerId,
+        name: 'Jane Referrer',
+        organizationId: defaultOrgId,
+        createdById: AUTH_USER_ID,
+      });
+
+      const referredId1 = crypto.randomUUID();
+      const referredId2 = crypto.randomUUID();
+
+      await testDb.insert(clients).values([
+        {
+          id: referredId1,
+          name: 'Referred Client One',
+          organizationId: defaultOrgId,
+          createdById: AUTH_USER_ID,
+        },
+        {
+          id: referredId2,
+          name: 'Referred Client Two',
+          organizationId: defaultOrgId,
+          createdById: AUTH_USER_ID,
+        },
+      ]);
+
+      await testDb.insert(referrals).values([
+        {
+          id: crypto.randomUUID(),
+          referrerId,
+          referredId: referredId1,
+        },
+        {
+          id: crypto.randomUUID(),
+          referrerId,
+          referredId: referredId2,
+        },
+      ]);
+
+      const res = await authedRequest(
+        `/api/clients/${referrerId}/referrals?page=1&limit=1`,
+        { method: 'GET' },
+        { id: AUTH_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.meta).toEqual({
+        total: 2,
+        page: 1,
+        limit: 1,
+        totalPages: 2,
+      });
+
+      const item = body.data[0];
+      expect(item.id).toBeDefined();
+      expect(item.referredBy).toEqual({
+        id: referrerId,
+        name: 'Jane Referrer',
+        email: null,
+        phone: null,
+      });
+    });
+  });
 });

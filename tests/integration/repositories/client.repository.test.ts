@@ -441,4 +441,142 @@ describe('clientRepository - Integration', { timeout: 120_000 }, () => {
       expect(result.items[0].name).toBe('Lucy van Pelt');
     });
   });
+
+  describe('getReferralsList', () => {
+    let referrerId: string;
+
+    beforeEach(async () => {
+      referrerId = crypto.randomUUID();
+      await testDb.insert(clients).values({
+        id: referrerId,
+        name: 'Jane Referrer',
+        organizationId: defaultOrgId,
+        createdById: defaultUserId,
+      });
+    });
+
+    it('should return empty list if client has no referrals', async () => {
+      const result = await clientRepository.getReferralsList({
+        referrerId,
+        orgId: defaultOrgId,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.items).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+
+    it('should retrieve referrals made by the client within the same organization', async () => {
+      const referredId = crypto.randomUUID();
+      await testDb.insert(clients).values({
+        id: referredId,
+        name: 'John Referred',
+        organizationId: defaultOrgId,
+        createdById: defaultUserId,
+      });
+
+      await testDb.insert(referrals).values({
+        id: crypto.randomUUID(),
+        referrerId,
+        referredId,
+      });
+
+      const result = await clientRepository.getReferralsList({
+        referrerId,
+        orgId: defaultOrgId,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe(referredId);
+      expect(result.items[0].name).toBe('John Referred');
+    });
+
+    it('should respect pagination limit and offset parameters', async () => {
+      const referredIds: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const refId = crypto.randomUUID();
+        referredIds.push(refId);
+        await testDb.insert(clients).values({
+          id: refId,
+          name: `Referred Client ${i}`,
+          organizationId: defaultOrgId,
+          createdById: defaultUserId,
+        });
+
+        await testDb.insert(referrals).values({
+          id: crypto.randomUUID(),
+          referrerId,
+          referredId: refId,
+          createdAt: new Date(MOCK_SYSTEM_TIME.getTime() + i * 1000), // Stagger times to verify sort order
+        });
+      }
+
+      // Limit 2, Offset 0 -> Should return the 2 most recently created referrals (staggered in desc order)
+      const page1 = await clientRepository.getReferralsList({
+        referrerId,
+        orgId: defaultOrgId,
+        limit: 2,
+        offset: 0,
+      });
+
+      expect(page1.total).toBe(3);
+      expect(page1.items).toHaveLength(2);
+      expect(page1.items[0].name).toBe('Referred Client 2');
+      expect(page1.items[1].name).toBe('Referred Client 1');
+
+      // Limit 2, Offset 2 -> Should return the remaining referral
+      const page2 = await clientRepository.getReferralsList({
+        referrerId,
+        orgId: defaultOrgId,
+        limit: 2,
+        offset: 2,
+      });
+
+      expect(page2.total).toBe(3);
+      expect(page2.items).toHaveLength(1);
+      expect(page2.items[0].name).toBe('Referred Client 0');
+    });
+
+    it('should not return referrals belonging to a different organization', async () => {
+      const altOrgId = crypto.randomUUID();
+      const uniqueSubdomain = `alt-org-${crypto.randomUUID().substring(0, 5)}`;
+      await testDb.insert(organizations).values({
+        id: altOrgId,
+        name: 'Alt Org',
+        type: 'pantry',
+        subdomain: uniqueSubdomain,
+        city: 'Madison',
+        state: 'WI',
+        country: 'USA',
+      });
+
+      const referredId = crypto.randomUUID();
+      await testDb.insert(clients).values({
+        id: referredId,
+        name: 'Alt John Referred',
+        organizationId: altOrgId,
+        createdById: defaultUserId,
+      });
+
+      await testDb.insert(referrals).values({
+        id: crypto.randomUUID(),
+        referrerId,
+        referredId,
+      });
+
+      const result = await clientRepository.getReferralsList({
+        referrerId,
+        orgId: defaultOrgId,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.items).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+  });
 });

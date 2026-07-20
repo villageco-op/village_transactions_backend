@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 
-import type { AppLogger } from '../interfaces/logger.interface.js';
+import { noopLogger, type AppLogger } from '../interfaces/logger.interface.js';
 import { clientRepository } from '../repositories/client.repository.js';
 import type { CreateClientPayload, UpdateClientPayload } from '../schemas/client.schema.js';
 
@@ -16,7 +16,7 @@ export async function createClient(
   userId: string,
   orgId: string,
   payload: CreateClientPayload,
-  log: AppLogger,
+  log: AppLogger = noopLogger,
 ) {
   log.info({ name: payload.name, orgId }, 'Initiating food pantry client creation');
 
@@ -68,7 +68,11 @@ export async function createClient(
  * @param log - App logger that defaults to a blank logger
  * @returns A list of clients
  */
-export async function searchReferrerCandidates(orgId: string, queryStr: string, log: AppLogger) {
+export async function searchReferrerCandidates(
+  orgId: string,
+  queryStr: string,
+  log: AppLogger = noopLogger,
+) {
   log.debug({ orgId, queryStr }, 'Searching for referral candidates');
   const cleanQuery = queryStr.trim();
 
@@ -109,7 +113,7 @@ export async function getClients(
     limit: number;
     offset: number;
   },
-  log: AppLogger,
+  log: AppLogger = noopLogger,
 ) {
   log.debug({ orgId, params }, 'Fetching client registry with pagination and filters');
 
@@ -149,7 +153,7 @@ export async function updateClient(
   id: string,
   orgId: string,
   payload: UpdateClientPayload,
-  log: AppLogger,
+  log: AppLogger = noopLogger,
 ) {
   const existing = await clientRepository.findById(id, orgId);
   if (!existing) {
@@ -177,7 +181,7 @@ export async function updateClient(
  * @param log - App logger that defaults to a blank logger
  * @returns The updated client
  */
-export async function deactivateClient(id: string, orgId: string, log: AppLogger) {
+export async function deactivateClient(id: string, orgId: string, log: AppLogger = noopLogger) {
   const existing = await clientRepository.findById(id, orgId);
   if (!existing) {
     throw new HTTPException(404, { message: 'Client not found' });
@@ -204,7 +208,7 @@ export async function deactivateClient(id: string, orgId: string, log: AppLogger
  * @param log - App logger that defaults to a blank logger
  * @returns True if the deletion was successful
  */
-export async function deleteClient(id: string, orgId: string, log: AppLogger) {
+export async function deleteClient(id: string, orgId: string, log: AppLogger = noopLogger) {
   const existing = await clientRepository.findById(id, orgId);
   if (!existing) {
     throw new HTTPException(404, { message: 'Client not found' });
@@ -217,4 +221,53 @@ export async function deleteClient(id: string, orgId: string, log: AppLogger) {
 
   log.info({ clientId: id, orgId }, 'Client permanently removed from database');
   return { success: true };
+}
+
+/**
+ * Get referrals made by a client.
+ * @param referrerId - The ID of the client who made referrals
+ * @param orgId - Current user's organization ID
+ * @param params - Pagination parameters
+ * @param params.page - The current pagination page
+ * @param params.limit - Max number of results
+ * @param params.offset - The offset index to start at
+ * @param log - App logger that defaults to a blank logger
+ * @returns A list of clients and the total
+ */
+export async function getClientReferrals(
+  referrerId: string,
+  orgId: string,
+  params: { page: number; limit: number; offset: number },
+  log: AppLogger = noopLogger,
+) {
+  log.debug({ referrerId, orgId, params }, 'Fetching referred clients with pagination');
+
+  const referrer = await clientRepository.findById(referrerId, orgId);
+  if (!referrer) {
+    throw new HTTPException(404, { message: 'Referrer client not found' });
+  }
+
+  const { items, total } = await clientRepository.getReferralsList({
+    referrerId,
+    orgId,
+    limit: params.limit,
+    offset: params.offset,
+  });
+
+  const referredBy = {
+    id: referrer.id,
+    name: referrer.name,
+    email: referrer.email,
+    phone: referrer.phone,
+  };
+
+  const enrichedItems = items.map((client) => ({
+    ...client,
+    referredBy,
+  }));
+
+  return {
+    items: enrichedItems,
+    total,
+  };
 }

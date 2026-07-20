@@ -11,6 +11,7 @@ import {
   UpdateClientSchema,
   SearchReferrerQuerySchema,
   SearchReferrerResponseSchema,
+  GetReferralsQuerySchema,
 } from '../schemas/client.schema.js';
 import {
   EntityParamSchema,
@@ -25,6 +26,7 @@ import {
   deactivateClient,
   deleteClient,
   searchReferrerCandidates,
+  getClientReferrals,
 } from '../services/client.service.js';
 
 export const clientsRoute = new OpenAPIHono<RouteEnv>();
@@ -305,5 +307,71 @@ clientsRoute.openapi(
 
     const result = await deleteClient(id, organizationId, log);
     return c.json(result, 200);
+  },
+);
+
+clientsRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}/referrals',
+    operationId: 'getClientReferrals',
+    description: 'Get a paginated list of clients referred by this client.',
+    tags: [TAGS.CLIENTS],
+    middleware: [verifyAuth()],
+    request: {
+      params: EntityParamSchema,
+      query: GetReferralsQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'Paginated client referrals list',
+        content: { 'application/json': { schema: ClientsListResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized access credentials',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Referrer client not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const organizationId = authUser?.session?.user?.organizationId;
+
+    if (!organizationId) {
+      return c.json({ error: 'Unauthorized: Missing organization correlation context' }, 401);
+    }
+
+    const { id } = c.req.valid('param');
+    const query = c.req.valid('query');
+    const { limit, offset } = getPaginationParams(query.page, query.limit);
+    const log = c.get('logger').child({ action: 'getClientReferrals', referrerId: id });
+
+    const result = await getClientReferrals(
+      id,
+      organizationId,
+      {
+        page: Number(query.page || 1),
+        limit,
+        offset,
+      },
+      log,
+    );
+
+    return c.json(
+      {
+        data: result.items,
+        meta: {
+          total: result.total,
+          page: Number(query.page || 1),
+          limit,
+          totalPages: Math.ceil(result.total / limit),
+        },
+      },
+      200,
+    );
   },
 );
