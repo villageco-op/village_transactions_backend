@@ -244,4 +244,5 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('GetClientsQuery', Clients.GetClientsQuerySchema);
   app.openAPIRegistry.register('ClientResponse', Clients.ClientResponseSchema);
   app.openAPIRegistry.register('ClientsListResponse', Clients.ClientsListResponseSchema);
+  app.openAPIRegistry.register('GetReferralsQuery', Clients.GetReferralsQuerySchema);
 }

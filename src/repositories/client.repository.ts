@@ -250,4 +250,56 @@ export const clientRepository = {
 
     return { items, total };
   },
+
+  /**
+   * Get a paginated list of clients referred by a specific client.
+   * @param params - Query parameters
+   * @param params.referrerId - The client who referred others
+   * @param params.orgId - The organization boundary
+   * @param params.limit - Max records
+   * @param params.offset - Paginated offset
+   * @returns A list of clients and the total
+   */
+  async getReferralsList(params: {
+    referrerId: string;
+    orgId: string;
+    limit: number;
+    offset: number;
+  }) {
+    const { referrerId, orgId, limit, offset } = params;
+
+    const conditions = and(eq(referrals.referrerId, referrerId), eq(clients.organizationId, orgId));
+
+    const [totalResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(referrals)
+      .innerJoin(clients, eq(referrals.referredId, clients.id))
+      .where(conditions);
+
+    const total = totalResult?.count || 0;
+
+    const items = await this.db
+      .select({
+        id: clients.id,
+        name: clients.name,
+        email: clients.email,
+        phone: clients.phone,
+        address: clients.address,
+        active: clients.active,
+        organizationId: clients.organizationId,
+        createdById: clients.createdById,
+        createdAt: clients.createdAt,
+        updatedAt: clients.updatedAt,
+      })
+      .from(referrals)
+      .innerJoin(clients, eq(referrals.referredId, clients.id))
+      .where(conditions)
+      .orderBy(desc(referrals.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { items, total };
+  },
 };

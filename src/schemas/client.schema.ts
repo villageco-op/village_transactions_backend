@@ -92,5 +92,10 @@ export const ClientsListResponseSchema = createPaginatedResponseSchema(
   'ClientsListResponse',
 );
 
+export const GetReferralsQuerySchema = z
+  .object({})
+  .extend(PaginationQuerySchema.shape)
+  .openapi('GetReferralsQuery');
+
 export type CreateClientPayload = z.infer<typeof CreateClientSchema>;
 export type UpdateClientPayload = z.infer<typeof UpdateClientSchema>;

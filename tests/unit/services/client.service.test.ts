@@ -8,6 +8,7 @@ import {
   deactivateClient,
   deleteClient,
   searchReferrerCandidates,
+  getClientReferrals,
 } from '../../../src/services/client.service.js';
 import { clientRepository } from '../../../src/repositories/client.repository.js';
 import { UpdateClientPayload } from '../../../src/schemas/client.schema.js';
@@ -24,6 +25,7 @@ vi.mock('../../../src/repositories/client.repository.js', () => ({
     update: vi.fn(),
     setActiveStatus: vi.fn(),
     delete: vi.fn(),
+    getReferralsList: vi.fn(),
   },
 }));
 
@@ -124,7 +126,7 @@ describe('ClientService Unit Tests', () => {
       const payloadWithReferrer = { ...payload, referrerId: 'missing-uuid' };
 
       vi.mocked(clientRepository.create).mockResolvedValueOnce(mockCreatedClient);
-      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null);
+      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null as any);
 
       const result = await createClient(userId, orgId, payloadWithReferrer, mockLogger);
 
@@ -213,7 +215,7 @@ describe('ClientService Unit Tests', () => {
       };
       vi.mocked(clientRepository.findReferredBy)
         .mockResolvedValueOnce(mockReferrer) // for client-1
-        .mockResolvedValueOnce(null); // for client-2
+        .mockResolvedValueOnce(null as any); // for client-2
 
       const result = await getClients(orgId, params, mockLogger);
 
@@ -237,7 +239,7 @@ describe('ClientService Unit Tests', () => {
     const payload: UpdateClientPayload = { name: 'Updated Name' };
 
     it('should throw a 404 HTTPException if the client entity does not exist', async () => {
-      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null);
+      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null as any);
 
       await expect(updateClient(id, orgId, payload, mockLogger)).rejects.toThrowError(
         new HTTPException(404, { message: 'Client not found' }),
@@ -246,7 +248,7 @@ describe('ClientService Unit Tests', () => {
 
     it('should throw a 500 HTTPException if the repository update operation falls short', async () => {
       vi.mocked(clientRepository.findById).mockResolvedValueOnce({ id } as any);
-      vi.mocked(clientRepository.update).mockResolvedValueOnce(null);
+      vi.mocked(clientRepository.update).mockResolvedValueOnce(null as any);
 
       await expect(updateClient(id, orgId, payload, mockLogger)).rejects.toThrowError(
         new HTTPException(500, { message: 'Failed to update client' }),
@@ -274,7 +276,7 @@ describe('ClientService Unit Tests', () => {
     const id = 'client-id';
 
     it('should throw a 404 HTTPException if target client cannot be verified', async () => {
-      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null);
+      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null as any);
 
       await expect(deactivateClient(id, orgId, mockLogger)).rejects.toThrowError(
         new HTTPException(404, { message: 'Client not found' }),
@@ -283,7 +285,7 @@ describe('ClientService Unit Tests', () => {
 
     it('should throw a 500 HTTPException if updating active status flag fails', async () => {
       vi.mocked(clientRepository.findById).mockResolvedValueOnce({ id } as any);
-      vi.mocked(clientRepository.setActiveStatus).mockResolvedValueOnce(null);
+      vi.mocked(clientRepository.setActiveStatus).mockResolvedValueOnce(null as any);
 
       await expect(deactivateClient(id, orgId, mockLogger)).rejects.toThrowError(
         new HTTPException(500, { message: 'Failed to deactivate client' }),
@@ -294,7 +296,7 @@ describe('ClientService Unit Tests', () => {
       const mockDeactivated = { id, active: false } as any;
       vi.mocked(clientRepository.findById).mockResolvedValueOnce({ id } as any);
       vi.mocked(clientRepository.setActiveStatus).mockResolvedValueOnce(mockDeactivated);
-      vi.mocked(clientRepository.findReferredBy).mockResolvedValueOnce(null);
+      vi.mocked(clientRepository.findReferredBy).mockResolvedValueOnce(null as any);
 
       const result = await deactivateClient(id, orgId, mockLogger);
 
@@ -308,7 +310,7 @@ describe('ClientService Unit Tests', () => {
     const id = 'client-id';
 
     it('should throw a 404 HTTPException if the client is missing prior to deletion', async () => {
-      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null);
+      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null as any);
 
       await expect(deleteClient(id, orgId, mockLogger)).rejects.toThrowError(
         new HTTPException(404, { message: 'Client not found' }),
@@ -333,6 +335,83 @@ describe('ClientService Unit Tests', () => {
       expect(clientRepository.delete).toHaveBeenCalledWith(id, orgId);
       expect(result).toEqual({ success: true });
       expect(mockLogger.info).toHaveBeenCalledWith({ clientId: id, orgId }, expect.any(String));
+    });
+  });
+
+  describe('getClientReferrals', () => {
+    const referrerId = 'referrer-123';
+
+    it('should throw 404 HTTPException if the referrer client does not exist', async () => {
+      vi.mocked(clientRepository.findById).mockResolvedValueOnce(null as any);
+
+      await expect(
+        getClientReferrals(referrerId, orgId, { page: 1, limit: 10, offset: 0 }, mockLogger),
+      ).rejects.toThrow(new HTTPException(404, { message: 'Referrer client not found' }));
+
+      expect(clientRepository.findById).toHaveBeenCalledWith(referrerId, orgId);
+      expect(clientRepository.getReferralsList).not.toHaveBeenCalled();
+    });
+
+    it('should retrieve, enrich, and return paginated referrals if the referrer client exists', async () => {
+      const mockReferrer = {
+        id: referrerId,
+        name: 'Alice Referrer',
+        email: 'alice@example.com',
+        phone: '555-8888',
+        organizationId: orgId,
+        createdById: userId,
+      } as any;
+
+      const mockReferredClients = [
+        {
+          id: 'referred-1',
+          name: 'Bob Referred',
+          email: 'bob@example.com',
+          phone: '555-1111',
+          address: 'Some Address',
+          active: true,
+          organizationId: orgId,
+          createdById: userId,
+          createdAt: MOCK_NOW,
+          updatedAt: MOCK_NOW,
+        },
+      ];
+
+      vi.mocked(clientRepository.findById).mockResolvedValueOnce(mockReferrer);
+      vi.mocked(clientRepository.getReferralsList).mockResolvedValueOnce({
+        items: mockReferredClients,
+        total: 1,
+      });
+
+      const result = await getClientReferrals(
+        referrerId,
+        orgId,
+        { page: 1, limit: 10, offset: 0 },
+        mockLogger,
+      );
+
+      expect(clientRepository.findById).toHaveBeenCalledWith(referrerId, orgId);
+      expect(clientRepository.getReferralsList).toHaveBeenCalledWith({
+        referrerId,
+        orgId,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toEqual({
+        items: [
+          {
+            ...mockReferredClients[0],
+            referredBy: {
+              id: mockReferrer.id,
+              name: mockReferrer.name,
+              email: mockReferrer.email,
+              phone: mockReferrer.phone,
+            },
+          },
+        ],
+        total: 1,
+      });
     });
   });
 });
