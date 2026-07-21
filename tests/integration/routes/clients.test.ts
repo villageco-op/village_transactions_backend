@@ -81,6 +81,10 @@ describe('Clients API - Integration', { timeout: 60_000 }, () => {
         email: 'john.d@example.com',
         phone: '555-0192',
         address: '789 Route Ave',
+        city: 'Town',
+        state: 'WI',
+        country: 'USA',
+        zip: '51123',
       };
 
       const res = await authedRequest(
