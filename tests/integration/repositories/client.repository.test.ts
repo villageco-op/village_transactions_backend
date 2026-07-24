@@ -359,11 +359,18 @@ describe('clientRepository - Integration', { timeout: 120_000 }, () => {
   });
 
   describe('getList', () => {
+    let charlieId: string;
+    let lucyId: string;
+    let snoopyId: string;
+
     beforeEach(async () => {
-      // Seed ordered variations to test pagination, visibility flags, and search filtering
+      charlieId = crypto.randomUUID();
+      lucyId = crypto.randomUUID();
+      snoopyId = crypto.randomUUID();
+
       await testDb.insert(clients).values([
         {
-          id: crypto.randomUUID(),
+          id: charlieId,
           name: 'Charlie Brown',
           email: 'charlie@peanuts.com',
           phone: '111-2222',
@@ -373,7 +380,7 @@ describe('clientRepository - Integration', { timeout: 120_000 }, () => {
           createdAt: new Date('2026-07-18T10:00:00Z'),
         },
         {
-          id: crypto.randomUUID(),
+          id: lucyId,
           name: 'Lucy van Pelt',
           email: 'lucy@peanuts.com',
           phone: '333-4444',
@@ -383,7 +390,7 @@ describe('clientRepository - Integration', { timeout: 120_000 }, () => {
           createdAt: new Date('2026-07-18T11:00:00Z'),
         },
         {
-          id: crypto.randomUUID(),
+          id: snoopyId,
           name: 'Snoopy Dog',
           email: 'snoopy@peanuts.com',
           phone: '555-6666',
@@ -392,6 +399,11 @@ describe('clientRepository - Integration', { timeout: 120_000 }, () => {
           createdById: defaultUserId,
           createdAt: new Date('2026-07-18T12:00:00Z'),
         },
+      ]);
+
+      await testDb.insert(referrals).values([
+        { referrerId: charlieId, referredId: lucyId },
+        { referrerId: charlieId, referredId: snoopyId },
       ]);
     });
 
@@ -443,6 +455,30 @@ describe('clientRepository - Integration', { timeout: 120_000 }, () => {
 
       expect(result.total).toBe(1);
       expect(result.items[0].name).toBe('Lucy van Pelt');
+    });
+
+    it('should populate referralCount and referredBy dynamically', async () => {
+      const result = await clientRepository.getList({
+        orgId: defaultOrgId,
+        limit: 10,
+        offset: 0,
+      });
+
+      const charlie = result.items.find((item) => item.id === charlieId);
+      const lucy = result.items.find((item) => item.id === lucyId);
+
+      // Charlie made 2 referrals and was not referred by anyone
+      expect(charlie?.referralCount).toBe(2);
+      expect(charlie?.referredBy).toBeNull();
+
+      // Lucy made 0 referrals and was referred by Charlie
+      expect(lucy?.referralCount).toBe(0);
+      expect(lucy?.referredBy).toEqual({
+        id: charlieId,
+        name: 'Charlie Brown',
+        email: 'charlie@peanuts.com',
+        phone: '111-2222',
+      });
     });
   });
 

@@ -9,6 +9,15 @@ import { createPaginatedResponseSchema } from './util/pagination.js';
 export const BaseClientSchema = createSelectSchema(clients).openapi('Client');
 export const BaseReferralSchema = createSelectSchema(referrals).openapi('Referral');
 
+export const Referrer = z
+  .object({
+    id: EntityIdField,
+    name: z.string(),
+    email: z.string().nullable(),
+    phone: z.string().nullable(),
+  })
+  .openapi('Referrer');
+
 export const SearchReferrerQuerySchema = z
   .object({
     q: z.string().min(1, 'Search query is required').openapi({
@@ -21,14 +30,7 @@ export const SearchReferrerQuerySchema = z
 export const SearchReferrerResponseSchema = z
   .object({
     exactMatch: z.boolean(),
-    results: z.array(
-      z.object({
-        id: EntityIdField,
-        name: z.string(),
-        email: z.string().nullable(),
-        phone: z.string().nullable(),
-      }),
-    ),
+    results: z.array(Referrer),
   })
   .openapi('SearchReferrerResponse');
 
@@ -84,15 +86,12 @@ export const GetClientsQuerySchema = z
   .openapi('GetClientsQuery');
 
 export const ClientResponseSchema = BaseClientSchema.extend({
-  referredBy: z
-    .object({
-      id: EntityIdField,
-      name: z.string(),
-      email: z.string().nullable(),
-      phone: z.string().nullable(),
-    })
-    .nullable()
-    .openapi('ReferredBy'),
+  referredBy: Referrer.nullable(),
+  referralCount: z
+    .number()
+    .default(0)
+    .optional()
+    .openapi({ description: 'The number of referrals used by the client.' }),
 }).openapi('ClientResponse');
 
 export const ClientsListResponseSchema = createPaginatedResponseSchema(

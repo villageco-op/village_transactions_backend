@@ -237,6 +237,7 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   // Clients
   app.openAPIRegistry.register('Client', Clients.BaseClientSchema);
   app.openAPIRegistry.register('Referral', Clients.BaseReferralSchema);
+  app.openAPIRegistry.register('Referrer', Clients.Referrer);
   app.openAPIRegistry.register('SearchReferrerQuery', Clients.SearchReferrerQuerySchema);
   app.openAPIRegistry.register('SearchReferrerResponse', Clients.SearchReferrerResponseSchema);
   app.openAPIRegistry.register('CreateClientPayload', Clients.CreateClientSchema);

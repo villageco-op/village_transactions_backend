@@ -125,18 +125,8 @@ export async function getClients(
     offset: params.offset,
   });
 
-  const enrichedItems = await Promise.all(
-    items.map(async (client) => {
-      const referredBy = await clientRepository.findReferredBy(client.id);
-      return {
-        ...client,
-        referredBy,
-      };
-    }),
-  );
-
   return {
-    items: enrichedItems,
+    items,
     total,
   };
 }

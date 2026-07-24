@@ -201,25 +201,25 @@ describe('ClientService Unit Tests', () => {
   describe('getClients', () => {
     const params = { search: 'test', active: true, page: 1, limit: 10, offset: 0 };
     const mockClientItems = [
-      { id: 'client-1', name: 'Client One' },
-      { id: 'client-2', name: 'Client Two' },
+      {
+        id: 'client-1',
+        name: 'Client One',
+        referralCount: 2,
+        referredBy: { id: 'ref-1', name: 'Referrer Name', email: 'r@test.com', phone: '111' },
+      },
+      {
+        id: 'client-2',
+        name: 'Client Two',
+        referralCount: 0,
+        referredBy: null,
+      },
     ] as any[];
 
-    it('should return a list of enriched clients with their referral metrics', async () => {
+    it('should return a list of enriched clients with their referral metrics directly from repository', async () => {
       vi.mocked(clientRepository.getList).mockResolvedValueOnce({
         items: mockClientItems,
         total: 2,
       });
-
-      const mockReferrer = {
-        id: 'ref-1',
-        name: 'Referrer Name',
-        email: 'r@test.com',
-        phone: '111',
-      };
-      vi.mocked(clientRepository.findReferredBy)
-        .mockResolvedValueOnce(mockReferrer) // for client-1
-        .mockResolvedValueOnce(null as any); // for client-2
 
       const result = await getClients(orgId, params, mockLogger);
 
@@ -230,10 +230,10 @@ describe('ClientService Unit Tests', () => {
         limit: params.limit,
         offset: params.offset,
       });
-      expect(clientRepository.findReferredBy).toHaveBeenCalledTimes(2);
+      // Ensure findReferredBy is NOT called anymore due to single query optimization
+      expect(clientRepository.findReferredBy).not.toHaveBeenCalled();
       expect(result.total).toBe(2);
-      expect(result.items[0]).toEqual({ ...mockClientItems[0], referredBy: mockReferrer });
-      expect(result.items[1]).toEqual({ ...mockClientItems[1], referredBy: null });
+      expect(result.items).toEqual(mockClientItems);
       expect(mockLogger.debug).toHaveBeenCalled();
     });
   });
