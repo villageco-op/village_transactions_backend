@@ -200,14 +200,14 @@ export const clientRepository = {
   },
 
   /**
-   * Get a list of clients within an organization.
+   * Get a list of clients within an organization along with their referral count.
    * @param params - Parameters for filtering and pagination
    * @param params.orgId - The clients organization
    * @param params.search - A search string
    * @param params.active - Filter by active status
    * @param params.limit - Max number of results
    * @param params.offset - The offset index to start at
-   * @returns A list of clients
+   * @returns A list of clients with a referral count
    */
   async getList(params: {
     orgId: string;
@@ -244,8 +244,49 @@ export const clientRepository = {
 
     const total = totalResult?.count || 0;
 
+    const referralCountSq = sql<number>`(
+      SELECT count(*)::int 
+      FROM ${referrals} 
+      WHERE ${referrals.referrerId} = ${clients}.id
+    )`.as('referral_count');
+
+    const referredBySq = sql<{
+      id: string;
+      name: string;
+      email: string | null;
+      phone: string | null;
+    } | null>`(
+      SELECT json_build_object(
+        'id', r_client.id,
+        'name', r_client.name,
+        'email', r_client.email,
+        'phone', r_client.phone
+      )
+      FROM ${referrals}
+      INNER JOIN ${clients} r_client ON ${referrals}.referrer_id = r_client.id
+      WHERE ${referrals}.referred_id = ${clients}.id
+      LIMIT 1
+    )`.as('referred_by');
+
     const items = await this.db
-      .select()
+      .select({
+        id: clients.id,
+        name: clients.name,
+        email: clients.email,
+        phone: clients.phone,
+        address: clients.address,
+        city: clients.city,
+        state: clients.state,
+        country: clients.country,
+        zip: clients.zip,
+        active: clients.active,
+        organizationId: clients.organizationId,
+        createdById: clients.createdById,
+        createdAt: clients.createdAt,
+        updatedAt: clients.updatedAt,
+        referralCount: referralCountSq,
+        referredBy: referredBySq,
+      })
       .from(clients)
       .where(whereClause)
       .orderBy(desc(clients.createdAt))
