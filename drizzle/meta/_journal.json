@@ -225,6 +225,20 @@
       "when": 1784591769004,
       "tag": "0031_known_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785269718980,
+      "tag": "0032_gifted_joshua_kane",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785272212549,
+      "tag": "0033_ordinary_lady_vermin",
+      "breakpoints": true
     }
   ]
 }

@@ -36,9 +36,15 @@ export async function createOrganization(
     throw new HTTPException(409, { message: 'Subdomain already in use' });
   }
 
+  let maxReferrals;
+  if (data.type === 'pantry') {
+    maxReferrals = data.maxReferrals || 4;
+  }
+
   const payload = {
     ...data,
     subDomainOverride: cleanSubdomain,
+    maxReferrals,
   };
 
   const newOrg = await organizationRepository.create(payload);

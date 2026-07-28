@@ -51,6 +51,12 @@ const RawOrganizationSchema = z.object({
   website: z.string().url().optional().openapi({ example: 'https://mypantry.org' }),
   phone: z.string().optional().openapi({ example: '+16085550199' }),
   image: z.string().url().optional().openapi({ example: 'https://blob.vercel.com/org-photo.png' }),
+  maxReferrals: z
+    .number()
+    .positive()
+    .gt(0)
+    .optional()
+    .openapi({ description: 'Maximum number of client referrals.' }),
 });
 
 export const CreateOrganizationSchema = RawOrganizationSchema.openapi('CreateOrganizationPayload');

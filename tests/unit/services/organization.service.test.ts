@@ -93,6 +93,7 @@ describe('OrganizationService Unit Tests', () => {
       expect(organizationRepository.create).toHaveBeenCalledWith({
         ...basePayload,
         subDomainOverride: 'madison-pantry',
+        maxReferrals: 4,
       });
       expect(mockLogger.info).toHaveBeenCalled();
     });
@@ -108,6 +109,7 @@ describe('OrganizationService Unit Tests', () => {
       expect(organizationRepository.create).toHaveBeenCalledWith({
         ...messyPayload,
         subDomainOverride: 'madison-pantry',
+        maxReferrals: 4,
       });
     });
 
