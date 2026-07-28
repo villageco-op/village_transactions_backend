@@ -88,7 +88,7 @@ export const organizations = pgTable('organizations', {
   lng: doublePrecision('lng'),
   location: geography('location'),
 
-  maxReferrals: numeric('max_referrals'),
+  maxReferrals: integer('max_referrals'),
 
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

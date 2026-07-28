@@ -53,6 +53,8 @@ const RawOrganizationSchema = z.object({
   image: z.string().url().optional().openapi({ example: 'https://blob.vercel.com/org-photo.png' }),
   maxReferrals: z
     .number()
+    .positive()
+    .gt(0)
     .optional()
     .openapi({ description: 'Maximum number of client referrals.' }),
 });
