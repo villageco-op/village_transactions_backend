@@ -8,6 +8,7 @@ import {
   SuccessResponseSchema,
   UserParamSchema,
 } from '../schemas/common.schema.js';
+import { OrganizationSchema } from '../schemas/organization.schema.js';
 import {
   GetSellerReviewsQuerySchema,
   PaginatedReviewsResponseSchema,
@@ -27,6 +28,7 @@ import {
   registerFcmToken,
   unregisterFcmToken,
 } from '../services/notification.service.js';
+import { getOrganization } from '../services/organization.service.js';
 import { getSellerReviews } from '../services/review.service.js';
 import {
   getCurrentUser,
@@ -128,6 +130,58 @@ usersRoute.openapi(
     await updateCurrentUser(userId, body, log);
 
     return c.json({ success: true }, 200);
+  },
+);
+
+usersRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/me/org',
+    operationId: 'getCurrentUserOrganization',
+    description: 'Fetch the organization of the currently authenticated user.',
+    tags: [TAGS.USERS],
+    middleware: [verifyAuth()],
+    responses: {
+      200: {
+        description: 'User Organization Details',
+        content: { 'application/json': { schema: OrganizationSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'User or Organization not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const log = c.get('logger').child({
+      action: 'getCurrentUserOrganization',
+      userId,
+    });
+
+    const userProfile = await getCurrentUser(userId, log);
+
+    if (!userProfile?.organizationId) {
+      return c.json({ error: 'Organization not found' }, 404);
+    }
+
+    const organization = await getOrganization(userProfile.organizationId, log);
+
+    if (!organization) {
+      return c.json({ error: 'Organization not found' }, 404);
+    }
+
+    return c.json(organization, 200);
   },
 );
 
