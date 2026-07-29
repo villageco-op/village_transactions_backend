@@ -18,6 +18,7 @@ import {
   reviews,
   orderItems,
   produce,
+  organizations,
 } from '../../../src/db/schema.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
@@ -26,6 +27,7 @@ import { sessionRepository } from '../../../src/repositories/session.repository.
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { request } from '../../test-utils/request.js';
 import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
+import { organizationRepository } from '../../../src/repositories/organization.repository.js';
 import * as stripeService from '../../../src/services/stripe.service.js';
 
 vi.spyOn(stripeService, 'updateStripeSubscriptionStatus').mockResolvedValue(undefined);
@@ -55,6 +57,7 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     produceRepository.setDb(testDb);
     accountRepository.setDb(testDb);
     sessionRepository.setDb(testDb);
+    organizationRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -537,6 +540,102 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       );
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('GET /api/users/me/org', () => {
+    const CURRENT_USER_ID = 'test_auth_user_123';
+    const TEST_ORG_ID = crypto.randomUUID();
+
+    beforeAll(async () => {
+      await testDb.insert(organizations).values({
+        id: TEST_ORG_ID,
+        name: 'Acme Corp',
+        slug: 'acme-corp',
+        type: 'pantry',
+        subdomain: 'acme-corp',
+        city: 'Chicago',
+        state: 'IL',
+        country: 'United States',
+        zip: '60601',
+      });
+    });
+
+    it('should return 401 Unauthorized if request session is missing', async () => {
+      const res = await request('/api/users/me/org', { method: 'GET' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 404 Not Found if user does not exist in the database', async () => {
+      const res = await authedRequest(
+        '/api/users/me/org',
+        { method: 'GET' },
+        { id: 'non_existent_user_id' },
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should return 404 Not Found if user has no organizationId set', async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        organizationId: null,
+      });
+
+      const res = await authedRequest(
+        '/api/users/me/org',
+        { method: 'GET' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toEqual({ error: 'Organization not found' });
+    });
+
+    it('should return 404 Not Found if organizationId points to a non-existent organization', async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        organizationId: crypto.randomUUID(),
+      });
+
+      const res = await authedRequest(
+        '/api/users/me/org',
+        { method: 'GET' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toEqual({ error: 'Organization not found' });
+    });
+
+    it('should return 200 OK with organization details when user and organization exist', async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        organizationId: TEST_ORG_ID,
+      });
+
+      const res = await authedRequest(
+        '/api/users/me/org',
+        { method: 'GET' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({
+        id: TEST_ORG_ID,
+        name: 'Acme Corp',
+        subdomain: 'acme-corp',
+      });
     });
   });
 });
