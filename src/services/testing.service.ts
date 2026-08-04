@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { encode } from '@auth/core/jwt';
 import { HTTPException } from 'hono/http-exception';
 
+import type { OrgRole } from '../db/types.js';
 import { noopLogger, type AppLogger } from '../interfaces/logger.interface.js';
 import { clientRepository } from '../repositories/client.repository.js';
 import { inviteRepository } from '../repositories/invite.repository.js';
@@ -25,6 +26,8 @@ import { cookieName } from '../utils.js';
  * @param payload.profile.city - The users city
  * @param payload.profile.state - The users state
  * @param payload.profile.zip - The users zip code
+ * @param payload.organizationId - The users organization Id
+ * @param payload.orgRole - The users organization role
  * @param log - App logger that defaults to a blank logger
  * @returns The database user object
  */
@@ -33,6 +36,8 @@ export async function seedTestUser(
     email: string;
     stripeOnboarded: boolean;
     profile?: { name: string; address: string; city: string; state: string; zip: string };
+    organizationId?: string;
+    orgRole?: OrgRole;
   },
   log: AppLogger = noopLogger,
 ) {
@@ -55,6 +60,8 @@ export async function seedTestUser(
     stripeOnboarded: payload.stripeOnboarded,
     stripeAccountId,
     profile: payload.profile,
+    organizationId: payload.organizationId,
+    orgRole: payload.orgRole,
   });
 }
 
