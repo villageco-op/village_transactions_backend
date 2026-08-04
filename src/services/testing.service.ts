@@ -165,6 +165,7 @@ export async function seedTestOrganization(
     website: payload.website ?? 'https://example.org',
     phone: payload.phone ?? '+16085550199',
     image: payload.image ?? undefined,
+    maxReferrals: payload.maxReferrals ?? 4,
   };
 
   return await organizationRepository.create(fallbackOrgData);
