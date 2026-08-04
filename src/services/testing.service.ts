@@ -3,11 +3,13 @@ import { randomUUID } from 'crypto';
 import { encode } from '@auth/core/jwt';
 import { HTTPException } from 'hono/http-exception';
 
-import type { AppLogger } from '../interfaces/logger.interface.js';
+import { noopLogger, type AppLogger } from '../interfaces/logger.interface.js';
+import { clientRepository } from '../repositories/client.repository.js';
 import { inviteRepository } from '../repositories/invite.repository.js';
 import { organizationRepository } from '../repositories/organization.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
+import type { CreateClientPayload } from '../schemas/client.schema.js';
 import type { CreateOrganizationPayload } from '../schemas/organization.schema.js';
 import type { CreateProducePayload } from '../schemas/produce.schema.js';
 import { cookieName } from '../utils.js';
@@ -32,7 +34,7 @@ export async function seedTestUser(
     stripeOnboarded: boolean;
     profile?: { name: string; address: string; city: string; state: string; zip: string };
   },
-  log: AppLogger,
+  log: AppLogger = noopLogger,
 ) {
   log.info({ email: payload.email }, 'Seeding e2e test user profile');
 
@@ -107,7 +109,7 @@ export async function seedTestProduce(
     email: string;
     produce: Partial<CreateProducePayload>;
   },
-  log: AppLogger,
+  log: AppLogger = noopLogger,
 ) {
   log.info({ email: payload.email }, 'Seeding e2e test produce listing');
 
@@ -139,12 +141,12 @@ export async function seedTestProduce(
 /**
  * TESTING ONLY: Forcefully inserts or sets up an organization for E2E testing.
  * @param payload - Partial organization payload data matching CreateOrganizationPayload
- * @param log - App logger
+ * @param log - App logger that defaults to a blank logger
  * @returns The created organization record
  */
 export async function seedTestOrganization(
   payload: Partial<CreateOrganizationPayload> & { name: string; subdomain: string },
-  log: AppLogger,
+  log: AppLogger = noopLogger,
 ) {
   log.info({ subdomain: payload.subdomain }, 'Seeding e2e test organization profile');
 
@@ -172,10 +174,14 @@ export async function seedTestOrganization(
  * TESTING ONLY: Fetches the invite code tracking record using clean repository layers.
  * @param email - Target invited user email
  * @param orgId - Target organization ID
- * @param log - App logger
+ * @param log - App logger that defaults to a blank logger
  * @returns The invite record details or null
  */
-export async function getTestLatestInviteCode(email: string, orgId: string, log: AppLogger) {
+export async function getTestLatestInviteCode(
+  email: string,
+  orgId: string,
+  log: AppLogger = noopLogger,
+) {
   log.info({ email, orgId }, 'Retrieving latest test invite code context via repository');
 
   return await inviteRepository.findLatestTestInvite(email, orgId);
@@ -189,7 +195,7 @@ export async function getTestLatestInviteCode(email: string, orgId: string, log:
  * @param payload.role
  * @param payload.code
  * @param payload.expiresAt
- * @param log - App logger
+ * @param log - App logger that defaults to a blank logger
  * @returns The created invitation record containing the target validation token code
  */
 export async function seedTestInvite(
@@ -200,7 +206,7 @@ export async function seedTestInvite(
     code?: string;
     expiresAt?: string;
   },
-  log: AppLogger,
+  log: AppLogger = noopLogger,
 ) {
   log.info({ email: payload.email, orgId: payload.orgId }, 'Seeding e2e test organization invite');
 
@@ -216,4 +222,46 @@ export async function seedTestInvite(
     role: payload.role ?? 'member',
     expiresAt: fallbackExpiresAt,
   });
+}
+
+/**
+ * TESTING ONLY: Forcefully seeds a client entity into the system database.
+ *
+ * @param payload - Client data parameters required for seeding
+ * @param payload.organizationId - Target organization ID owner
+ * @param payload.createdById - User ID attributed as the creator
+ * @param payload.client - Partial client input overrides (name, contact info, address)
+ * @param log - App logger that defaults to a blank logger
+ * @returns The newly created database client object
+ */
+export async function seedTestClient(
+  payload: {
+    organizationId: string;
+    createdById: string;
+    client?: Partial<CreateClientPayload>;
+  },
+  log: AppLogger = noopLogger,
+) {
+  log.info(
+    { organizationId: payload.organizationId, createdById: payload.createdById },
+    'Seeding e2e test client record',
+  );
+
+  const fallbackClientData: Omit<CreateClientPayload, 'referral'> & {
+    organizationId: string;
+    createdById: string;
+  } = {
+    name: payload.client?.name ?? 'Test Seed Client',
+    email: payload.client?.email ?? 'testclient@example.com',
+    phone: payload.client?.phone ?? '+16085550123',
+    address: payload.client?.address ?? '123 Test Ave',
+    city: payload.client?.city ?? 'Madison',
+    state: payload.client?.state ?? 'WI',
+    country: payload.client?.country ?? 'United States',
+    zip: payload.client?.zip ?? '53703',
+    organizationId: payload.organizationId,
+    createdById: payload.createdById,
+  };
+
+  return await clientRepository.create(fallbackClientData);
 }
