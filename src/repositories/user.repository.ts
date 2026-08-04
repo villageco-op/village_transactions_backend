@@ -244,6 +244,8 @@ export const userRepository = {
    * @param data.profile.country - The users country
    * @param data.profile.lat - The users latitude
    * @param data.profile.lng - The users longitude
+   * @param data.organizationId
+   * @param data.orgRole
    * @returns The user entry
    */
   async seedUser(data: {
@@ -260,6 +262,8 @@ export const userRepository = {
       lat?: number;
       lng?: number;
     };
+    organizationId?: string;
+    orgRole?: OrgRole;
   }): Promise<User> {
     const id = `test_usr_${randomUUID()}`;
     const lat = data.profile?.lat ?? 30.2672;
@@ -280,6 +284,8 @@ export const userRepository = {
       location: sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)` as unknown as string,
       stripeAccountId: data.stripeAccountId ?? null,
       stripeOnboardingComplete: data.stripeOnboarded ?? false,
+      organizationId: data.organizationId,
+      orgRole: data.orgRole,
     };
 
     const query = insertPayload.stripeAccountId
