@@ -9,10 +9,19 @@ jobs:
     if: github.head_ref == 'staging'
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.E2E_APP_ID }}
+          private-key: ${{ secrets.E2E_APP_PRIVATE_KEY }}
+          owner: villageco-op
+          repositories: e2e-tests
+
       - name: Trigger E2E Repo
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ secrets.API_TOKEN_GITHUB_API_SPECS }}
+          token: ${{ steps.generate_token.outputs.token }}
           repository: villageco-op/e2e-tests
           event-type: staging-to-main-pr
           client-payload: '{"repo": "${{ github.repository }}", "pr_num": "${{ github.event.pull_request.number }}"}'
