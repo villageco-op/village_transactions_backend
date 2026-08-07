@@ -40,6 +40,15 @@ export const userRepository = {
   },
 
   /**
+   * Retrieves all users that have the org Id
+   * @param organizationId - The organization Id
+   * @returns A list of users
+   */
+  async findByOrganizationId(organizationId: string) {
+    return await this.db.select().from(users).where(eq(users.organizationId, organizationId));
+  },
+
+  /**
    * Updates a user's profile information by their ID.
    * @param id - The unique user ID to update
    * @param data - The update payload (handles extracting lat/lng to a PostGIS point)

@@ -692,4 +692,67 @@ describe('UserRepository - Integration', { timeout: 60_000 }, () => {
       expect(result.items).toEqual([]);
     });
   });
+
+  describe('findByOrganizationId', () => {
+    const ORG_A = crypto.randomUUID();
+    const ORG_B = crypto.randomUUID();
+
+    beforeEach(async () => {
+      await testDb.insert(users).values([
+        {
+          id: 'user_1',
+          name: 'Alice Smith',
+          email: 'alice@example.com',
+          organizationId: ORG_A,
+          orgRole: 'admin',
+        },
+        {
+          id: 'user_2',
+          name: 'Bob Jones',
+          email: 'bob.jones@example.com',
+          organizationId: ORG_A,
+          orgRole: 'member',
+        },
+        {
+          id: 'user_3',
+          name: 'Charlie Brown',
+          email: 'charlie@example.com',
+          organizationId: ORG_B,
+          orgRole: 'admin',
+        },
+        {
+          id: 'user_4',
+          name: 'David NoOrg',
+          email: 'david@example.com',
+          organizationId: null,
+          orgRole: null,
+        },
+      ]);
+    });
+
+    it('should return all users belonging to the specified organization', async () => {
+      const result = await userRepository.findByOrganizationId(ORG_A);
+
+      expect(result).toHaveLength(2);
+      const userIds = result.map((user) => user.id);
+      expect(userIds).toEqual(expect.arrayContaining(['user_1', 'user_2']));
+    });
+
+    it('should exclude users belonging to other organizations or without an organization', async () => {
+      const result = await userRepository.findByOrganizationId(ORG_A);
+
+      const hasOtherOrgUser = result.some((user) => user.id === 'user_3');
+      const hasNoOrgUser = result.some((user) => user.id === 'user_4');
+
+      expect(hasOtherOrgUser).toBe(false);
+      expect(hasNoOrgUser).toBe(false);
+    });
+
+    it('should return an empty array if no users belong to the organization ID', async () => {
+      const NON_EXISTENT_ORG = crypto.randomUUID();
+      const result = await userRepository.findByOrganizationId(NON_EXISTENT_ORG);
+
+      expect(result).toEqual([]);
+    });
+  });
 });
