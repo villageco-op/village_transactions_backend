@@ -36,6 +36,7 @@ import {
   updateScheduleRules,
   getPublicUserProfile,
   deleteAccount,
+  leaveOrganization,
 } from '../services/user.service.js';
 
 export const usersRoute = new OpenAPIHono<RouteEnv>();
@@ -182,6 +183,48 @@ usersRoute.openapi(
     }
 
     return c.json(organization, 200);
+  },
+);
+
+usersRoute.openapi(
+  createRoute({
+    method: 'post',
+    path: '/me/org/leave',
+    operationId: 'leaveOrganization',
+    description: 'Leave current organization by clearing organizationId and orgRole.',
+    tags: [TAGS.USERS],
+    middleware: [verifyAuth()],
+    responses: {
+      200: {
+        description: 'Successfully left organization',
+        content: { 'application/json': { schema: SuccessResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'User not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const log = c.get('logger').child({
+      action: 'leaveOrganization',
+      userId,
+    });
+
+    await leaveOrganization(userId, log);
+
+    return c.json({ success: true }, 200);
   },
 );
 

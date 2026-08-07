@@ -300,3 +300,63 @@ export async function removeOrganizationFromUsers(
     'Removed organization association and roles from all connected users',
   );
 }
+
+/**
+ * Removes a user from their organization.
+ * - If the user is the last member, the organization is deleted.
+ * - If the user is the only admin and other members remain, another member is promoted to admin.
+ * @param userId - The ID of the user leaving the organization
+ * @param log - App logger that defaults to a blank logger
+ * @returns The updated user
+ */
+export async function leaveOrganization(userId: string, log: AppLogger = noopLogger) {
+  const user = await userRepository.findById(userId);
+
+  if (!user) {
+    log.warn({ userId }, 'Attempted to leave organization for non-existent user');
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  if (!user.organizationId) {
+    log.warn({ userId }, 'User does not belong to an organization');
+    throw new HTTPException(400, { message: 'User is not part of an organization' });
+  }
+
+  const organizationId = user.organizationId;
+  const members = await userRepository.findByOrganizationId(organizationId);
+
+  // Scenario 1: User is the last member in the organization
+  if (members.length <= 1) {
+    const updatedUser = await userRepository.removeFromOrganization(userId);
+    await organizationRepository.deleteById(organizationId);
+
+    log.info(
+      { userId, organizationId },
+      'User was the last member. Removed user and deleted organization',
+    );
+    return updatedUser;
+  }
+
+  // Scenario 2: User is an admin; check if another admin exists
+  if (user.orgRole === 'admin') {
+    const otherAdmins = members.filter((m) => m.id !== userId && m.orgRole === 'admin');
+
+    if (otherAdmins.length === 0) {
+      // Pick the next available user to promote
+      const nextAdmin = members.find((m) => m.id !== userId);
+
+      if (nextAdmin) {
+        await userRepository.updateOrgAndRole(nextAdmin.id, organizationId, 'admin');
+        log.info(
+          { promotedUserId: nextAdmin.id, organizationId },
+          'Promoted next member to admin as leaving user was sole admin',
+        );
+      }
+    }
+  }
+
+  const updatedUser = await userRepository.removeFromOrganization(userId);
+  log.info({ userId, organizationId }, 'Successfully removed user from organization');
+
+  return updatedUser;
+}

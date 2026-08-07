@@ -11,6 +11,7 @@ import {
   deleteAccount,
   removeOrganizationFromUsers,
   assignOrganizationToUser,
+  leaveOrganization,
 } from '../../../src/services/user.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
@@ -18,6 +19,7 @@ import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
 import { accountRepository } from '../../../src/repositories/account.repository.js';
 import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
+import { organizationRepository } from '../../../src/repositories/organization.repository.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { sessionRepository } from '../../../src/repositories/session.repository.js';
 import {
@@ -38,6 +40,8 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
     anonymize: vi.fn(),
     updateOrgAndRole: vi.fn(),
     clearOrganizationFromUsers: vi.fn(),
+    removeFromOrganization: vi.fn(),
+    findByOrganizationId: vi.fn(),
   },
 }));
 
@@ -77,6 +81,10 @@ vi.mock('../../../src/repositories/session.repository.js', () => ({
 
 vi.mock('../../../src/repositories/fcm.repository.js', () => ({
   fcmRepository: { deleteByUserId: vi.fn() },
+}));
+
+vi.mock('../../../src/repositories/organization.repository.js', () => ({
+  organizationRepository: { deleteById: vi.fn() },
 }));
 
 vi.mock('../../../src/services/order.service.js', () => ({
@@ -571,5 +579,86 @@ describe('removeOrganizationFromUsers', () => {
     vi.mocked(userRepository.clearOrganizationFromUsers).mockResolvedValueOnce();
 
     await expect(removeOrganizationFromUsers(ORG_ID)).resolves.not.toThrow();
+  });
+});
+
+describe('leaveOrganization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should throw 404 if user does not exist', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+    await expect(leaveOrganization('ghost_user')).rejects.toMatchObject({
+      status: 404,
+      message: 'User not found',
+    });
+  });
+
+  it('should throw 400 if user is not in an organization', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'user_1',
+      organizationId: null,
+    } as any);
+
+    await expect(leaveOrganization('user_1')).rejects.toMatchObject({
+      status: 400,
+      message: 'User is not part of an organization',
+    });
+  });
+
+  it('should delete organization if user is the last member', async () => {
+    const USER_ID = 'user_sole';
+    const ORG_ID = crypto.randomUUID();
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: USER_ID,
+      organizationId: ORG_ID,
+      orgRole: 'admin',
+    } as any);
+
+    vi.mocked(userRepository.findByOrganizationId).mockResolvedValueOnce([
+      { id: USER_ID, organizationId: ORG_ID, orgRole: 'admin' },
+    ] as any);
+
+    vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce({
+      id: USER_ID,
+      organizationId: null,
+      orgRole: null,
+    } as any);
+
+    await leaveOrganization(USER_ID);
+
+    expect(userRepository.removeFromOrganization).toHaveBeenCalledWith(USER_ID);
+    expect(organizationRepository.deleteById).toHaveBeenCalledWith(ORG_ID);
+  });
+
+  it('should promote another member to admin if leaving user is the sole admin', async () => {
+    const LEAVING_USER_ID = 'user_admin';
+    const MEMBER_USER_ID = 'user_member';
+    const ORG_ID = crypto.randomUUID();
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: LEAVING_USER_ID,
+      organizationId: ORG_ID,
+      orgRole: 'admin',
+    } as any);
+
+    vi.mocked(userRepository.findByOrganizationId).mockResolvedValueOnce([
+      { id: LEAVING_USER_ID, organizationId: ORG_ID, orgRole: 'admin' },
+      { id: MEMBER_USER_ID, organizationId: ORG_ID, orgRole: 'member' },
+    ] as any);
+
+    vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce({
+      id: LEAVING_USER_ID,
+      organizationId: null,
+      orgRole: null,
+    } as any);
+
+    await leaveOrganization(LEAVING_USER_ID);
+
+    expect(userRepository.updateOrgAndRole).toHaveBeenCalledWith(MEMBER_USER_ID, ORG_ID, 'admin');
+    expect(userRepository.removeFromOrganization).toHaveBeenCalledWith(LEAVING_USER_ID);
   });
 });
