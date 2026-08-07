@@ -551,7 +551,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       await testDb.insert(organizations).values({
         id: TEST_ORG_ID,
         name: 'Acme Corp',
-        slug: 'acme-corp',
         type: 'pantry',
         subdomain: 'acme-corp',
         city: 'Chicago',
@@ -636,6 +635,66 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
         name: 'Acme Corp',
         subdomain: 'acme-corp',
       });
+    });
+  });
+
+  describe('POST /api/users/me/org/leave', () => {
+    const CURRENT_USER_ID = 'test_auth_user_123';
+    const TEST_ORG_ID = crypto.randomUUID();
+
+    beforeAll(async () => {
+      await testDb.insert(organizations).values({
+        id: TEST_ORG_ID,
+        name: 'Acme Corp',
+        type: 'pantry',
+        subdomain: 'acme-corp-1',
+        city: 'Chicago',
+        state: 'IL',
+        country: 'United States',
+        zip: '60601',
+      });
+    });
+
+    it('should return 401 Unauthorized if request session is missing', async () => {
+      const res = await request('/api/users/me/org/leave', { method: 'POST' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 404 Not Found if user does not exist in the database', async () => {
+      const res = await authedRequest(
+        '/api/users/me/org/leave',
+        { method: 'POST' },
+        { id: 'non_existent_user_id' },
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should successfully clear organizationId and orgRole from the user', async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        organizationId: TEST_ORG_ID,
+        orgRole: 'member',
+      });
+
+      const res = await authedRequest(
+        '/api/users/me/org/leave',
+        { method: 'POST' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ success: true });
+
+      const [updatedUser] = await testDb.select().from(users).where(eq(users.id, CURRENT_USER_ID));
+
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser.organizationId).toBeNull();
+      expect(updatedUser.orgRole).toBeNull();
     });
   });
 });

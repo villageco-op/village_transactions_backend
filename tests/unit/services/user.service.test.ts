@@ -11,6 +11,7 @@ import {
   deleteAccount,
   removeOrganizationFromUsers,
   assignOrganizationToUser,
+  leaveOrganization,
 } from '../../../src/services/user.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
@@ -38,6 +39,7 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
     anonymize: vi.fn(),
     updateOrgAndRole: vi.fn(),
     clearOrganizationFromUsers: vi.fn(),
+    removeFromOrganization: vi.fn(),
   },
 }));
 
@@ -571,5 +573,53 @@ describe('removeOrganizationFromUsers', () => {
     vi.mocked(userRepository.clearOrganizationFromUsers).mockResolvedValueOnce();
 
     await expect(removeOrganizationFromUsers(ORG_ID)).resolves.not.toThrow();
+  });
+});
+
+describe('leaveOrganization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully remove user from organization and return the updated user', async () => {
+    const USER_ID = 'user_abc';
+    const mockUpdatedUser = { id: USER_ID, organizationId: null, orgRole: null };
+
+    vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce(mockUpdatedUser as any);
+
+    const mockLogger = { info: vi.fn(), warn: vi.fn() } as any;
+
+    const result = await leaveOrganization(USER_ID, mockLogger);
+
+    expect(result).toEqual(mockUpdatedUser);
+    expect(userRepository.removeFromOrganization).toHaveBeenCalledWith(USER_ID);
+    expect(mockLogger.info).toHaveBeenCalledWith({ userId: USER_ID }, expect.any(String));
+  });
+
+  it('should log a warning and throw a 404 HTTPException if the user does not exist', async () => {
+    const USER_ID = 'ghost_user';
+
+    vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce(null);
+
+    const mockLogger = { info: vi.fn(), warn: vi.fn() } as any;
+
+    await expect(leaveOrganization(USER_ID, mockLogger)).rejects.toThrow(HTTPException);
+
+    await expect(leaveOrganization(USER_ID, mockLogger)).rejects.toMatchObject({
+      status: 404,
+      message: 'User not found',
+    });
+
+    expect(userRepository.removeFromOrganization).toHaveBeenCalledWith(USER_ID);
+    expect(mockLogger.warn).toHaveBeenCalledWith({ userId: USER_ID }, expect.any(String));
+  });
+
+  it('should run fine with the default noop logger when no logger is passed', async () => {
+    const USER_ID = 'user_abc';
+    const mockUpdatedUser = { id: USER_ID, organizationId: null, orgRole: null };
+
+    vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce(mockUpdatedUser as any);
+
+    await expect(leaveOrganization(USER_ID)).resolves.toBeDefined();
   });
 });

@@ -300,3 +300,21 @@ export async function removeOrganizationFromUsers(
     'Removed organization association and roles from all connected users',
   );
 }
+
+/**
+ * Removes a user from their organization by clearing organizationId and orgRole.
+ * @param userId - The ID of the user leaving the organization
+ * @param log - App logger that defaults to a blank logger
+ * @returns The updated user
+ */
+export async function leaveOrganization(userId: string, log: AppLogger = noopLogger) {
+  const updatedUser = await userRepository.removeFromOrganization(userId);
+
+  if (!updatedUser) {
+    log.warn({ userId }, 'Attempted to leave organization for non-existent user');
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  log.info({ userId }, 'Successfully removed user from organization');
+  return updatedUser;
+}
