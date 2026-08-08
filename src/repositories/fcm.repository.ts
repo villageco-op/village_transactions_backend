@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { fcmTokens } from '../db/schema.js';
@@ -45,6 +45,19 @@ export const fcmRepository = {
   },
 
   /**
+   * Fetches all tokens associated with a user and platform.
+   * @param userId - The user ID
+   * @param platform - The target platform (e.g., android, ios, web)
+   * @returns The tokens associated with the user ID
+   */
+  async getTokensByPlatform(userId: string, platform: string) {
+    return await this.db
+      .select()
+      .from(fcmTokens)
+      .where(and(eq(fcmTokens.userId, userId), eq(fcmTokens.platform, platform)));
+  },
+
+  /**
    * Deletes multiple tokens at once.
    * Useful for cleaning up "Unregistered" tokens returned by Firebase.
    * @param tokens - An array of token IDs
@@ -52,5 +65,24 @@ export const fcmRepository = {
   async deleteTokens(tokens: string[]) {
     if (tokens.length === 0) return;
     await this.db.delete(fcmTokens).where(inArray(fcmTokens.token, tokens));
+  },
+
+  /**
+   * Wipes out all registered mobile/web push notification tokens linked to this user.
+   * @param userId - The targeted user ID
+   */
+  async deleteByUserId(userId: string): Promise<void> {
+    await this.db.delete(fcmTokens).where(eq(fcmTokens.userId, userId));
+  },
+
+  /**
+   * Wipes out all registered push notification tokens linked to this user for given platform.
+   * @param userId - The targeted user ID
+   * @param platform - The target platform (e.g., android, ios, web)
+   */
+  async deleteByPlatform(userId: string, platform: string): Promise<void> {
+    await this.db
+      .delete(fcmTokens)
+      .where(and(eq(fcmTokens.userId, userId), eq(fcmTokens.platform, platform)));
   },
 };

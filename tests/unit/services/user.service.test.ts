@@ -8,11 +8,25 @@ import {
   updateCurrentUser,
   updateInternalStripeAccountId,
   updateScheduleRules,
+  deleteAccount,
+  removeOrganizationFromUsers,
+  assignOrganizationToUser,
+  leaveOrganization,
 } from '../../../src/services/user.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
+import { accountRepository } from '../../../src/repositories/account.repository.js';
+import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
+import { organizationRepository } from '../../../src/repositories/organization.repository.js';
+import { produceRepository } from '../../../src/repositories/produce.repository.js';
+import { sessionRepository } from '../../../src/repositories/session.repository.js';
+import {
+  batchCancelPendingOrders,
+  batchCancelAllPendingOrdersPlacedByUser,
+} from '../../../src/services/order.service.js';
+import { batchCancelProductSubscriptions } from '../../../src/services/subscription.service.js';
 
 vi.mock('@vercel/blob', () => ({
   del: vi.fn().mockResolvedValue(undefined),
@@ -23,12 +37,18 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
     findById: vi.fn(),
     updateById: vi.fn(),
     updateStripeAccountId: vi.fn(),
+    anonymize: vi.fn(),
+    updateOrgAndRole: vi.fn(),
+    clearOrganizationFromUsers: vi.fn(),
+    removeFromOrganization: vi.fn(),
+    findByOrganizationId: vi.fn(),
   },
 }));
 
 vi.mock('../../../src/repositories/schedule-rule.repository.js', () => ({
   scheduleRuleRepository: {
     replaceSellerRules: vi.fn(),
+    deleteBySellerId: vi.fn(),
   },
 }));
 
@@ -44,7 +64,39 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
   },
 }));
 
-describe('UserService - getCurrentUser', () => {
+vi.mock('../../../src/repositories/produce.repository.js', () => ({
+  produceRepository: {
+    findAllBySellerId: vi.fn(),
+    markAllAsDeletedBySellerId: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/account.repository.js', () => ({
+  accountRepository: { deleteByUserId: vi.fn() },
+}));
+
+vi.mock('../../../src/repositories/session.repository.js', () => ({
+  sessionRepository: { deleteByUserId: vi.fn() },
+}));
+
+vi.mock('../../../src/repositories/fcm.repository.js', () => ({
+  fcmRepository: { deleteByUserId: vi.fn() },
+}));
+
+vi.mock('../../../src/repositories/organization.repository.js', () => ({
+  organizationRepository: { deleteById: vi.fn() },
+}));
+
+vi.mock('../../../src/services/order.service.js', () => ({
+  batchCancelPendingOrders: vi.fn(),
+  batchCancelAllPendingOrdersPlacedByUser: vi.fn(),
+}));
+
+vi.mock('../../../src/services/subscription.service.js', () => ({
+  batchCancelProductSubscriptions: vi.fn(),
+}));
+
+describe('getCurrentUser', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -62,6 +114,7 @@ describe('UserService - getCurrentUser', () => {
     const mockDbUser = {
       id: 'user_123',
       name: 'Alice',
+      organization: 'Alice Farms',
       email: 'alice@example.com',
       address: '456 Seller Ave',
       stripeAccountId: 'acct_999',
@@ -75,10 +128,12 @@ describe('UserService - getCurrentUser', () => {
     expect(result).toEqual({
       id: 'user_123',
       name: 'Alice',
+      organization: 'Alice Farms',
       email: 'alice@example.com',
       address: '456 Seller Ave',
       stripeAccountId: 'acct_999',
       stripeOnboardingComplete: false,
+      isOnboardingComplete: false,
     });
 
     expect(userRepository.findById).toHaveBeenCalledWith('user_123');
@@ -109,6 +164,7 @@ describe('updateCurrentUser', () => {
   it('should update the user and return a user object', async () => {
     const updateData = {
       name: 'Updated Alice',
+      organization: 'Updated Alice Farms',
       address: '789 New St',
       deliveryRangeMiles: 20,
     };
@@ -116,6 +172,7 @@ describe('updateCurrentUser', () => {
     const mockDbUser = {
       id: 'user_123',
       name: 'Alice',
+      organization: 'Alice Farms',
       email: 'alice@example.com',
       address: '788 Old St',
       deliveryRangeMiles: '5',
@@ -124,6 +181,7 @@ describe('updateCurrentUser', () => {
     const mockDbUpdatedUser = {
       id: 'user_123',
       name: 'Updated Alice',
+      organization: 'Updated Alice Farms',
       email: 'alice@example.com',
       address: '789 New St',
       deliveryRangeMiles: '20',
@@ -137,6 +195,7 @@ describe('updateCurrentUser', () => {
     expect(result).toEqual({
       id: 'user_123',
       name: 'Updated Alice',
+      organization: 'Updated Alice Farms',
       email: 'alice@example.com',
       address: '789 New St',
       deliveryRangeMiles: '20',
@@ -344,5 +403,262 @@ describe('getPublicUserProfile', () => {
       reviewBreakdown: { '1': 2, '2': 0, '3': 0, '4': 5, '5': 3 },
       activeBuyerCount: 12,
     });
+  });
+});
+
+describe('deleteAccount', () => {
+  const mockUserId = 'user_del_777';
+
+  const mockLogger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  } as any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should throw 404 HTTPException if user profile does not exist', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+    await expect(deleteAccount(mockUserId, mockLogger)).rejects.toThrow(HTTPException);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Attempted to delete non-existent user'),
+    );
+    expect(userRepository.anonymize).not.toHaveBeenCalled();
+  });
+
+  it('should anonymize profile, delete blob images, drop inventory items, and purge active system sessions', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: mockUserId,
+      image: 'https://blob.vercel-storage.com/avatars/user-777.png',
+    } as any);
+
+    const mockProducts = [{ id: 'prod_1' }, { id: 'prod_2' }];
+    vi.mocked(produceRepository.findAllBySellerId).mockResolvedValueOnce(mockProducts as any);
+
+    await deleteAccount(mockUserId, mockLogger);
+
+    expect(del).toHaveBeenCalledWith('https://blob.vercel-storage.com/avatars/user-777.png');
+
+    expect(userRepository.anonymize).toHaveBeenCalledWith(mockUserId);
+    expect(produceRepository.markAllAsDeletedBySellerId).toHaveBeenCalledWith(mockUserId);
+
+    expect(batchCancelProductSubscriptions).toHaveBeenCalledTimes(2);
+    expect(batchCancelPendingOrders).toHaveBeenCalledTimes(2);
+    expect(batchCancelPendingOrders).toHaveBeenNthCalledWith(
+      1,
+      'prod_1',
+      'The seller closed their account.',
+      mockUserId,
+      mockLogger,
+    );
+
+    expect(batchCancelAllPendingOrdersPlacedByUser).toHaveBeenCalledWith(
+      mockUserId,
+      'User deleted their account',
+      mockLogger,
+    );
+
+    expect(scheduleRuleRepository.deleteBySellerId).toHaveBeenCalledWith(mockUserId);
+    expect(accountRepository.deleteByUserId).toHaveBeenCalledWith(mockUserId);
+    expect(sessionRepository.deleteByUserId).toHaveBeenCalledWith(mockUserId);
+    expect(fcmRepository.deleteByUserId).toHaveBeenCalledWith(mockUserId);
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining('successfully anonymized'),
+    );
+  });
+
+  it('should gracefully continue the cleanup lifecycle even if blob deletion rejects', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: mockUserId,
+      image: 'https://blob.vercel-storage.com/broken-url.jpg',
+    } as any);
+
+    vi.mocked(produceRepository.findAllBySellerId).mockResolvedValueOnce([]);
+
+    vi.mocked(del).mockRejectedValueOnce(new Error('Vercel API Timeout Error'));
+
+    await expect(deleteAccount(mockUserId, mockLogger)).resolves.toBeUndefined();
+
+    expect(userRepository.anonymize).toHaveBeenCalledWith(mockUserId);
+
+    await vi.waitFor(() => {
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        {
+          error: 'Vercel API Timeout Error',
+          blobUrl: 'https://blob.vercel-storage.com/broken-url.jpg',
+        },
+        'Failed to delete orphaned blob image during account deletion',
+      );
+    });
+  });
+});
+
+describe('assignOrganizationToUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should successfully update and return the user when the user exists', async () => {
+    const USER_ID = 'user_abc';
+    const ORG_ID = 'org_123';
+    const ROLE = 'admin';
+    const mockUpdatedUser = { id: USER_ID, organizationId: ORG_ID, orgRole: ROLE };
+
+    vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(mockUpdatedUser as any);
+
+    const mockLogger = { info: vi.fn(), warn: vi.fn() } as any;
+
+    const result = await assignOrganizationToUser(USER_ID, ORG_ID, ROLE, mockLogger);
+
+    expect(result).toEqual(mockUpdatedUser);
+    expect(userRepository.updateOrgAndRole).toHaveBeenCalledWith(USER_ID, ORG_ID, ROLE);
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      { userId: USER_ID, organizationId: ORG_ID, role: ROLE },
+      expect.any(String),
+    );
+  });
+
+  it('should log a warning and throw a 404 HTTPException if the repository returns null', async () => {
+    const USER_ID = 'ghost_user';
+    const ORG_ID = 'org_123';
+    const ROLE = 'member';
+
+    vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(null);
+
+    const mockLogger = { info: vi.fn(), warn: vi.fn() } as any;
+
+    await expect(assignOrganizationToUser(USER_ID, ORG_ID, ROLE, mockLogger)).rejects.toThrow(
+      HTTPException,
+    );
+
+    await expect(assignOrganizationToUser(USER_ID, ORG_ID, ROLE, mockLogger)).rejects.toMatchObject(
+      { status: 404, message: 'User not found' },
+    );
+
+    expect(userRepository.updateOrgAndRole).toHaveBeenCalledWith(USER_ID, ORG_ID, ROLE);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      { userId: USER_ID, organizationId: ORG_ID },
+      expect.any(String),
+    );
+  });
+
+  it('should run fine with the default noop logger when no logger is passed', async () => {
+    const USER_ID = 'user_abc';
+    const ORG_ID = 'org_123';
+    const mockUpdatedUser = { id: USER_ID, organizationId: ORG_ID, orgRole: 'member' };
+
+    vi.mocked(userRepository.updateOrgAndRole).mockResolvedValueOnce(mockUpdatedUser as any);
+
+    await expect(assignOrganizationToUser(USER_ID, ORG_ID, 'member')).resolves.toBeDefined();
+  });
+});
+
+describe('removeOrganizationFromUsers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should invoke clearOrganizationFromUsers and log the action', async () => {
+    const ORG_ID = 'org_to_wipe';
+    vi.mocked(userRepository.clearOrganizationFromUsers).mockResolvedValueOnce();
+
+    const mockLogger = { info: vi.fn() } as any;
+
+    await removeOrganizationFromUsers(ORG_ID, mockLogger);
+
+    expect(userRepository.clearOrganizationFromUsers).toHaveBeenCalledWith(ORG_ID);
+    expect(mockLogger.info).toHaveBeenCalledWith({ organizationId: ORG_ID }, expect.any(String));
+  });
+
+  it('should run fine with the default noop logger when no logger is passed', async () => {
+    const ORG_ID = 'org_to_wipe';
+    vi.mocked(userRepository.clearOrganizationFromUsers).mockResolvedValueOnce();
+
+    await expect(removeOrganizationFromUsers(ORG_ID)).resolves.not.toThrow();
+  });
+});
+
+describe('leaveOrganization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should throw 404 if user does not exist', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+    await expect(leaveOrganization('ghost_user')).rejects.toMatchObject({
+      status: 404,
+      message: 'User not found',
+    });
+  });
+
+  it('should throw 400 if user is not in an organization', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'user_1',
+      organizationId: null,
+    } as any);
+
+    await expect(leaveOrganization('user_1')).rejects.toMatchObject({
+      status: 400,
+      message: 'User is not part of an organization',
+    });
+  });
+
+  it('should delete organization if user is the last member', async () => {
+    const USER_ID = 'user_sole';
+    const ORG_ID = crypto.randomUUID();
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: USER_ID,
+      organizationId: ORG_ID,
+      orgRole: 'admin',
+    } as any);
+
+    vi.mocked(userRepository.findByOrganizationId).mockResolvedValueOnce([
+      { id: USER_ID, organizationId: ORG_ID, orgRole: 'admin' },
+    ] as any);
+
+    vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce({
+      id: USER_ID,
+      organizationId: null,
+      orgRole: null,
+    } as any);
+
+    await leaveOrganization(USER_ID);
+
+    expect(userRepository.removeFromOrganization).toHaveBeenCalledWith(USER_ID);
+    expect(organizationRepository.deleteById).toHaveBeenCalledWith(ORG_ID);
+  });
+
+  it('should promote another member to admin if leaving user is the sole admin', async () => {
+    const LEAVING_USER_ID = 'user_admin';
+    const MEMBER_USER_ID = 'user_member';
+    const ORG_ID = crypto.randomUUID();
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: LEAVING_USER_ID,
+      organizationId: ORG_ID,
+      orgRole: 'admin',
+    } as any);
+
+    vi.mocked(userRepository.findByOrganizationId).mockResolvedValueOnce([
+      { id: LEAVING_USER_ID, organizationId: ORG_ID, orgRole: 'admin' },
+      { id: MEMBER_USER_ID, organizationId: ORG_ID, orgRole: 'member' },
+    ] as any);
+
+    vi.mocked(userRepository.removeFromOrganization).mockResolvedValueOnce({
+      id: LEAVING_USER_ID,
+      organizationId: null,
+      orgRole: null,
+    } as any);
+
+    await leaveOrganization(LEAVING_USER_ID);
+
+    expect(userRepository.updateOrgAndRole).toHaveBeenCalledWith(MEMBER_USER_ID, ORG_ID, 'admin');
+    expect(userRepository.removeFromOrganization).toHaveBeenCalledWith(LEAVING_USER_ID);
   });
 });

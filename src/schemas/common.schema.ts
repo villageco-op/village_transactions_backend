@@ -6,6 +6,9 @@ import {
   fulfillmentTypeEnum,
   subscriptionStatusEnum,
   produceTypeEnum,
+  orgRoleEnum,
+  orgTypeEnum,
+  orgInviteStatusEnum,
 } from '../db/schema.js';
 
 /**
@@ -45,6 +48,23 @@ export const OrderStatusSchema = z.enum(orderStatusEnum.enumValues).openapi('Ord
   example: 'pending',
   description: 'The lifecycle status of the order',
 });
+
+export const OrgRoleSchema = z.enum(orgRoleEnum.enumValues).openapi('OrgRole', {
+  example: 'member',
+  description: 'The organization role for a user. Defines their permission level.',
+});
+
+export const OrgTypeSchema = z.enum(orgTypeEnum.enumValues).openapi('OrgType', {
+  example: 'pantry',
+  description: 'The organization type.',
+});
+
+export const OrgInviteStatusSchema = z
+  .enum(orgInviteStatusEnum.enumValues)
+  .openapi('OrgInviteStatus', {
+    example: 'pending',
+    description: 'The organization member invite status.',
+  });
 
 export const FulfillmentTypeSchema = z
   .enum(fulfillmentTypeEnum.enumValues)
@@ -166,6 +186,7 @@ export const PaginationMetadataSchema = z
 export const UserBasicInfoSchema = z.object({
   id: z.string(),
   name: z.string().nullable().optional(),
+  organizationId: EntityIdField.nullable().optional(),
   email: z.string().nullable().optional(),
   location: LocationSchema.nullable().optional(),
 });

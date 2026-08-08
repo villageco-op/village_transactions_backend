@@ -27,7 +27,7 @@ export const MapGrowerSchema = z
   .object({
     sellerId: UserIdSchema,
     name: z.string().nullable().openapi({
-      example: 'Green Valley Farm',
+      example: 'Sarah Smith',
     }),
     lat: z.number().openapi({ example: 37.7749 }),
     lng: z.number().openapi({ example: -122.4194 }),

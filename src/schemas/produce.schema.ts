@@ -38,7 +38,7 @@ const ProduceFields = z.object({
     example: '160.00',
     description: 'Optional maximum ounces a single user can order per checkout',
   }),
-  availableBy: z.coerce.date().optional().openapi({
+  availableBy: z.string().datetime().pipe(z.coerce.date()).optional().openapi({
     example: '2026-03-25T10:00:00Z',
     description: 'The date and time when the produce will be ready for pickup or delivery',
   }),
@@ -63,25 +63,29 @@ export const CreateProduceSchema = ProduceFields.extend({
   isSubscribable: ProduceFields.shape.isSubscribable.default(false),
 }).openapi('CreateProducePayload');
 
-export const UpdateProduceSchema = ProduceFields.partial()
-  .extend({
-    status: ProduceStatusSchema.optional(),
-    cancelExistingSubscriptions: z.boolean().optional().openapi({
-      description:
-        'If true, forces cancellation of all active subscriptions. Required if frequency changes.',
-    }),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
+const ExtendedProduceSchema = ProduceFields.partial().extend({
+  status: ProduceStatusSchema.optional(),
+  cancelExistingSubscriptions: z.boolean().optional().openapi({
+    description:
+      'If true, forces cancellation of all active subscriptions. Required if frequency changes.',
+  }),
+});
+
+type ExtendedProduce = z.infer<typeof ExtendedProduceSchema>;
+
+export const UpdateProduceSchema = ExtendedProduceSchema.refine(
+  (data: ExtendedProduce) => Object.keys(data).length > 0,
+  {
     message: 'At least one field must be provided for update',
-  })
-  .openapi('UpdateProducePayload');
+  },
+).openapi('UpdateProducePayload');
 
 export const ProduceListItemSchema = z
   .object({
     id: ResourceIdSchema,
     thumbnail: ImageUrlSchema.nullable(),
     name: z.string().openapi({ example: 'Honeycrisp Apples' }),
-    sellerName: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
+    sellerName: z.string().nullable().openapi({ example: 'John Smith' }),
     sellerId: UserIdSchema,
     price: z.string().openapi({ example: '4.50', description: 'Formatted price string' }),
     amount: z
@@ -269,7 +273,7 @@ export const SellerProduceListResponseSchema = createPaginatedResponseSchema(
 export const ProduceDetailSchema = ProduceSchema.extend({
   seller: z.object({
     id: UserIdSchema,
-    name: z.string().nullable().openapi({ example: 'Smith Family Farm' }),
+    name: z.string().nullable().openapi({ example: 'John Smith' }),
     image: ImageUrlSchema.nullable(),
     canDeliver: z
       .boolean()

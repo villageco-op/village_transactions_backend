@@ -1,17 +1,30 @@
 import { del } from '@vercel/blob';
 import { HTTPException } from 'hono/http-exception';
 
-import type { ScheduleType } from '../db/types.js';
+import type { Organization, OrgRole, ScheduleType } from '../db/types.js';
 import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
+import { accountRepository } from '../repositories/account.repository.js';
+import { fcmRepository } from '../repositories/fcm.repository.js';
 import { orderRepository } from '../repositories/order.repository.js';
+import { organizationRepository } from '../repositories/organization.repository.js';
+import { produceRepository } from '../repositories/produce.repository.js';
 import { reviewRepository } from '../repositories/review.repository.js';
 import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
+import { sessionRepository } from '../repositories/session.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
-import type {
-  ReviewBreakdown,
-  UpdateScheduleRulesPayload,
-  UpdateUserPayload,
+import {
+  transformUserProfile,
+  type ReviewBreakdown,
+  type UpdateScheduleRulesPayload,
+  type UpdateUserPayload,
+  type Window,
 } from '../schemas/user.schema.js';
+
+import {
+  batchCancelAllPendingOrdersPlacedByUser,
+  batchCancelPendingOrders,
+} from './order.service.js';
+import { batchCancelProductSubscriptions } from './subscription.service.js';
 
 /**
  * Retrieves the current user profile, handles missing users, and sanitizes data.
@@ -27,7 +40,7 @@ export async function getCurrentUser(id: string, log: AppLogger = noopLogger) {
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  return user;
+  return transformUserProfile(user);
 }
 
 /**
@@ -109,14 +122,14 @@ export async function updateScheduleRules(
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  const dbPickupRules = data.pickupWindows.map((window) => ({
+  const dbPickupRules = data.pickupWindows.map((window: Window) => ({
     dayOfWeek: window.day,
     type: 'pickup' as ScheduleType,
     startTime: window.start,
     endTime: window.end,
   }));
 
-  const dbDeliveryRules = data.deliveryWindows.map((window) => ({
+  const dbDeliveryRules = data.deliveryWindows.map((window: Window) => ({
     dayOfWeek: window.day,
     type: 'delivery' as ScheduleType,
     startTime: window.start,
@@ -173,10 +186,17 @@ export async function getPublicUserProfile(id: string, log: AppLogger = noopLogg
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const activeBuyerCount = await orderRepository.getActiveBuyerCount(id, startOfMonth);
 
+  let organization: Organization | null = null;
+  if (user.organizationId) {
+    organization = await organizationRepository.findById(user.organizationId);
+  }
+
   return {
     id: user.id,
     name: user.name,
     image: user.image,
+    organization: organization?.name || null,
+    organizationId: user.organizationId,
     aboutMe: user.aboutMe,
     specialties: user.specialties,
     country: user.country,
@@ -188,4 +208,155 @@ export async function getPublicUserProfile(id: string, log: AppLogger = noopLogg
     reviewBreakdown,
     activeBuyerCount,
   };
+}
+
+/**
+ * Anonymizes the user account and cleans up related active records
+ * to preserve database FK integrity for past orders.
+ * @param id - User's unique ID injected by Auth.js session
+ * @param log - App logger that defaults to a blank logger
+ */
+export async function deleteAccount(id: string, log: AppLogger = noopLogger) {
+  const currentUser = await userRepository.findById(id);
+
+  if (!currentUser) {
+    log.warn('Attempted to delete non-existent user profile');
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  if (currentUser.image) {
+    del(currentUser.image).catch((err) => {
+      log.error(
+        { error: err instanceof Error ? err.message : err, blobUrl: currentUser.image },
+        'Failed to delete orphaned blob image during account deletion',
+      );
+    });
+  }
+
+  await userRepository.anonymize(id);
+
+  const sellerProducts = await produceRepository.findAllBySellerId(id);
+
+  await produceRepository.markAllAsDeletedBySellerId(id);
+
+  const reason = 'The seller closed their account.';
+  for (const product of sellerProducts) {
+    void Promise.allSettled([
+      batchCancelProductSubscriptions(product.id, reason),
+      batchCancelPendingOrders(product.id, reason, id, log),
+    ]).catch((err) =>
+      log.error({ err, productId: product.id }, 'Failed product cleanup for deleted account'),
+    );
+  }
+
+  await batchCancelAllPendingOrdersPlacedByUser(id, 'User deleted their account', log);
+
+  await scheduleRuleRepository.deleteBySellerId(id);
+
+  await accountRepository.deleteByUserId(id);
+  await sessionRepository.deleteByUserId(id);
+  await fcmRepository.deleteByUserId(id);
+
+  log.info('User account successfully anonymized and dependent records sanitized');
+}
+
+/**
+ * Assigns an organization and role to a user.
+ * @param userId - The ID of the user
+ * @param organizationId - The ID of the organization
+ * @param role - The role to assign
+ * @param log - App logger that defaults to a blank logger
+ * @returns The updated user
+ */
+export async function assignOrganizationToUser(
+  userId: string,
+  organizationId: string,
+  role: OrgRole,
+  log: AppLogger = noopLogger,
+) {
+  const updatedUser = await userRepository.updateOrgAndRole(userId, organizationId, role);
+
+  if (!updatedUser) {
+    log.warn({ userId, organizationId }, 'Attempted to assign organization to non-existent user');
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  log.info({ userId, organizationId, role }, 'Successfully assigned organization and role to user');
+  return updatedUser;
+}
+
+/**
+ * Removes organization association (ID and role) from all users belonging to the given organization.
+ * @param organizationId - The organization ID
+ * @param log - App logger that defaults to a blank logger
+ */
+export async function removeOrganizationFromUsers(
+  organizationId: string,
+  log: AppLogger = noopLogger,
+) {
+  await userRepository.clearOrganizationFromUsers(organizationId);
+  log.info(
+    { organizationId },
+    'Removed organization association and roles from all connected users',
+  );
+}
+
+/**
+ * Removes a user from their organization.
+ * - If the user is the last member, the organization is deleted.
+ * - If the user is the only admin and other members remain, another member is promoted to admin.
+ * @param userId - The ID of the user leaving the organization
+ * @param log - App logger that defaults to a blank logger
+ * @returns The updated user
+ */
+export async function leaveOrganization(userId: string, log: AppLogger = noopLogger) {
+  const user = await userRepository.findById(userId);
+
+  if (!user) {
+    log.warn({ userId }, 'Attempted to leave organization for non-existent user');
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  if (!user.organizationId) {
+    log.warn({ userId }, 'User does not belong to an organization');
+    throw new HTTPException(400, { message: 'User is not part of an organization' });
+  }
+
+  const organizationId = user.organizationId;
+  const members = await userRepository.findByOrganizationId(organizationId);
+
+  // Scenario 1: User is the last member in the organization
+  if (members.length <= 1) {
+    const updatedUser = await userRepository.removeFromOrganization(userId);
+    await organizationRepository.deleteById(organizationId);
+
+    log.info(
+      { userId, organizationId },
+      'User was the last member. Removed user and deleted organization',
+    );
+    return updatedUser;
+  }
+
+  // Scenario 2: User is an admin; check if another admin exists
+  if (user.orgRole === 'admin') {
+    const otherAdmins = members.filter((m) => m.id !== userId && m.orgRole === 'admin');
+
+    if (otherAdmins.length === 0) {
+      // Pick the next available user to promote
+      const nextAdmin = members.find((m) => m.id !== userId);
+
+      if (nextAdmin) {
+        await userRepository.updateOrgAndRole(nextAdmin.id, organizationId, 'admin');
+        log.info(
+          { promotedUserId: nextAdmin.id, organizationId },
+          'Promoted next member to admin as leaving user was sole admin',
+        );
+      }
+    }
+  }
+
+  const updatedUser = await userRepository.removeFromOrganization(userId);
+  log.info({ userId, organizationId }, 'Successfully removed user from organization');
+
+  return updatedUser;
 }

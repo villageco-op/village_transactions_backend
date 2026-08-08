@@ -59,11 +59,39 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'paused',
   'canceled',
 ]);
+export const orgTypeEnum = pgEnum('org_type', ['pantry', 'restaurant']);
+export const orgRoleEnum = pgEnum('org_role', ['admin', 'member']);
+export const orgInviteStatusEnum = pgEnum('org_invite_status', ['pending', 'accepted', 'expired']);
 
 const geography = customType<{ data: string }>({
   dataType() {
     return 'geography';
   },
+});
+
+export const organizations = pgTable('organizations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  type: orgTypeEnum('type').notNull(),
+  name: text('name').notNull(),
+  subdomain: text('subdomain').notNull().unique(),
+  email: text('email').unique(),
+  website: text('website'),
+  phone: text('phone'),
+  image: text('image'),
+
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  country: text('country'),
+  zip: text('zip'),
+  lat: doublePrecision('lat'),
+  lng: doublePrecision('lng'),
+  location: geography('location'),
+
+  maxReferrals: integer('max_referrals'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 export const users = pgTable('users', {
@@ -72,6 +100,8 @@ export const users = pgTable('users', {
   email: text('email').unique(),
   emailVerified: timestamp('email_verified'),
   image: text('image'),
+  organizationId: uuid('organization_id'),
+  orgRole: orgRoleEnum('org_role'),
 
   aboutMe: text('about_me'),
   specialties: jsonb('specialties').$type<string[]>().default([]),
@@ -141,6 +171,23 @@ export const fcmTokens = pgTable('fcm_tokens', {
   platform: text('platform').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const invites = pgTable(
+  'invites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    orgId: uuid('org_id')
+      .references(() => organizations.id, { onDelete: 'cascade' })
+      .notNull(),
+    code: varchar('code', { length: 255 }),
+    role: orgRoleEnum().notNull(),
+    status: orgInviteStatusEnum().default('pending').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique().on(t.email, t.orgId)],
+);
 
 export const scheduleRules = pgTable(
   'schedule_rules',
@@ -280,3 +327,33 @@ export const reviews = pgTable(
   },
   (t) => [unique().on(t.buyerId, t.orderId)],
 );
+
+export const clients = pgTable('clients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  country: text('country'),
+  zip: text('zip'),
+  active: boolean('active').default(true).notNull(),
+  organizationId: uuid('organization_id')
+    .references(() => organizations.id, { onDelete: 'cascade' })
+    .notNull(),
+  createdById: text('created_by_id')
+    .references(() => users.id, { onDelete: 'set null' })
+    .notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const referrals = pgTable('referrals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  referrerId: uuid('referrer_id')
+    .references(() => clients.id, { onDelete: 'cascade' })
+    .notNull(),
+  referredId: uuid('referred_id').references(() => clients.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});

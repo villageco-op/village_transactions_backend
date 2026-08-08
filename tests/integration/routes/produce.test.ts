@@ -140,6 +140,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         totalOzInventory: 500,
         maxOrderQuantityOz: 160,
         harvestFrequencyDays: 7,
+        availableBy: '2024-09-01T10:00:00Z',
         seasonStart: '2024-09-01',
         seasonEnd: '2024-11-30',
         images: ['https://example.com/apple.jpg'],

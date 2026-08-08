@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ALTER COLUMN "max_referrals" SET DATA TYPE integer;

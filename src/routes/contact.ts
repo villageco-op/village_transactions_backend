@@ -2,7 +2,6 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
 import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
-import { resend } from '../lib/resend.js';
 import { ErrorResponseSchema, SuccessResponseSchema } from '../schemas/common.schema.js';
 import { ContactRequestSchema } from '../schemas/contact.schema.js';
 import { processContactForm } from '../services/contact.service.js';
@@ -42,7 +41,7 @@ contactRoute.openapi(
       company: body.company,
     });
 
-    await processContactForm(resend, body, log);
+    await processContactForm(body, log);
 
     log.info('Contact form processed and forwarded');
     return c.json({ success: true }, 200);

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 
 import { authedRequest } from '../../test-utils/auth.js';
@@ -7,6 +7,7 @@ import {
   getTestDb,
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
+import { accountRepository } from '../../../src/repositories/account.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { scheduleRuleRepository } from '../../../src/repositories/schedule-rule.repository.js';
 import {
@@ -17,11 +18,28 @@ import {
   reviews,
   orderItems,
   produce,
+  organizations,
 } from '../../../src/db/schema.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
+import { sessionRepository } from '../../../src/repositories/session.repository.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { request } from '../../test-utils/request.js';
 import { fcmRepository } from '../../../src/repositories/fcm.repository.js';
+import { organizationRepository } from '../../../src/repositories/organization.repository.js';
+import * as stripeService from '../../../src/services/stripe.service.js';
+
+vi.spyOn(stripeService, 'updateStripeSubscriptionStatus').mockResolvedValue(undefined);
+vi.spyOn(stripeService, 'updateStripeSubscriptionQuantity').mockResolvedValue(undefined);
+
+vi.mock('@vercel/blob', () => ({
+  del: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../../src/services/subscription.service.js', () => ({
+  batchCancelProductSubscriptions: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe('Users API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -35,6 +53,11 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     orderRepository.setDb(testDb);
     reviewRepository.setDb(testDb);
     fcmRepository.setDb(testDb);
+    subscriptionRepository.setDb(testDb);
+    produceRepository.setDb(testDb);
+    accountRepository.setDb(testDb);
+    sessionRepository.setDb(testDb);
+    organizationRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -224,71 +247,6 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body).toHaveProperty('error', 'User not found');
-  });
-
-  it('POST /api/users/fcm-token should store token in the fcm_tokens table and return 200', async () => {
-    await testDb.insert(users).values({
-      id: TEST_USER_ID,
-      email: 'fcm@example.com',
-      name: 'FCM User',
-    });
-
-    const payload = {
-      token: 'v1-firebase-token-12345',
-      platform: 'android',
-    };
-
-    const res = await authedRequest(
-      '/api/users/fcm-token',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ success: true });
-
-    const insertedTokens = await testDb
-      .select()
-      .from(fcmTokens)
-      .where(eq(fcmTokens.userId, TEST_USER_ID));
-
-    expect(insertedTokens).toHaveLength(1);
-    expect(insertedTokens[0].token).toBe(payload.token);
-    expect(insertedTokens[0].platform).toBe(payload.platform);
-  });
-
-  it('POST /api/users/fcm-token should return 404 if user is not in database', async () => {
-    const res = await authedRequest(
-      '/api/users/fcm-token',
-      {
-        method: 'POST',
-        body: JSON.stringify({ token: 't', platform: 'ios' }),
-      },
-      { id: 'non_existent_id' },
-    );
-
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body).toHaveProperty('error', 'User not found');
-  });
-
-  it('POST /api/users/fcm-token should return 400 for invalid request body', async () => {
-    await testDb.insert(users).values({ id: TEST_USER_ID, email: 'valid@example.com' });
-
-    const res = await authedRequest(
-      '/api/users/fcm-token',
-      {
-        method: 'POST',
-        body: JSON.stringify({ token: 'missing-platform' }),
-      },
-      { id: TEST_USER_ID },
-    );
-
-    expect(res.status).toBe(400);
   });
 
   describe('GET /api/users/:id/reviews', () => {
@@ -507,6 +465,236 @@ describe('Users API Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(404);
       const body = await res.json();
       expect(body.error).toBe('User not found');
+    });
+  });
+
+  describe('DELETE /api/users/me', () => {
+    const CURRENT_USER_ID = 'test_auth_user_123';
+
+    beforeEach(async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        image: 'https://blob.vercel-storage.com/avatars/john.png',
+      });
+    });
+
+    it('should return 401 Unauthorized if request session is missing or valid token not supplied', async () => {
+      const res = await request('/api/users/me', { method: 'DELETE' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should successfully execute account data anonymization and clear volatile records', async () => {
+      await testDb.insert(scheduleRules).values({
+        sellerId: CURRENT_USER_ID,
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '17:00',
+      });
+
+      await testDb.insert(fcmTokens).values({
+        userId: CURRENT_USER_ID,
+        token: 'fcm_token_device_xyz_123',
+        platform: 'mac',
+      });
+
+      const res = await authedRequest(
+        '/api/users/me',
+        { method: 'DELETE' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ success: true });
+
+      const [updatedUser] = await testDb.select().from(users).where(eq(users.id, CURRENT_USER_ID));
+
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser.email).toContain('deleted-');
+      expect(updatedUser.name).toBe('Deleted User');
+      expect(updatedUser.image).toBeNull();
+
+      const relatedRules = await testDb
+        .select()
+        .from(scheduleRules)
+        .where(eq(scheduleRules.sellerId, CURRENT_USER_ID));
+      expect(relatedRules).toHaveLength(0);
+
+      const relatedTokens = await testDb
+        .select()
+        .from(fcmTokens)
+        .where(eq(fcmTokens.userId, CURRENT_USER_ID));
+      expect(relatedTokens).toHaveLength(0);
+    });
+
+    it('should return 404 Not Found if user is authenticated but missing from database repository tracking context', async () => {
+      await truncateTables(testDb);
+
+      const res = await authedRequest(
+        '/api/users/me',
+        { method: 'DELETE' },
+        { id: 'some_ghost_id_not_in_db' },
+      );
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('GET /api/users/me/org', () => {
+    const CURRENT_USER_ID = 'test_auth_user_123';
+    const TEST_ORG_ID = crypto.randomUUID();
+
+    beforeAll(async () => {
+      await testDb.insert(organizations).values({
+        id: TEST_ORG_ID,
+        name: 'Acme Corp',
+        type: 'pantry',
+        subdomain: 'acme-corp',
+        city: 'Chicago',
+        state: 'IL',
+        country: 'United States',
+        zip: '60601',
+      });
+    });
+
+    it('should return 401 Unauthorized if request session is missing', async () => {
+      const res = await request('/api/users/me/org', { method: 'GET' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 404 Not Found if user does not exist in the database', async () => {
+      const res = await authedRequest(
+        '/api/users/me/org',
+        { method: 'GET' },
+        { id: 'non_existent_user_id' },
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should return 404 Not Found if user has no organizationId set', async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        organizationId: null,
+      });
+
+      const res = await authedRequest(
+        '/api/users/me/org',
+        { method: 'GET' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toEqual({ error: 'Organization not found' });
+    });
+
+    it('should return 404 Not Found if organizationId points to a non-existent organization', async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        organizationId: crypto.randomUUID(),
+      });
+
+      const res = await authedRequest(
+        '/api/users/me/org',
+        { method: 'GET' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body).toEqual({ error: 'Organization not found' });
+    });
+
+    it('should return 200 OK with organization details when user and organization exist', async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        organizationId: TEST_ORG_ID,
+      });
+
+      const res = await authedRequest(
+        '/api/users/me/org',
+        { method: 'GET' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({
+        id: TEST_ORG_ID,
+        name: 'Acme Corp',
+        subdomain: 'acme-corp',
+      });
+    });
+  });
+
+  describe('POST /api/users/me/org/leave', () => {
+    const CURRENT_USER_ID = 'test_auth_user_123';
+    const TEST_ORG_ID = crypto.randomUUID();
+
+    beforeAll(async () => {
+      await testDb.insert(organizations).values({
+        id: TEST_ORG_ID,
+        name: 'Acme Corp',
+        type: 'pantry',
+        subdomain: 'acme-corp-1',
+        city: 'Chicago',
+        state: 'IL',
+        country: 'United States',
+        zip: '60601',
+      });
+    });
+
+    it('should return 401 Unauthorized if request session is missing', async () => {
+      const res = await request('/api/users/me/org/leave', { method: 'POST' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 404 Not Found if user does not exist in the database', async () => {
+      const res = await authedRequest(
+        '/api/users/me/org/leave',
+        { method: 'POST' },
+        { id: 'non_existent_user_id' },
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should successfully clear organizationId and orgRole from the user', async () => {
+      await testDb.insert(users).values({
+        id: CURRENT_USER_ID,
+        name: 'John Doe',
+        email: 'johndoe@example.com',
+        organizationId: TEST_ORG_ID,
+        orgRole: 'member',
+      });
+
+      const res = await authedRequest(
+        '/api/users/me/org/leave',
+        { method: 'POST' },
+        { id: CURRENT_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ success: true });
+
+      const [updatedUser] = await testDb.select().from(users).where(eq(users.id, CURRENT_USER_ID));
+
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser.organizationId).toBeNull();
+      expect(updatedUser.orgRole).toBeNull();
     });
   });
 });

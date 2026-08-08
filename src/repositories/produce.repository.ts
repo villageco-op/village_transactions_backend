@@ -164,6 +164,37 @@ export const produceRepository = {
   },
 
   /**
+   * Soft deletes all produce listings belonging to a specific seller.
+   * Clears their images and marks their status as deleted to preserve order integrity
+   * while removing them from the marketplace.
+   * @param sellerId - The ID of the user whose produce is being deleted
+   */
+  async markAllAsDeletedBySellerId(sellerId: string): Promise<void> {
+    await this.db
+      .update(produce)
+      .set({
+        status: 'deleted',
+        images: [],
+        updatedAt: new Date(),
+      })
+      .where(eq(produce.sellerId, sellerId));
+  },
+
+  /**
+   * Retrieves all non-deleted produce listings belonging to a specific seller.
+   * Useful for auditing inventory or running cleanup routines during account deletion.
+   * @param sellerId - The unique ID of the seller
+   * @returns An array of the seller's active/paused produce items
+   */
+  async findAllBySellerId(sellerId: string): Promise<Produce[]> {
+    return this.db
+      .select()
+      .from(produce)
+      .where(and(eq(produce.sellerId, sellerId), sql`${produce.status} != 'deleted'`))
+      .orderBy(desc(produce.createdAt));
+  },
+
+  /**
    * Retrieves a paginated list of active produce, calculating distance using PostGIS.
    * Joins with the `users` table to fetch seller information and location data.
    * @param params - The search and pagination parameters.
@@ -229,7 +260,8 @@ export const produceRepository = {
     if (params.search) {
       const searchPattern = `%${params.search}%`;
       conditions.push(
-        sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern} OR ${users.name} ILIKE ${searchPattern})`,
+        sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern}
+         OR ${users.name} ILIKE ${searchPattern})`,
       );
     }
 
@@ -374,7 +406,8 @@ export const produceRepository = {
     if (params.search) {
       const searchPattern = `%${params.search}%`;
       conditions.push(
-        sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern} OR ${users.name} ILIKE ${searchPattern})`,
+        sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern} 
+        OR ${users.name} ILIKE ${searchPattern})`,
       );
     }
 

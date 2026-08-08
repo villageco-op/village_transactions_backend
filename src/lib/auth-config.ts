@@ -4,6 +4,7 @@ import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import type { AuthConfig } from '@hono/auth-js';
 
 import { db } from '../db/index.js';
+import { users, accounts, sessions, verificationTokens } from '../db/schema.js';
 import { jwtCallback, sessionCallback } from '../services/auth/callbacks.js';
 
 /**
@@ -13,10 +14,44 @@ import { jwtCallback, sessionCallback } from '../services/auth/callbacks.js';
  * @returns The complete Auth.js configuration object
  */
 export function getAuthConfig(): AuthConfig {
+  const isProdOrPreview =
+    process.env.VERCEL_ENV === 'production' || process.env.VERCEL_ENV === 'preview';
+  const cookieDomain = isProdOrPreview ? '.villageco-op.com' : undefined;
+
   return {
     secret: process.env.AUTH_SECRET,
     session: { strategy: 'jwt' },
-    adapter: DrizzleAdapter(db),
+    adapter: DrizzleAdapter(db, {
+      usersTable: users,
+      accountsTable: accounts,
+      sessionsTable: sessions,
+      verificationTokensTable: verificationTokens,
+    }),
+    trustHost: true,
+    basePath: '/api/auth',
+
+    cookies: {
+      pkceCodeVerifier: {
+        name: `__Secure-authjs.pkce.code_verifier`,
+        options: {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          secure: true,
+          domain: cookieDomain,
+        },
+      },
+      state: {
+        name: `__Secure-authjs.state`,
+        options: {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          secure: true,
+          domain: cookieDomain,
+        },
+      },
+    },
 
     providers: [
       Google({
@@ -32,6 +67,13 @@ export function getAuthConfig(): AuthConfig {
     callbacks: {
       jwt: jwtCallback,
       session: sessionCallback,
+      redirect({ url, baseUrl }) {
+        if (url.startsWith('/')) return `${baseUrl}${url}`;
+
+        if (url.includes('villageco-op.com')) return url;
+
+        return baseUrl;
+      },
     },
   };
 }

@@ -8,6 +8,7 @@ import {
   getSellerPayouts,
   rescheduleOrder,
   batchCancelPendingOrders,
+  batchCancelAllPendingOrdersPlacedByUser,
 } from '../../../src/services/order.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
@@ -23,6 +24,7 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
     getPayoutHistory: vi.fn(),
     getOrderWithItemsById: vi.fn(),
     getPendingOrdersByProductId: vi.fn(),
+    getPendingOrdersByBuyerId: vi.fn(),
   },
 }));
 
@@ -499,6 +501,96 @@ describe('OrderService - getOrderDetails', () => {
 
     await expect(getOrderDetails('order_123', 'random_hacker')).rejects.toThrow(
       new HTTPException(404, { message: 'Order not found' }),
+    );
+  });
+});
+
+describe('OrderService - batchCancelAllPendingOrdersPlacedByUser', () => {
+  const mockBuyerId = 'buyer_999';
+  const mockReason = 'Account deletion requested by user.';
+
+  const mockLogger = {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  } as any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should exit early if no pending orders are found for the user', async () => {
+    vi.mocked(orderRepository.getPendingOrdersByBuyerId).mockResolvedValueOnce([]);
+
+    await batchCancelAllPendingOrdersPlacedByUser(mockBuyerId, mockReason, mockLogger);
+
+    expect(orderRepository.getPendingOrdersByBuyerId).toHaveBeenCalledWith(mockBuyerId);
+    expect(orderRepository.getOrderById).not.toHaveBeenCalled();
+    expect(mockLogger.info).toHaveBeenCalledWith({ buyerId: mockBuyerId }, expect.any(String));
+  });
+
+  it('should successfully batch cancel all pending orders when no errors occur', async () => {
+    const mockOrderIds = ['order_user_1', 'order_user_2'];
+    vi.mocked(orderRepository.getPendingOrdersByBuyerId).mockResolvedValueOnce(mockOrderIds);
+
+    vi.mocked(orderRepository.getOrderById).mockImplementation(
+      async (id) =>
+        ({
+          id,
+          status: 'pending',
+          sellerId: 'seller_abc',
+          buyerId: mockBuyerId,
+          stripeSessionId: 'cs_test_123',
+        }) as any,
+    );
+
+    vi.mocked(orderRepository.updateOrderToCanceled).mockResolvedValue({} as any);
+
+    await batchCancelAllPendingOrdersPlacedByUser(mockBuyerId, mockReason, mockLogger);
+
+    expect(orderRepository.getPendingOrdersByBuyerId).toHaveBeenCalledWith(mockBuyerId);
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenCalledTimes(2);
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenNthCalledWith(
+      1,
+      'order_user_1',
+      mockReason,
+    );
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenNthCalledWith(
+      2,
+      'order_user_2',
+      mockReason,
+    );
+
+    expect(mockLogger.info).to.have.been.calledWith(
+      { buyerId: mockBuyerId, count: 2 },
+      'All user-placed pending orders successfully canceled',
+    );
+  });
+
+  it('should handle partial failures gracefully and log an error summary', async () => {
+    const mockOrderIds = ['order_will_succeed', 'order_will_fail'];
+    vi.mocked(orderRepository.getPendingOrdersByBuyerId).mockResolvedValueOnce(mockOrderIds);
+
+    vi.mocked(orderRepository.getOrderById)
+      .mockResolvedValueOnce({
+        id: 'order_will_succeed',
+        status: 'pending',
+        sellerId: 'seller_abc',
+        buyerId: mockBuyerId,
+        stripeSessionId: 'cs_test_123',
+      } as any)
+      .mockRejectedValueOnce(new Error('Stripe or Database connection timeout'));
+
+    await batchCancelAllPendingOrdersPlacedByUser(mockBuyerId, mockReason, mockLogger);
+
+    expect(orderRepository.getOrderById).toHaveBeenCalledTimes(2);
+
+    expect(orderRepository.updateOrderToCanceled).toHaveBeenCalledTimes(1);
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      { buyerId: mockBuyerId, failureCount: 1, total: 2 },
+      'Batch buyer order cancellation completed with partial failures',
     );
   });
 });

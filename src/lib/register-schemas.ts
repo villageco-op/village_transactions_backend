@@ -5,11 +5,15 @@ import * as Availability from '../schemas/availability.schema.js';
 import * as Buyer from '../schemas/buyer.schema.js';
 import * as Cart from '../schemas/cart.schema.js';
 import * as Checkout from '../schemas/checkout.schema.js';
+import * as Clients from '../schemas/client.schema.js';
 import * as Common from '../schemas/common.schema.js';
 import * as Contact from '../schemas/contact.schema.js';
 import * as Growers from '../schemas/grower.schema.js';
+import * as Invites from '../schemas/invite.schema.js';
+import * as Location from '../schemas/location.schema.js';
 import * as Messaging from '../schemas/messaging.schema.js';
 import * as Orders from '../schemas/order.schema.js';
+import * as Organizations from '../schemas/organization.schema.js';
 import * as Produce from '../schemas/produce.schema.js';
 import * as Reviews from '../schemas/review.schema.js';
 import * as Seller from '../schemas/seller.schema.js';
@@ -38,6 +42,9 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('SubscriptionStatus', Common.SubscriptionStatusSchema);
   app.openAPIRegistry.register('ProduceType', Common.ProduceTypeSchema);
   app.openAPIRegistry.register('Season', Common.SeasonSchema);
+  app.openAPIRegistry.register('orgType', Common.OrgTypeSchema);
+  app.openAPIRegistry.register('orgRole', Common.OrgRoleSchema);
+  app.openAPIRegistry.register('OrgInviteStatus', Common.OrgInviteStatusSchema);
 
   // Scalars & Specific Fields
   app.openAPIRegistry.register('UserId', Common.UserIdSchema);
@@ -107,6 +114,8 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('UpdateUserPayload', Users.UpdateUserSchema);
   app.openAPIRegistry.register('UpdateScheduleRulesPayload', Users.UpdateScheduleRulesSchema);
   app.openAPIRegistry.register('RegisterFcmTokenPayload', Users.RegisterFcmTokenSchema);
+  app.openAPIRegistry.register('UnregisterFcmTokenPayload', Users.UnregisterFcmTokenSchema);
+  app.openAPIRegistry.register('GetFcmStatusQuery', Users.GetFcmStatusQuerySchema);
 
   // Subscriptions
   app.openAPIRegistry.register('UpdateSubscriptionPayload', Subscriptions.UpdateSubscriptionSchema);
@@ -191,4 +200,50 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
     'SourceMapAnalyticsResponse',
     SourceMap.SourceMapAnalyticsResponseSchema,
   );
+
+  // Location
+  app.openAPIRegistry.register('GeocodePayload', Location.GeocodeRequestSchema);
+  app.openAPIRegistry.register('GeocodeCoordinates', Location.GeocodeResponseSchema);
+
+  // Organizations
+  app.openAPIRegistry.register('Organization', Organizations.OrganizationSchema);
+  app.openAPIRegistry.register('CreateOrganizationPayload', Organizations.CreateOrganizationSchema);
+  app.openAPIRegistry.register('UpdateOrganizationPayload', Organizations.UpdateOrganizationSchema);
+  app.openAPIRegistry.register('CheckSubdomainQuery', Organizations.CheckSubdomainQuerySchema);
+  app.openAPIRegistry.register(
+    'CheckSubdomainResponse',
+    Organizations.CheckSubdomainResponseSchema,
+  );
+  app.openAPIRegistry.register('RemoveUserFromOrgPayload', Organizations.RemoveUserFromOrgSchema);
+  app.openAPIRegistry.register('UpdateUserRolePayload', Organizations.UpdateUserRoleSchema);
+  app.openAPIRegistry.register(
+    'UpdateUserRoleResponse',
+    Organizations.UpdateUserRoleResponseSchema,
+  );
+  app.openAPIRegistry.register('GetOrgMembersQuery', Organizations.GetOrgMembersQuerySchema);
+  app.openAPIRegistry.register('OrgMember', Organizations.OrgMemberResponseSchema);
+  app.openAPIRegistry.register(
+    'OrgMembersListResponse',
+    Organizations.OrgMembersListResponseSchema,
+  );
+
+  // Invites
+  app.openAPIRegistry.register('Invite', Invites.BaseInviteSchema);
+  app.openAPIRegistry.register('CreateInvitePayload', Invites.CreateInviteSchema);
+  app.openAPIRegistry.register('AcceptInvitePayload', Invites.AcceptInviteSchema);
+  app.openAPIRegistry.register('GetInvitesQuery', Invites.GetInvitesQuerySchema);
+  app.openAPIRegistry.register('InvitesListResponse', Invites.InvitesListResponseSchema);
+
+  // Clients
+  app.openAPIRegistry.register('Client', Clients.BaseClientSchema);
+  app.openAPIRegistry.register('Referral', Clients.BaseReferralSchema);
+  app.openAPIRegistry.register('Referrer', Clients.Referrer);
+  app.openAPIRegistry.register('SearchReferrerQuery', Clients.SearchReferrerQuerySchema);
+  app.openAPIRegistry.register('SearchReferrerResponse', Clients.SearchReferrerResponseSchema);
+  app.openAPIRegistry.register('CreateClientPayload', Clients.CreateClientSchema);
+  app.openAPIRegistry.register('UpdateClientPayload', Clients.UpdateClientSchema);
+  app.openAPIRegistry.register('GetClientsQuery', Clients.GetClientsQuerySchema);
+  app.openAPIRegistry.register('ClientResponse', Clients.ClientResponseSchema);
+  app.openAPIRegistry.register('ClientsListResponse', Clients.ClientsListResponseSchema);
+  app.openAPIRegistry.register('GetReferralsQuery', Clients.GetReferralsQuerySchema);
 }

@@ -1,19 +1,14 @@
 import '@auth/core/types';
 
-declare module '@auth/core/types' {
-  interface User {
-    id?: string;
-  }
+import type { UserProfile } from '../schemas/user.schema.ts';
 
+declare module '@auth/core/types' {
   interface Session {
-    user: {
-      id?: string;
-    } & DefaultSession['user'];
+    user: UserProfile & DefaultSession['user'];
   }
+  interface User extends DefaultUser, Partial<UserProfile> {}
 }
 
 declare module '@auth/core/jwt' {
-  interface JWT {
-    id?: string;
-  }
+  interface JWT extends DefaultJWT, Partial<UserProfile> {}
 }

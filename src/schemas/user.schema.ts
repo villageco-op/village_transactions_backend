@@ -4,6 +4,7 @@ import { createSelectSchema } from 'drizzle-zod';
 import { users } from '../db/schema.js';
 
 import {
+  EntityIdField,
   ImageUrlSchema,
   LatitudeSchema,
   LongitudeSchema,
@@ -11,7 +12,28 @@ import {
   UserIdSchema,
 } from './common.schema.js';
 
-export const UserProfileSchema = createSelectSchema(users).omit({ location: true }).openapi('User');
+const BaseProfileSchema = createSelectSchema(users).omit({
+  location: true,
+  stripeAccountId: true,
+});
+
+export const UserProfileSchema = BaseProfileSchema.extend({
+  isOnboardingComplete: z.boolean(),
+}).openapi('User');
+
+/**
+ * Adds the computed field (isOnboardingComplete) to the user object.
+ * @param user - The user database object
+ * @returns The user with the isOnboardingComplete field
+ */
+export function transformUserProfile(user: typeof users.$inferSelect) {
+  return {
+    ...user,
+    isOnboardingComplete: Boolean(
+      user.name && user.address && user.city && user.state && user.country && user.zip,
+    ),
+  };
+}
 
 export const UpdateUserSchema = z
   .object({
@@ -84,6 +106,8 @@ export const PublicUserProfileSchema = z
     id: UserIdSchema,
     name: z.string().nullable().openapi({ example: 'Green Acres' }),
     image: ImageUrlSchema.nullable(),
+    organization: z.string().nullable().openapi({ example: 'Green Hill Farms' }),
+    organizationId: EntityIdField.nullable(),
     aboutMe: z.string().nullable().openapi({
       description: 'Public bio displayed on the seller storefront',
     }),
@@ -134,8 +158,36 @@ export const RegisterFcmTokenSchema = z
   })
   .openapi('RegisterFcmTokenPayload');
 
+export const UnregisterFcmTokenSchema = z
+  .object({
+    platform: z.enum(['ios', 'android', 'web']).openapi({
+      example: 'ios',
+      description: 'The operating system of the device unregistering the token',
+    }),
+  })
+  .openapi('UnregisterFcmTokenPayload');
+
+export const GetFcmStatusQuerySchema = z
+  .object({
+    platform: z.enum(['ios', 'android', 'web']).openapi({
+      example: 'ios',
+      description: 'The operating system of the device',
+    }),
+  })
+  .openapi('GetFcmStatusQuery');
+
+export const FcmStatusResponseSchema = z
+  .object({
+    status: z.boolean(),
+  })
+  .openapi('FcmStatusResponse');
+
 export type RegisterFcmTokenPayload = z.infer<typeof RegisterFcmTokenSchema>;
+export type UnregisterFcmTokenPayload = z.infer<typeof UnregisterFcmTokenSchema>;
+export type GetFcmStatusQuery = z.infer<typeof GetFcmStatusQuerySchema>;
 export type UpdateScheduleRulesPayload = z.infer<typeof UpdateScheduleRulesSchema>;
+export type Window = z.infer<typeof WindowSchema>;
 export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;
 export type PublicUserProfile = z.infer<typeof PublicUserProfileSchema>;
 export type ReviewBreakdown = PublicUserProfile['reviewBreakdown'];
+export type UserProfile = z.infer<typeof UserProfileSchema>;

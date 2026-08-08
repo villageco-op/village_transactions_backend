@@ -46,3 +46,33 @@ export function calculateDistanceMiles(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
+
+/**
+ * Is this a testing environment.
+ */
+export const isTestingEnvironment =
+  process.env.NODE_ENV === 'test' || process.env.VERCEL_ENV === 'preview';
+
+/**
+ * Is this a local machine
+ */
+export const isLocal = process.env.NODE_ENV === 'development' || !process.env.VERCEL_ENV;
+
+/**
+ * Dynamic cookie name for test route authentication.
+ */
+export const cookieName = isLocal ? 'authjs.session-token' : '__Secure-authjs.session-token';
+
+/**
+ * Normalizes a string into a URL-friendly slug.
+ * @param text - String to be normalized
+ * @returns The URL-friendly slug
+ */
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}

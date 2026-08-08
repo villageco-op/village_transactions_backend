@@ -1,8 +1,10 @@
-import { eq, type SQL, sql } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+import { and, eq, type SQL, sql } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { users } from '../db/schema.js';
-import type { DbClient, User } from '../db/types.js';
+import type { DbClient, OrgRole, User } from '../db/types.js';
 import type { UpdateUserPayload } from '../schemas/user.schema.js';
 
 export const userRepository = {
@@ -35,6 +37,15 @@ export const userRepository = {
   async findById(id: string): Promise<User | null> {
     const [user] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
     return user ?? null;
+  },
+
+  /**
+   * Retrieves all users that have the org Id
+   * @param organizationId - The organization Id
+   * @returns A list of users
+   */
+  async findByOrganizationId(organizationId: string) {
+    return await this.db.select().from(users).where(eq(users.organizationId, organizationId));
   },
 
   /**
@@ -137,5 +148,234 @@ export const userRepository = {
         updatedAt: sql`now()`,
       })
       .where(eq(users.stripeAccountId, stripeAccountId));
+  },
+
+  /**
+   * Associates the user with an organization and assigns their organization role.
+   * @param userId - The user Id
+   * @param organizationId - The organization Id
+   * @param role - The users assigned organization role
+   * @returns The updated user or null
+   */
+  async updateOrgAndRole(
+    userId: string,
+    organizationId: string,
+    role: OrgRole,
+  ): Promise<User | null> {
+    const [updated] = await this.db
+      .update(users)
+      .set({
+        organizationId,
+        orgRole: role,
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated ?? null;
+  },
+
+  /**
+   * Clears the organization ID and role for all users associated with a specific organization ID.
+   * @param organizationId - The ID of the organization being disassociated
+   */
+  async clearOrganizationFromUsers(organizationId: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        organizationId: null,
+        orgRole: null,
+      })
+      .where(eq(users.organizationId, organizationId));
+  },
+
+  /**
+   * Removes a user from their organization by clearing organizationId and orgRole.
+   * @param userId - The ID of the user to be removed
+   * @returns The updated user or null
+   */
+  async removeFromOrganization(userId: string): Promise<User | null> {
+    const [updated] = await this.db
+      .update(users)
+      .set({
+        organizationId: null,
+        orgRole: null,
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated ?? null;
+  },
+
+  /**
+   * Anonymizes a user's profile to act as a soft delete while maintaining
+   * foreign key integrity for past orders and order items.
+   * @param id - The unique user ID to anonymize
+   */
+  async anonymize(id: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        name: 'Deleted User',
+        email: `deleted-${id}@example.local`,
+        emailVerified: null,
+        image: null,
+        organizationId: null,
+        orgRole: null,
+        aboutMe: null,
+        specialties: [],
+        goal: null,
+        address: null,
+        city: null,
+        state: null,
+        country: null,
+        zip: null,
+        lat: null,
+        lng: null,
+        location: null,
+        deliveryRangeMiles: '0',
+        stripeAccountId: null,
+        stripeOnboardingComplete: false,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(users.id, id));
+  },
+
+  /**
+   * TESTING ONLY: Forcefully inserts a completely pre-configured test user.
+   * @param data Payload to structure the new seeded user record
+   * @param data.email - The user email
+   * @param data.name - The users name
+   * @param data.stripeOnboarded - Did the user complete Stripe onboarding
+   * @param data.stripeAccountId - The users Stripe account id
+   * @param data.profile - The user name and address
+   * @param data.profile.address - The users address
+   * @param data.profile.city - The users city
+   * @param data.profile.state - The users state
+   * @param data.profile.zip - The users zip code
+   * @param data.profile.country - The users country
+   * @param data.profile.lat - The users latitude
+   * @param data.profile.lng - The users longitude
+   * @param data.organizationId
+   * @param data.orgRole
+   * @returns The user entry
+   */
+  async seedUser(data: {
+    email: string;
+    name?: string;
+    stripeOnboarded?: boolean;
+    stripeAccountId?: string | null;
+    profile?: {
+      address: string;
+      city: string;
+      state: string;
+      zip: string;
+      country?: string;
+      lat?: number;
+      lng?: number;
+    };
+    organizationId?: string;
+    orgRole?: OrgRole;
+  }): Promise<User> {
+    const id = `test_usr_${randomUUID()}`;
+    const lat = data.profile?.lat ?? 30.2672;
+    const lng = data.profile?.lng ?? -97.7431;
+
+    const insertPayload: typeof users.$inferInsert = {
+      id,
+      email: data.email,
+      name: data.name ?? 'Test User',
+      emailVerified: new Date(),
+      address: data.profile?.address ?? null,
+      city: data.profile?.city ?? null,
+      state: data.profile?.state ?? null,
+      country: data.profile?.country ?? 'USA',
+      zip: data.profile?.zip ?? null,
+      lat,
+      lng,
+      location: sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)` as unknown as string,
+      stripeAccountId: data.stripeAccountId ?? null,
+      stripeOnboardingComplete: data.stripeOnboarded ?? false,
+      organizationId: data.organizationId,
+      orgRole: data.orgRole,
+    };
+
+    const query = insertPayload.stripeAccountId
+      ? this.db
+          .insert(users)
+          .values(insertPayload)
+          .onConflictDoUpdate({
+            target: users.stripeAccountId,
+            set: {
+              email: insertPayload.email,
+              name: insertPayload.name,
+              stripeOnboardingComplete: insertPayload.stripeOnboardingComplete,
+            },
+          })
+      : this.db.insert(users).values(insertPayload);
+
+    const [newUser] = await query.returning();
+
+    if (!newUser) {
+      throw new Error('Failed to seed user into test database.');
+    }
+
+    return newUser;
+  },
+
+  /**
+   * Retrieves organization members based on filters and pagination limits.
+   * @param params - Search parameters
+   * @param params.orgId - The organization Id
+   * @param params.search - Search by user name or email
+   * @param params.role - Filter by user organization role
+   * @param params.limit - Maximum number of results
+   * @param params.offset - Pagination start index
+   * @returns A list of users and the total
+   */
+  async getMembers(params: {
+    orgId: string;
+    search?: string;
+    role?: OrgRole;
+    limit: number;
+    offset: number;
+  }) {
+    const { orgId, search, role, limit, offset } = params;
+
+    const conditions = [eq(users.organizationId, orgId)];
+
+    if (role) {
+      conditions.push(eq(users.orgRole, role));
+    }
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      conditions.push(
+        sql`(${users.name} ILIKE ${searchPattern} OR ${users.email}::text ILIKE ${searchPattern})`,
+      );
+    }
+
+    const whereClause = and(...conditions);
+
+    const [totalCountResult] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(users)
+      .where(whereClause);
+
+    const total = totalCountResult?.count || 0;
+
+    const items = await this.db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        orgRole: users.orgRole,
+        joinedAt: users.createdAt,
+      })
+      .from(users)
+      .where(whereClause)
+      .limit(limit)
+      .offset(offset);
+
+    return { items, total };
   },
 };
