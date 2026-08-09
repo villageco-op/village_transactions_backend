@@ -31,6 +31,12 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
   },
 }));
 
+vi.mock('../../../src/repositories/organization.repository.js', () => ({
+  organizationRepository: {
+    findById: vi.fn(),
+  },
+}));
+
 vi.mock('../../../src/db/index.js', () => ({
   db: {
     transaction: vi.fn((cb) => cb()),
@@ -118,6 +124,7 @@ describe('InviteService Unit Tests', () => {
           to: payload.email,
           subject: expect.any(String),
           text: expect.any(String),
+          html: expect.any(String),
         }),
         mockLogger,
       );

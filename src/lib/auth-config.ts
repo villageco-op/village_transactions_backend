@@ -6,6 +6,7 @@ import type { AuthConfig } from '@hono/auth-js';
 import { db } from '../db/index.js';
 import { users, accounts, sessions, verificationTokens } from '../db/schema.js';
 import { jwtCallback, sessionCallback } from '../services/auth/callbacks.js';
+import sendNodemailerVerificationRequest from '../services/auth/sendVerificationRequest.js';
 
 /**
  * Generates the configuration for Auth.js integration.
@@ -61,6 +62,9 @@ export function getAuthConfig(): AuthConfig {
       Nodemailer({
         server: process.env.EMAIL_SERVER,
         from: process.env.EMAIL_FROM,
+        async sendVerificationRequest({ identifier, url, provider }) {
+          return await sendNodemailerVerificationRequest({ identifier, url, provider });
+        },
       }),
     ],
 
