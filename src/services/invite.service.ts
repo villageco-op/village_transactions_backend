@@ -5,9 +5,11 @@ import { HTTPException } from 'hono/http-exception';
 import type { OrgInviteStatus, OrgRole } from '../db/types.js';
 import type { AppLogger } from '../interfaces/logger.interface.js';
 import { inviteRepository } from '../repositories/invite.repository.js';
+import { organizationRepository } from '../repositories/organization.repository.js';
 import { transactionRepository } from '../repositories/transaction.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
+import { DEFAULT_BRANDING, renderBrandedLayout } from './email/template.js';
 import { emailService } from './email.service.js';
 
 /**
@@ -45,14 +47,34 @@ export async function createOrgInvite(
     expiresAt,
   });
 
+  const organization = await organizationRepository.findById(organizationId);
+
   const frontendUrl = process.env.FRONTEND_URL || 'https://villageco-op.com';
   const inviteLink = `${frontendUrl}/verify-invite?org=${organizationId}&code=${inviteCode}&email=${encodeURIComponent(payload.email)}`;
+
+  const text = `You've been invited to join ${organization?.name || 'an organization'}.\n\nClick the link below to accept the invitation:\n${inviteLink}\n\nThis invitation link will expire in 7 days.`;
+
+  const bodyContent = `
+    <h2 style="margin-top: 0; color: ${DEFAULT_BRANDING.textColor};">You've been invited to join ${organization?.name || 'an organization'}</h2>
+    <p style="margin-bottom: 24px;">Click the button below to accept your invitation to join. This link will expire in 7 days.</p>
+    <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin: 28px 0;">
+      <tr>
+        <td align="center" style="border-radius: 6px; background-color: ${DEFAULT_BRANDING.primaryColor};">
+          <a href="${inviteLink}" target="_blank" style="font-size: 16px; font-weight: bold; color: ${DEFAULT_BRANDING.buttonTextColor}; text-decoration: none; border-radius: 6px; padding: 12px 24px; display: inline-block;">
+            Accept Invitation
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="font-size: 14px; color: ${DEFAULT_BRANDING.secondaryTextColor}; margin-top: 24px;">If you were not expecting this invitation, you can safely ignore this email.</p>
+  `;
 
   const emailResult = await emailService.send(
     {
       to: payload.email,
-      subject: `You've been invited to join an organization`,
-      text: `You have been invited to join the organization as an ${payload.role}.\n\nClick the link below to accept the invitation:\n${inviteLink}\n\nThis invitation link will expire in 7 days.`,
+      subject: `You've been invited to join ${organization?.name || 'an organization'}`,
+      text: text,
+      html: renderBrandedLayout(bodyContent),
     },
     log,
   );

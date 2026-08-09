@@ -11,6 +11,7 @@ import {
   type UpdateOrganizationPayload,
 } from '../schemas/organization.schema.js';
 
+import { renderBrandedLayout } from './email/template.js';
 import { emailService } from './email.service.js';
 import { sendPushNotification } from './notification.service.js';
 import { removeOrganizationFromUsers } from './user.service.js';
@@ -324,11 +325,20 @@ export async function updateUserRoleInOrganization(
   const orgName = org?.name || 'the organization';
 
   if (targetUser.email) {
+    const text = `Hi ${targetUser.name || 'there'},\n\nYour organization role in "${orgName}" has been updated to "${newRole}" by an administrator.\n\nBest regards,\nThe Village Team`;
+    const formattedText = text.replace(/\n/g, '<br>');
+    const header = `Your role was updated in ${orgName}`;
+    const bodyContent = `
+      <h2 style="margin-top: 0;">${header}</h2>
+      <p>${formattedText}</p>
+    `;
+
     const { success } = await emailService.send(
       {
         to: targetUser.email,
         subject: `Role Updated in ${orgName}`,
-        text: `Hi ${targetUser.name || 'there'},\n\nYour organization role in "${orgName}" has been updated to "${newRole}" by an administrator.\n\nBest regards,\nThe Village Team`,
+        text: text,
+        html: renderBrandedLayout(bodyContent),
       },
       log,
     );

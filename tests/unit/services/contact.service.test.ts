@@ -22,6 +22,12 @@ vi.mock('../../../src/repositories/fcm.repository.js', () => ({
   },
 }));
 
+vi.mock('../../../src/repositories/organization.repository.js', () => ({
+  organizationRepository: {
+    findById: vi.fn(),
+  },
+}));
+
 describe('ContactService - processContactForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,6 +66,7 @@ describe('ContactService - processContactForm', () => {
         to: 'john@example.com',
         subject: 'We received your message!',
         text: expect.stringContaining('Hi John Doe'),
+        html: expect.any(String),
       },
       expect.anything(),
     );
