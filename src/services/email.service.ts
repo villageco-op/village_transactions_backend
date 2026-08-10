@@ -9,6 +9,7 @@ export interface SendEmailOptions {
   to: string | string[];
   subject: string;
   text: string;
+  html?: string;
   replyTo?: string;
   fromName?: string;
 }
@@ -57,6 +58,7 @@ export class EmailService {
         to: options.to,
         subject: options.subject,
         text: options.text,
+        html: options.html,
         replyTo: options.replyTo,
       });
 
