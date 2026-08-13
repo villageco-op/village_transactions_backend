@@ -41,6 +41,14 @@ contactRoute.openapi(
       company: body.company,
     });
 
+    if (body.website && body.website.trim() !== '') {
+      log.warn(
+        { email: body.email },
+        'Bot submission detected via honeypot field. Dropping request.',
+      );
+      return c.json({ success: true }, 200);
+    }
+
     await processContactForm(body, log);
 
     log.info('Contact form processed and forwarded');
