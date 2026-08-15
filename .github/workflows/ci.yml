@@ -54,4 +54,6 @@ jobs:
           EMAIL_SERVER: ${{ secrets.EMAIL_SERVER }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
   

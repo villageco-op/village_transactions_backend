@@ -3,10 +3,14 @@ import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { swaggerUI } from '@hono/swagger-ui';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Pool } from '@neondatabase/serverless';
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 import { drizzle } from 'drizzle-orm/neon-serverless';
+import { bodyLimit } from 'hono/body-limit';
 import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
+import { secureHeaders } from 'hono/secure-headers';
 import { pinoLogger } from 'hono-pino';
 import type { Logger } from 'pino';
 
@@ -58,6 +62,26 @@ export const app = new OpenAPIHono<AppBindings>();
 
 const e2ePools = new Map<string, DbClient>();
 
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(100, '10 s'),
+});
+
+app.use('/api/*', async (c, next) => {
+  const clientIp =
+    c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
+    c.req.header('x-real-ip') ||
+    'anonymous';
+
+  const { success } = await ratelimit.limit(clientIp);
+
+  if (!success) {
+    return c.json({ error: 'Too many requests' }, 429);
+  }
+
+  await next();
+});
+
 app.onError((err, c) => {
   const log = c.get('logger') || rootLogger;
 
@@ -98,7 +122,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         return origin;
       }
-      return undefined;
+      return null;
     },
     credentials: true,
     allowHeaders: ['Content-Type', 'Authorization', 'x-e2e-neon-db-url'],
@@ -190,6 +214,16 @@ app.use('*', async (c, next) => {
 
   await next();
 });
+
+app.use(
+  '/api/*',
+  bodyLimit({
+    maxSize: 2 * 1024 * 1024, // 2MB limit
+    onError: (c) => c.json({ error: 'Payload too large' }, 413),
+  }),
+);
+
+app.use('*', secureHeaders());
 
 registerSharedSchemas(app);
 
