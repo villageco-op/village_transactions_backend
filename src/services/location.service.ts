@@ -3,6 +3,8 @@ import { HTTPException } from 'hono/http-exception';
 import type { AppLogger } from '../interfaces/logger.interface.js';
 import type { GeocodePayload } from '../schemas/location.schema.js';
 
+import { fetchGeocodingData } from './location-fetcher.js';
+
 /**
  * Contacts Mapbox API to translate raw address strings into latitude and longitude coordinates.
  * @param data - Individual pieces of the address setup
@@ -27,7 +29,7 @@ export async function processGeocoding(
   )}.json?access_token=${mapboxToken}&limit=1`;
 
   try {
-    const response = await fetch(mapboxUrl);
+    const response = await fetchGeocodingData(mapboxUrl);
 
     if (!response.ok) {
       log.error({ status: response.status }, 'Mapbox API request returned an upstream error');
