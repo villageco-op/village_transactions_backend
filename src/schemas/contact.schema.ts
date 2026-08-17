@@ -18,6 +18,10 @@ export const ContactRequestSchema = z
       example: 'I am interested in bulk purchasing.',
       description: 'The content of the contact request',
     }),
+    website: z.string().optional().openapi({
+      example: '',
+      description: 'Honeypot anti-spam field. Must be empty for legitimate users.',
+    }),
   })
   .openapi('ContactPayload');
 

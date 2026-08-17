@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
 import { request } from '../../test-utils/request.js';
 
-const delayResponse = (responseBody: any, statusCode = 200, ms = 50) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        ok: statusCode >= 200 && statusCode < 300,
-        status: statusCode,
-        json: async () => responseBody,
-      });
-    }, ms);
+import { fetchGeocodingData } from '../../../src/services/location-fetcher.js';
+
+vi.mock('../../../src/services/location-fetcher.js');
+
+const createMockResponse = (responseBody: any, statusCode = 200) => {
+  return new Response(JSON.stringify(responseBody), {
+    status: statusCode,
+    headers: { 'Content-Type': 'application/json' },
   });
 };
 
@@ -18,7 +18,7 @@ describe('Location API Integration', () => {
 
   beforeEach(() => {
     process.env.MAPBOX_ACCESS_TOKEN = 'mock-token';
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -26,12 +26,9 @@ describe('Location API Integration', () => {
   });
 
   it('POST /api/location/geocode should return 200 with coordinates on valid request payload', async () => {
-    const mockFetch = vi
-      .fn()
-      .mockImplementation(() =>
-        delayResponse({ features: [{ center: [-122.084058, 37.422021] }] }, 200, 50),
-      );
-    vi.stubGlobal('fetch', mockFetch);
+    vi.mocked(fetchGeocodingData).mockResolvedValueOnce(
+      createMockResponse({ features: [{ center: [-122.084058, 37.422021] }] }, 200),
+    );
 
     const res = await request('/api/location/geocode', {
       method: 'POST',
@@ -52,14 +49,13 @@ describe('Location API Integration', () => {
       lng: -122.084058,
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('api.mapbox.com/geocoding'));
+    expect(fetchGeocodingData).toHaveBeenCalledTimes(1);
+    expect(fetchGeocodingData).toHaveBeenCalledWith(
+      expect.stringContaining('api.mapbox.com/geocoding'),
+    );
   });
 
   it('POST /api/location/geocode should return 400 Zod validation error if required body payload fields are missing', async () => {
-    const mockFetch = vi.fn();
-    vi.stubGlobal('fetch', mockFetch);
-
     const res = await request('/api/location/geocode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -69,12 +65,11 @@ describe('Location API Integration', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(fetchGeocodingData).not.toHaveBeenCalled();
   });
 
   it('POST /api/location/geocode should forward 400 bad request error responses when location can not be resolved', async () => {
-    const mockFetch = vi.fn().mockImplementation(() => delayResponse({ features: [] }, 200, 50));
-    vi.stubGlobal('fetch', mockFetch);
+    vi.mocked(fetchGeocodingData).mockResolvedValueOnce(createMockResponse({ features: [] }, 200));
 
     const res = await request('/api/location/geocode', {
       method: 'POST',
