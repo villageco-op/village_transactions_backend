@@ -140,8 +140,8 @@ describe('StripeService - generateStripeOnboardLink', () => {
 
     expect(mockStripe.accountLinks.create).toHaveBeenCalledWith({
       account: 'acct_new123',
-      refresh_url: 'http://localhost:3000/onboarding/refresh',
-      return_url: 'http://localhost:3000/dashboard',
+      refresh_url: 'http://localhost:3000/onboarding/stripe-refresh',
+      return_url: 'http://localhost:3000/onboarding/stripe-connected',
       type: 'account_onboarding',
     });
 
@@ -165,8 +165,8 @@ describe('StripeService - generateStripeOnboardLink', () => {
 
     expect(mockStripe.accountLinks.create).toHaveBeenCalledWith({
       account: 'acct_existing999',
-      refresh_url: 'http://localhost:3000/onboarding/refresh',
-      return_url: 'http://localhost:3000/dashboard',
+      refresh_url: 'http://localhost:3000/onboarding/stripe-refresh',
+      return_url: 'http://localhost:3000/onboarding/stripe-connected',
       type: 'account_onboarding',
     });
 

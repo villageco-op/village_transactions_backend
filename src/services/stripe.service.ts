@@ -67,8 +67,8 @@ export async function generateStripeOnboardLink(userId: string, log: AppLogger =
 
   const accountLink = await stripe.accountLinks.create({
     account: stripeAccountId,
-    refresh_url: `${appUrl}/onboarding/refresh`,
-    return_url: `${appUrl}/dashboard`,
+    refresh_url: `${appUrl}/onboarding/stripe-refresh`,
+    return_url: `${appUrl}/onboarding/stripe-connected`,
     type: 'account_onboarding',
   });
 
