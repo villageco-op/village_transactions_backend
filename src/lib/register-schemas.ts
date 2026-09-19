@@ -135,6 +135,7 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
 
   // Stripe
   app.openAPIRegistry.register('StripeOnboardingResponse', Stripe.StripeOnboardingResponseSchema);
+  app.openAPIRegistry.register('StripeStatusResponse', Stripe.StripeStatusResponseSchema);
 
   // Contact
   app.openAPIRegistry.register('ContactPayload', Contact.ContactRequestSchema);

@@ -5,9 +5,13 @@ import Stripe from 'stripe';
 import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import { ErrorResponseSchema } from '../schemas/common.schema.js';
-import { StripeOnboardingResponseSchema } from '../schemas/stripe.schema.js';
+import {
+  StripeOnboardingResponseSchema,
+  StripeStatusResponseSchema,
+} from '../schemas/stripe.schema.js';
 import {
   generateStripeOnboardLink,
+  getStripeOnboardingStatus,
   processStripeWebhookEvent,
 } from '../services/stripe.service.js';
 
@@ -79,5 +83,43 @@ stripeRoute.openapi(
     const url = await generateStripeOnboardLink(userId, log);
 
     return c.json({ url }, 200);
+  },
+);
+
+stripeRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/connect/status',
+    operationId: 'getStripeOnboardingStatus',
+    description:
+      'Fetch the user Stripe onboarding status, with synchronous fallback check against Stripe.',
+    tags: [TAGS.STRIPE],
+    middleware: [verifyAuth()],
+    responses: {
+      200: {
+        description: 'Onboarding status retrieved',
+        content: { 'application/json': { schema: StripeStatusResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const log = c.get('logger').child({
+      action: 'getStripeOnboardingStatus',
+    });
+
+    const status = await getStripeOnboardingStatus(userId, log);
+
+    return c.json(status, 200);
   },
 );

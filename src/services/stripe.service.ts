@@ -63,12 +63,12 @@ export async function generateStripeOnboardLink(userId: string, log: AppLogger =
     await updateInternalStripeAccountId(userId, stripeAccountId);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
 
   const accountLink = await stripe.accountLinks.create({
     account: stripeAccountId,
     refresh_url: `${appUrl}/onboarding/stripe-refresh`,
-    return_url: `${appUrl}/onboarding/stripe-connected`,
+    return_url: `${appUrl}/onboarding/stripe-return`,
     type: 'account_onboarding',
   });
 
@@ -420,6 +420,43 @@ async function handleAccountUpdated(account: Stripe.Account, log: AppLogger = no
     { stripeAccountId: account.id, isComplete },
     'Updated user onboarding status from Stripe',
   );
+}
+
+/**
+ * Checks and returns the Stripe onboarding status for a user, falling back to a direct
+ * Stripe API check and inline DB update if the local status is not yet marked complete.
+ * @param userId - The user Id
+ * @param log - App logger that defaults to a blank logger.
+ * @returns True if stripe onboarding is complete
+ */
+export async function getStripeOnboardingStatus(
+  userId: string,
+  log: AppLogger = noopLogger,
+): Promise<{ isComplete: boolean }> {
+  const user = await userRepository.findById(userId);
+
+  if (!user || !user.stripeAccountId) {
+    log.warn({ userId }, 'User or Stripe account ID not found when checking onboarding status');
+    return { isComplete: false };
+  }
+
+  if (user.stripeOnboardingComplete) {
+    return { isComplete: true };
+  }
+
+  const account = await stripe.accounts.retrieve(user.stripeAccountId);
+
+  const isComplete = Boolean(account.details_submitted && account.charges_enabled);
+
+  if (isComplete) {
+    await userRepository.updateStripeOnboardingStatus(account.id, true);
+    log.info(
+      { stripeAccountId: account.id, userId },
+      'Synchronous fallback updated onboarding status to complete',
+    );
+  }
+
+  return { isComplete };
 }
 
 /**
