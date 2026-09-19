@@ -15,6 +15,7 @@ import {
   handleChargeDisputeCreated,
   handleChargeRefunded,
   handleSubscriptionUpdated,
+  getStripeOnboardingStatus,
 } from '../../../src/services/stripe.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { updateInternalStripeAccountId } from '../../../src/services/user.service.js';
@@ -26,6 +27,7 @@ import { subscriptionRepository } from '../../../src/repositories/subscription.r
 const mockStripe = {
   accounts: {
     create: vi.fn().mockResolvedValue({ id: 'acct_test' }),
+    retrieve: vi.fn().mockResolvedValue({ details_submitted: true, charges_enabled: true }),
   },
   accountLinks: {
     create: vi.fn().mockResolvedValue({ url: 'test_url' }),
@@ -67,6 +69,7 @@ const mockStripe = {
 vi.mock('../../../src/repositories/user.repository.js', () => ({
   userRepository: {
     findById: vi.fn(),
+    updateStripeOnboardingStatus: vi.fn(),
   },
 }));
 
@@ -141,7 +144,7 @@ describe('StripeService - generateStripeOnboardLink', () => {
     expect(mockStripe.accountLinks.create).toHaveBeenCalledWith({
       account: 'acct_new123',
       refresh_url: 'http://localhost:3000/onboarding/stripe-refresh',
-      return_url: 'http://localhost:3000/onboarding/stripe-connected',
+      return_url: 'http://localhost:3000/onboarding/stripe-return',
       type: 'account_onboarding',
     });
 
@@ -166,7 +169,7 @@ describe('StripeService - generateStripeOnboardLink', () => {
     expect(mockStripe.accountLinks.create).toHaveBeenCalledWith({
       account: 'acct_existing999',
       refresh_url: 'http://localhost:3000/onboarding/stripe-refresh',
-      return_url: 'http://localhost:3000/onboarding/stripe-connected',
+      return_url: 'http://localhost:3000/onboarding/stripe-return',
       type: 'account_onboarding',
     });
 
@@ -174,9 +177,94 @@ describe('StripeService - generateStripeOnboardLink', () => {
   });
 });
 
+describe('StripeService - getStripeOnboardingStatus', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __setStripeClient(mockStripe);
+  });
+
+  it('should return { isComplete: false } if user is not found', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+    const result = await getStripeOnboardingStatus('missing_user');
+
+    expect(result).toEqual({ isComplete: false });
+    expect(userRepository.findById).toHaveBeenCalledWith('missing_user');
+  });
+
+  it('should return { isComplete: false } if user has no stripeAccountId', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'user_1',
+      stripeAccountId: null,
+      stripeOnboardingComplete: false,
+    } as any);
+
+    const result = await getStripeOnboardingStatus('user_1');
+
+    expect(result).toEqual({ isComplete: false });
+  });
+
+  it('should return { isComplete: true } immediately without calling Stripe if already complete in DB', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'user_2',
+      stripeAccountId: 'acct_123',
+      stripeOnboardingComplete: true,
+    } as any);
+
+    const result = await getStripeOnboardingStatus('user_2');
+
+    expect(result).toEqual({ isComplete: true });
+    expect(mockStripe.accounts.retrieve).not.toHaveBeenCalled();
+  });
+
+  it('should retrieve status from Stripe, update DB, and return true when onboarding is complete on Stripe', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'user_3',
+      stripeAccountId: 'acct_456',
+      stripeOnboardingComplete: false,
+    } as any);
+
+    vi.mocked(userRepository.updateStripeOnboardingStatus).mockResolvedValueOnce(undefined as any);
+
+    vi.mocked(mockStripe.accounts.retrieve).mockResolvedValueOnce({
+      id: 'acct_456',
+      details_submitted: true,
+      charges_enabled: true,
+    } as any);
+
+    const result = await getStripeOnboardingStatus('user_3');
+
+    expect(mockStripe.accounts.retrieve).toHaveBeenCalledWith('acct_456');
+    expect(userRepository.updateStripeOnboardingStatus).toHaveBeenCalledWith('acct_456', true);
+    expect(result).toEqual({ isComplete: true });
+  });
+
+  it('should retrieve status from Stripe and return false without updating DB if details are incomplete', async () => {
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      id: 'user_4',
+      stripeAccountId: 'acct_789',
+      stripeOnboardingComplete: false,
+    } as any);
+
+    vi.mocked(mockStripe.accounts.retrieve).mockResolvedValueOnce({
+      id: 'acct_789',
+      details_submitted: true,
+      charges_enabled: false,
+    } as any);
+
+    const result = await getStripeOnboardingStatus('user_4');
+
+    expect(mockStripe.accounts.retrieve).toHaveBeenCalledWith('acct_789');
+    expect(userRepository.updateStripeOnboardingStatus).not.toHaveBeenCalled();
+    expect(result).toEqual({ isComplete: false });
+  });
+});
+
 describe('StripeService - processStripeWebhookEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    __setStripeClient(mockStripe);
   });
 
   it('should process account.updated event and update onboarding status', async () => {
@@ -352,6 +440,8 @@ describe('StripeService - processStripeWebhookEvent', () => {
 describe('StripeService - refundCheckoutSession', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    __setStripeClient(mockStripe);
   });
 
   it('should issue a full refund if payment intent exists', async () => {
@@ -380,6 +470,8 @@ describe('StripeService - refundCheckoutSession', () => {
 describe('StripeService - updateStripeSubscriptionQuantity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    __setStripeClient(mockStripe);
   });
 
   it('should retrieve the subscription, find the item ID, and update quantity safely without proration', async () => {
@@ -414,6 +506,8 @@ describe('StripeService - createCheckoutSession', () => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
     process.env.PLATFORM_FEE_PERCENT = '0.02'; // 2%
     process.env.SUBSCRIPTION_DISCOUNT_PERCENT = '10'; // 10%
+
+    __setStripeClient(mockStripe);
   });
 
   afterEach(() => {
@@ -634,6 +728,8 @@ describe('StripeService - createCheckoutSession', () => {
 describe('StripeService - handleInvoicePaid', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    __setStripeClient(mockStripe);
   });
 
   it('should successfully fulfill a recurring subscription for a valid invoice', async () => {
@@ -730,6 +826,8 @@ describe('StripeService - handleInvoicePaid', () => {
 describe('StripeService - findOrderByCharge', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    __setStripeClient(mockStripe);
   });
 
   it('should find an order directly via payment_intent ID', async () => {
@@ -779,6 +877,8 @@ describe('StripeService - handleChargeDisputeCreated', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    __setStripeClient(mockStripe);
   });
 
   it('should update order status to disputed when order is found', async () => {
@@ -814,6 +914,8 @@ describe('StripeService - handleChargeRefunded', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    __setStripeClient(mockStripe);
   });
 
   it('should cancel order and restock when charge is refunded', async () => {
@@ -852,6 +954,8 @@ describe('StripeService - handleChargeRefunded', () => {
 describe('StripeService - handleSubscriptionUpdated', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+    __setStripeClient(mockStripe);
   });
 
   it('should update subscription quantity in DB', async () => {
