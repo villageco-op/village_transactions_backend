@@ -389,6 +389,61 @@ describe('ProduceService - getProduceList', () => {
       totalPages: 1,
     });
   });
+
+  it('should process requests without lat and lng and format null distance correctly', async () => {
+    const mockDbDate = new Date();
+    const mockRepoResponse = {
+      items: [
+        {
+          id: 'prod_1',
+          name: 'Bananas',
+          price: '0.30',
+          amount: '200',
+          images: ['https://example.com/banana.jpg'],
+          isSubscribable: false,
+          availableBy: mockDbDate,
+          sellerId: 'user_3',
+          sellerName: 'Farmer Alice',
+          distance: null,
+        },
+      ],
+      total: 1,
+    };
+
+    vi.mocked(produceRepository.getList).mockResolvedValueOnce(mockRepoResponse as any);
+
+    const result = await getProduceList({
+      page: 1,
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(produceRepository.getList).toHaveBeenCalledWith({
+      page: 1,
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(result.data[0]).toEqual({
+      id: 'prod_1',
+      name: 'Bananas',
+      price: '0.30',
+      amount: '200',
+      isSubscribable: false,
+      availableBy: mockDbDate,
+      sellerId: 'user_3',
+      sellerName: 'Farmer Alice',
+      distance: null,
+      thumbnail: 'https://example.com/banana.jpg',
+    });
+
+    expect(result.meta).toEqual({
+      total: 1,
+      page: 1,
+      limit: 10,
+      totalPages: 1,
+    });
+  });
 });
 
 describe('ProduceService - getProduceMap', () => {

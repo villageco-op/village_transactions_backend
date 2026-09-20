@@ -218,8 +218,8 @@ export const produceRepository = {
    * @returns An object containing the paginated items and total count.
    */
   async getList(params: {
-    lat: number;
-    lng: number;
+    lat?: number;
+    lng?: number;
     sellerId?: string;
     sortBy?: 'distance' | 'price';
     hasDelivery?: 'true' | 'false';
@@ -238,8 +238,11 @@ export const produceRepository = {
   }) {
     const { lat, lng, sellerId, sortBy, hasDelivery, limit, offset } = params;
 
-    const userLocation = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
-    const distanceMiles = sql<number>`ST_Distance(${users.location}, ${userLocation}) / 1609.344`;
+    const hasCoordinates = lat !== undefined && lng !== undefined;
+
+    const distanceMiles = hasCoordinates
+      ? sql<number>`ST_Distance(${users.location}, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography) / 1609.344`
+      : sql<number | null>`NULL`;
 
     // Baseline checks: Active produce and seller must have completed stripe onboarding
     const conditions = [eq(produce.status, 'active'), eq(users.stripeOnboardingComplete, true)];
@@ -250,7 +253,9 @@ export const produceRepository = {
 
     if (hasDelivery === 'true') {
       conditions.push(sql`${users.deliveryRangeMiles} > 0`);
-      conditions.push(sql`${distanceMiles} <= ${users.deliveryRangeMiles}`);
+      if (hasCoordinates) {
+        conditions.push(sql`${distanceMiles} <= ${users.deliveryRangeMiles}`);
+      }
     }
 
     if (params.produceType) {
@@ -261,12 +266,11 @@ export const produceRepository = {
       const searchPattern = `%${params.search}%`;
       conditions.push(
         sql`(${produce.title} ILIKE ${searchPattern} OR ${produce.produceType}::text ILIKE ${searchPattern}
-         OR ${users.name} ILIKE ${searchPattern})`,
+        OR ${users.name} ILIKE ${searchPattern})`,
       );
     }
 
     if (params.maxOrderQuantity !== undefined) {
-      // Return listings that allow an order of AT LEAST this quantity, or have no limit
       conditions.push(
         sql`(${produce.maxOrderQuantityOz} >= ${params.maxOrderQuantity} OR ${produce.maxOrderQuantityOz} IS NULL)`,
       );
@@ -301,7 +305,7 @@ export const produceRepository = {
       conditions.push(sql`${produce.pricePerOz} <= ${params.maxPrice}`);
     }
 
-    if (params.maxDistance !== undefined) {
+    if (params.maxDistance !== undefined && hasCoordinates) {
       conditions.push(sql`${distanceMiles} <= ${params.maxDistance}`);
     }
 
@@ -338,8 +342,10 @@ export const produceRepository = {
 
     if (sortBy === 'price') {
       query = query.orderBy(asc(produce.pricePerOz));
-    } else {
+    } else if (hasCoordinates) {
       query = query.orderBy(asc(distanceMiles));
+    } else {
+      query = query.orderBy(desc(produce.createdAt));
     }
 
     const items = await query.limit(limit).offset(offset);

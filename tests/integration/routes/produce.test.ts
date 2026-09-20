@@ -10,6 +10,8 @@ import { produceRepository } from '../../../src/repositories/produce.repository.
 import { users, produce, orderItems, orders, subscriptions } from '../../../src/db/schema.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
+import { request } from '../../test-utils/request.js';
 
 describe('Produce API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -21,6 +23,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     produceRepository.setDb(testDb);
     subscriptionRepository.setDb(testDb);
     orderRepository.setDb(testDb);
+    userRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -35,6 +38,8 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       name: 'Integration Seller',
       email: 'seller.api@example.com',
       passwordHash: 'secret_hash',
+      lat: 45.0,
+      lng: -90.0,
       location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
       deliveryRangeMiles: '20',
       stripeOnboardingComplete: true,
@@ -364,9 +369,57 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(firstItem).toHaveProperty('amount', '300.00');
       expect(firstItem).toHaveProperty('availableBy');
       expect(firstItem).toHaveProperty('distance');
+      console.log('Distance: ' + firstItem.distance);
       expect(typeof firstItem.distance).toBe('number');
       expect(firstItem).toHaveProperty('thumbnail', 'https://example.com/plum1.jpg');
       expect(firstItem).toHaveProperty('description', 'Fresh, sweet plums.');
+    });
+
+    it('GET /api/produce/list should fall back to authUser profile location if lat/lng are missing', async () => {
+      await testDb.insert(produce).values({
+        sellerId: TEST_USER_ID,
+        title: 'Plums',
+        produceType: 'stone_fruits',
+        pricePerOz: '0.40',
+        totalOzInventory: '300',
+        harvestFrequencyDays: 5,
+        seasonStart: '2024-05-01',
+        seasonEnd: '2024-07-31',
+        availableBy: new Date(),
+        status: 'active',
+      });
+
+      // Omit lat & lng query parameters, but pass authenticated context
+      const res = await authedRequest('/api/produce/list?limit=10', {}, { id: TEST_USER_ID });
+
+      expect(res.status).toBe(200);
+      const { data } = await res.json();
+      expect(data.length).toBe(1);
+      // Distance is dynamically calculated using user's profile location (-90.0, 45.0)
+      expect(data[0].distance).not.toBeNull();
+      expect(typeof data[0].distance).toBe('number');
+    });
+
+    it('GET /api/produce/list should allow unauthenticated requests without lat/lng', async () => {
+      await testDb.insert(produce).values({
+        sellerId: TEST_USER_ID,
+        title: 'Unauthed Apples',
+        pricePerOz: '0.50',
+        totalOzInventory: '100',
+        harvestFrequencyDays: 1,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        availableBy: new Date(),
+        status: 'active',
+      });
+
+      const res = await request('/api/produce/list?limit=10');
+
+      expect(res.status).toBe(200);
+      const { data } = await res.json();
+      expect(data.length).toBe(1);
+      expect(data[0].name).toBe('Unauthed Apples');
+      expect(data[0].distance).toBeNull();
     });
 
     it('GET /api/produce/list should filter by delivery capability when requested', async () => {
