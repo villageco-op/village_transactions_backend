@@ -175,7 +175,9 @@ app.use('*', async (c, next) => {
     return c.body(null);
   }
 
-  if (process.env.VERCEL_ENV === 'preview') {
+  const isStripeWebhook = c.req.path === '/api/stripe/webhook';
+
+  if (process.env.VERCEL_ENV === 'preview' && !isStripeWebhook) {
     const stagingCookie = getCookie(c, 'village_staging_access');
     const expectedKey = process.env.STAGING_SECRET_KEY;
 
