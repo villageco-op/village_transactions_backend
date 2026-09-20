@@ -245,6 +245,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
           availableBy: new Date('2024-04-15T10:00:00Z'), // Spring
           status: 'active',
           description: 'Expensive carrots.',
+          createdAt: new Date('2024-01-01T10:00:00Z'), // Older
         },
         {
           sellerId: OTHER_SELLER_ID,
@@ -260,6 +261,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
           availableBy: new Date('2024-07-15T10:00:00Z'), // Summer
           status: 'active',
           description: 'Cheap carrots',
+          createdAt: new Date('2024-01-02T10:00:00Z'), // Newer
         },
         {
           sellerId: INCOMPLETE_SELLER_ID,
@@ -290,6 +292,48 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
       expect(result[0].sellerId).toBe(TEST_SELLER_ID);
       expect(result[1].sellerId).toBe(OTHER_SELLER_ID);
       expect(Number(result[0].distance)).toBeLessThan(Number(result[1].distance));
+    });
+
+    it('should fall back to createdAt desc when lat and lng are omitted', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(total).toBe(2);
+      expect(result).toHaveLength(2);
+      // Jane was created on 2024-01-02, Joe on 2024-01-01 -> Jane first
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+      expect(result[1].sellerId).toBe(TEST_SELLER_ID);
+      expect(result[0].distance).toBeNull();
+      expect(result[1].distance).toBeNull();
+    });
+
+    it('should allow fetching a seller’s listings without lat/lng coordinates', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        sellerId: TEST_SELLER_ID,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(total).toBe(1);
+      expect(result).toHaveLength(1);
+      expect(result[0].sellerId).toBe(TEST_SELLER_ID);
+      expect(result[0].name).toContain('Joe Carrots');
+      expect(result[0].distance).toBeNull();
+    });
+
+    it('should sort by price without lat/lng when requested', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        sortBy: 'price',
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(total).toBe(2);
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID); // Jane is 0.25
+      expect(result[1].sellerId).toBe(TEST_SELLER_ID); // Joe is 1.00
+      expect(result[0].distance).toBeNull();
     });
 
     it('should sort by price when requested', async () => {

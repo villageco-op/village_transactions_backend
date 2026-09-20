@@ -92,7 +92,10 @@ export const ProduceListItemSchema = z
       .string()
       .openapi({ example: '16oz', description: 'Formatted weight/quantity string' }),
     availableBy: z.date(),
-    distance: z.number().openapi({ example: 5.2, description: 'Distance in miles from the user' }),
+    distance: z
+      .number()
+      .nullable()
+      .openapi({ example: 5.2, description: 'Distance in miles from the user' }),
     isSubscribable: z.boolean().nullable(),
     description: z.string().nullable().openapi({
       description: 'Description of the produce written by the seller.',
@@ -107,8 +110,8 @@ export const ProduceListResponseSchema = createPaginatedResponseSchema(
 
 export const ProduceQuerySchema = z
   .object({
-    lat: LatitudeSchema,
-    lng: LongitudeSchema,
+    lat: LatitudeSchema.optional(),
+    lng: LongitudeSchema.optional(),
     sellerId: UserIdSchema.optional().openapi({
       description: 'Filter for produce owned by this seller.',
     }),
