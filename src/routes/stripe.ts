@@ -17,12 +17,46 @@ import {
 
 export const stripeRoute = new OpenAPIHono<RouteEnv>();
 
-stripeRoute.post('/webhook', async (c) => {
+stripeRoute.post('/webhook/account', async (c) => {
   const signature = c.req.header('stripe-signature');
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_ACCOUNT;
 
   const log = c.get('logger').child({
     action: 'stripeWebhook',
+    webhookType: 'account',
+  });
+
+  if (!signature || !webhookSecret) {
+    log.warn('Webhook received without signature or secret');
+    return c.json({ error: 'Missing stripe signature or secret' }, 400);
+  }
+
+  const rawBody = await c.req.text();
+  let event: Stripe.Event;
+
+  try {
+    const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+    event = stripeClient.webhooks.constructEvent(rawBody, signature, webhookSecret);
+
+    log.setBindings({ eventType: event.type, eventId: event.id });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    log.error({ error: errorMessage }, 'Webhook signature verification failed');
+    return c.json({ error: 'Webhook signature verification failed' }, 400);
+  }
+
+  await processStripeWebhookEvent(event, log);
+
+  return c.json({ received: true }, 200);
+});
+
+stripeRoute.post('/webhook/connect', async (c) => {
+  const signature = c.req.header('stripe-signature');
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_CONNECT;
+
+  const log = c.get('logger').child({
+    action: 'stripeWebhook',
+    webhookType: 'connect',
   });
 
   if (!signature || !webhookSecret) {
