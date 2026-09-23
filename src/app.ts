@@ -175,7 +175,7 @@ app.use('*', async (c, next) => {
     return c.body(null);
   }
 
-  const isStripeWebhook = c.req.path === '/api/stripe/webhook';
+  const isStripeWebhook = c.req.path.startsWith('/api/stripe/webhook');
 
   if (process.env.VERCEL_ENV === 'preview' && !isStripeWebhook) {
     const stagingCookie = getCookie(c, 'village_staging_access');
