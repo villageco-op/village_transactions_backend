@@ -9,7 +9,7 @@ vi.mock('../../../src/services/stripe.service.js', () => ({
 vi.mock('stripe', () => {
   class MockStripe {
     webhooks = {
-      constructEvent: (body: string, sig: string) => {
+      constructEvent: (_body: string, sig: string, _secret: string) => {
         if (sig === 'invalid') throw new Error('Verification failed');
         return { type: 'checkout.session.completed', data: { object: {} } };
       },
@@ -20,52 +20,82 @@ vi.mock('stripe', () => {
   };
 });
 
-describe('POST /api/stripe/webhook', () => {
+describe('Stripe Webhook Endpoints', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     process.env.STRIPE_SECRET_KEY = 'sk_test_123';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
+    process.env.STRIPE_WEBHOOK_SECRET_ACCOUNT = 'whsec_account_test';
+    process.env.STRIPE_WEBHOOK_SECRET_CONNECT = 'whsec_connect_test';
   });
 
-  it('POST /api/stripe/webhook should return 400 if signature is missing', async () => {
-    const res = await request('/api/stripe/webhook', {
-      method: 'POST',
-      body: JSON.stringify({ type: 'dummy' }),
+  const endpoints = [
+    {
+      path: '/api/stripe/webhook/account',
+      secretEnvKey: 'STRIPE_WEBHOOK_SECRET_ACCOUNT',
+      label: 'Your Account',
+    },
+    {
+      path: '/api/stripe/webhook/connect',
+      secretEnvKey: 'STRIPE_WEBHOOK_SECRET_CONNECT',
+      label: 'Connected Accounts',
+    },
+  ];
+
+  describe.each(endpoints)('$label ($path)', ({ path, secretEnvKey }) => {
+    it('should return 400 if signature header is missing', async () => {
+      const res = await request(path, {
+        method: 'POST',
+        body: JSON.stringify({ type: 'dummy' }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body).toHaveProperty('error', 'Missing stripe signature or secret');
     });
 
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body).toHaveProperty('error', 'Missing stripe signature or secret');
-  });
+    it('should return 400 if webhook secret env var is missing', async () => {
+      delete process.env[secretEnvKey];
 
-  it('POST /api/stripe/webhook should return 400 if signature is invalid', async () => {
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
-    const res = await request('/api/stripe/webhook', {
-      method: 'POST',
-      body: 'raw_payload',
-      headers: {
-        'stripe-signature': 'invalid',
-      },
+      const res = await request(path, {
+        method: 'POST',
+        body: 'raw_payload',
+        headers: {
+          'stripe-signature': 'valid_signature',
+        },
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body).toHaveProperty('error', 'Missing stripe signature or secret');
     });
 
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body).toHaveProperty('error', 'Webhook signature verification failed');
-  });
+    it('should return 400 if signature verification fails', async () => {
+      const res = await request(path, {
+        method: 'POST',
+        body: 'raw_payload',
+        headers: {
+          'stripe-signature': 'invalid',
+        },
+      });
 
-  it('POST /api/stripe/webhook should return 200 and process event on valid signature', async () => {
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
-
-    const res = await request('/api/stripe/webhook', {
-      method: 'POST',
-      body: 'valid_raw_payload',
-      headers: {
-        'stripe-signature': 'valid_signature',
-      },
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body).toHaveProperty('error', 'Webhook signature verification failed');
     });
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toHaveProperty('received', true);
-    expect(processStripeWebhookEvent).toHaveBeenCalled();
+    it('should return 200 and process event on valid signature', async () => {
+      const res = await request(path, {
+        method: 'POST',
+        body: 'valid_raw_payload',
+        headers: {
+          'stripe-signature': 'valid_signature',
+        },
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toHaveProperty('received', true);
+      expect(processStripeWebhookEvent).toHaveBeenCalledTimes(1);
+    });
   });
 });
