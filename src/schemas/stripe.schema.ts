@@ -9,4 +9,15 @@ export const StripeOnboardingResponseSchema = z
   })
   .openapi('StripeOnboardingResponse');
 
+export const StripeStatusResponseSchema = z
+  .object({
+    isComplete: z.boolean().openapi({
+      example: true,
+      description:
+        'Whether the user has completed Stripe onboarding and is eligible to accept payments.',
+    }),
+  })
+  .openapi('StripeStatusResponse');
+
+export type StripeStatusResponse = z.infer<typeof StripeStatusResponseSchema>;
 export type StripeOnboardingResponse = z.infer<typeof StripeOnboardingResponseSchema>;

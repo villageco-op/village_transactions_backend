@@ -1,4 +1,4 @@
-import { verifyAuth } from '@hono/auth-js';
+import { getAuthUser, verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
 import type { RouteEnv } from '../app.js';
@@ -33,6 +33,7 @@ import {
   getSellerProduceListings,
   getProduceListing,
 } from '../services/produce.service.js';
+import { getCurrentUser } from '../services/user.service.js';
 
 export const produceRoute = new OpenAPIHono<RouteEnv>();
 
@@ -112,9 +113,22 @@ produceRoute.openapi(
 
     log.debug({ search: query.search, page: query.page }, 'Fetching paginated produce list');
 
+    var lat = query.lat;
+    var lng = query.lng;
+    if (!lat || !lng) {
+      const authUser = await getAuthUser(c);
+      const userId = authUser?.session?.user?.id;
+
+      if (userId) {
+        const userProfile = await getCurrentUser(userId, log);
+        lat = userProfile.lat ?? undefined;
+        lng = userProfile.lng ?? undefined;
+      }
+    }
+
     const paginatedItems = await getProduceList({
-      lat: query.lat,
-      lng: query.lng,
+      lat: lat,
+      lng: lng,
       sellerId: query.sellerId,
       sortBy: query.sortBy,
       hasDelivery: query.hasDelivery,

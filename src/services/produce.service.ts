@@ -141,8 +141,8 @@ export async function deleteProduceListing(
  * @returns A promise that resolves to a paginated response object containing the mapped produce items.
  */
 export async function getProduceList(params: {
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   sellerId?: string;
   sortBy?: 'distance' | 'price';
   hasDelivery?: 'true' | 'false';
@@ -167,7 +167,7 @@ export async function getProduceList(params: {
     return {
       ...rest,
       thumbnail: images && images.length > 0 ? images[0] : null,
-      distance: Number(item.distance || 0),
+      distance: item.distance !== null ? Number(item.distance) : null,
     };
   });
 
