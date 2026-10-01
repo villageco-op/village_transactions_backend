@@ -351,13 +351,35 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   describe('OrderRepository - getOrders Integration', () => {
-    it('should retrieve a list of orders mapped correctly with items and counterparty', async () => {
+    it('should retrieve a list of orders mapped correctly with items, buyer, seller, counterparty, and produce fields', async () => {
       const buyerId = 'b_list_1';
       const sellerId = 's_list_1';
 
       await testDb.insert(users).values([
-        { id: buyerId, name: 'List Buyer', email: 'blist@test.com' },
-        { id: sellerId, name: 'List Seller', email: 'slist@test.com' },
+        {
+          id: buyerId,
+          name: 'List Buyer',
+          email: 'blist@test.com',
+          image: 'https://example.com/buyer.jpg',
+          address: '123 Buyer St',
+          zip: '10001',
+          country: 'USA',
+          state: 'NY',
+          lat: '40.7128',
+          lng: '-74.0060',
+        },
+        {
+          id: sellerId,
+          name: 'List Seller',
+          email: 'slist@test.com',
+          image: 'https://example.com/seller.jpg',
+          address: '456 Seller Rd',
+          zip: '90210',
+          country: 'USA',
+          state: 'CA',
+          lat: '34.0522',
+          lng: '-118.2437',
+        },
       ]);
 
       const [testProduce] = await testDb
@@ -365,6 +387,8 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
         .values({
           sellerId,
           title: 'Heirloom Tomatoes',
+          produceType: 'produce_vegetables',
+          images: ['https://example.com/tomato.jpg'],
           pricePerOz: '2.00',
           totalOzInventory: '50',
           harvestFrequencyDays: 7,
@@ -393,6 +417,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
         pricePerOz: '2.00',
       });
 
+      // Test retrieval from Buyer role perspective
       const { items: buyerOrders, total: buyerTotal } = await orderRepository.getOrders({
         userId: buyerId,
         role: 'buyer',
@@ -403,11 +428,49 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(buyerTotal).toBe(1);
       expect(buyerOrders).toHaveLength(1);
       expect(buyerOrders[0].id).toBe(order.id);
+
+      // Verify Buyer Profile Details
+      expect(buyerOrders[0].buyer).toEqual({
+        id: buyerId,
+        name: 'List Buyer',
+        image: 'https://example.com/buyer.jpg',
+        organizationId: null,
+        address: '123 Buyer St',
+        zip: '10001',
+        country: 'USA',
+        state: 'NY',
+        lat: 40.7128,
+        lng: -74.006,
+      });
+
+      // Verify Seller Profile Details
+      expect(buyerOrders[0].seller).toEqual({
+        id: sellerId,
+        name: 'List Seller',
+        image: 'https://example.com/seller.jpg',
+        organizationId: null,
+        address: '456 Seller Rd',
+        zip: '90210',
+        country: 'USA',
+        state: 'CA',
+        lat: 34.0522,
+        lng: -118.2437,
+      });
+
+      // Verify Counterparty mapping for buyer
       expect(buyerOrders[0].counterparty?.id).toBe(sellerId);
       expect(buyerOrders[0].counterparty?.name).toBe('List Seller');
-      expect(buyerOrders[0].items).toHaveLength(1);
-      expect(buyerOrders[0].items[0].product.title).toBe('Heirloom Tomatoes');
 
+      // Verify Produce details inside order items
+      expect(buyerOrders[0].items).toHaveLength(1);
+      expect(buyerOrders[0].items[0].product).toEqual({
+        id: testProduce.id,
+        title: 'Heirloom Tomatoes',
+        type: 'produce_vegetables',
+        images: ['https://example.com/tomato.jpg'],
+      });
+
+      // Test retrieval from Seller role perspective
       const { items: sellerOrders, total: sellerTotal } = await orderRepository.getOrders({
         userId: sellerId,
         role: 'seller',
@@ -418,6 +481,8 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(sellerTotal).toBe(1);
       expect(sellerOrders).toHaveLength(1);
       expect(sellerOrders[0].id).toBe(order.id);
+
+      // Verify Counterparty mapping for seller
       expect(sellerOrders[0].counterparty?.id).toBe(buyerId);
       expect(sellerOrders[0].counterparty?.name).toBe('List Buyer');
     });
@@ -541,6 +606,8 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
           {
             sellerId,
             title: 'Apples',
+            produceType: 'fruit',
+            images: ['https://example.com/apple.jpg'],
             pricePerOz: '1',
             totalOzInventory: '10',
             harvestFrequencyDays: 1,
@@ -550,6 +617,8 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
           {
             sellerId,
             title: 'Oranges',
+            produceType: 'fruit',
+            images: ['https://example.com/orange.jpg'],
             pricePerOz: '1',
             totalOzInventory: '10',
             harvestFrequencyDays: 1,
@@ -599,7 +668,12 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(total).toBe(1);
       expect(items).toHaveLength(1);
       expect(items[0].id).toBe(orderWithApples.id);
-      expect(items[0].items[0].product.title).toBe('Apples');
+      expect(items[0].items[0].product).toEqual({
+        id: apples.id,
+        title: 'Apples',
+        type: 'fruit',
+        images: ['https://example.com/apple.jpg'],
+      });
     });
   });
 
@@ -891,8 +965,8 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       const availableByDate = new Date('2024-04-15T10:00:00Z');
 
       await testDb.insert(users).values([
-        { id: buyerId, email: 'b_items@test.com' },
-        { id: sellerId, email: 's_items@test.com' },
+        { id: buyerId, email: 'b_items@test.com', image: 'https://buyer-1-profile-image.jpg' },
+        { id: sellerId, email: 's_items@test.com', image: 'https://seller-1-profile-image.jpg' },
       ]);
 
       const [testProduct] = await testDb
@@ -906,6 +980,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
           isSubscribable: true,
           status: 'active',
           harvestFrequencyDays: 1,
+          images: ['https://apple-image-1.jpg', 'https://apple-image-2.jpg'],
           availableBy: availableByDate,
           seasonStart: '2024-01-01',
           seasonEnd: '2024-12-31',
@@ -948,6 +1023,10 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       expect(item?.produceAvailableBy).toStrictEqual(availableByDate);
       expect(item?.produceSeasonStart).toBe('2024-01-01');
       expect(item?.produceSeasonEnd).toBe('2024-12-31');
+      expect(item?.images).toStrictEqual([
+        'https://apple-image-1.jpg',
+        'https://apple-image-2.jpg',
+      ]);
     });
 
     it('should return null when getting order items by a non-existent ID', async () => {

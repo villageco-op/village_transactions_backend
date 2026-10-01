@@ -1,4 +1,17 @@
-import { eq, inArray, and, gt, desc, gte, sql, lt, notInArray, exists, or } from 'drizzle-orm';
+import {
+  eq,
+  inArray,
+  and,
+  gt,
+  desc,
+  gte,
+  sql,
+  lt,
+  notInArray,
+  exists,
+  or,
+  aliasedTable,
+} from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import {
@@ -410,19 +423,41 @@ export const orderRepository = {
 
     const total = totalCountResult?.count || 0;
 
-    // Fetch Paginated Orders
+    const buyerUser = aliasedTable(users, 'buyerUser');
+    const sellerUser = aliasedTable(users, 'sellerUser');
+
+    // Fetch Paginated Orders with Buyer and Seller information
     const ordersResult = await this.db
       .select({
         order: orders,
-        counterparty: {
-          id: users.id,
-          name: users.name,
-          image: users.image,
-          email: users.email,
+        buyer: {
+          id: buyerUser.id,
+          name: buyerUser.name,
+          image: buyerUser.image,
+          organizationId: buyerUser.organizationId,
+          address: buyerUser.address,
+          zip: buyerUser.zip,
+          country: buyerUser.country,
+          state: buyerUser.state,
+          lat: buyerUser.lat,
+          lng: buyerUser.lng,
+        },
+        seller: {
+          id: sellerUser.id,
+          name: sellerUser.name,
+          image: sellerUser.image,
+          organizationId: sellerUser.organizationId,
+          address: sellerUser.address,
+          zip: sellerUser.zip,
+          country: sellerUser.country,
+          state: sellerUser.state,
+          lat: sellerUser.lat,
+          lng: sellerUser.lng,
         },
       })
       .from(orders)
-      .leftJoin(users, eq(params.role === 'seller' ? orders.buyerId : orders.sellerId, users.id))
+      .leftJoin(buyerUser, eq(orders.buyerId, buyerUser.id))
+      .leftJoin(sellerUser, eq(orders.sellerId, sellerUser.id))
       .where(and(...conditions))
       .orderBy(desc(orders.createdAt))
       .limit(params.limit)
@@ -432,22 +467,29 @@ export const orderRepository = {
       return { items: [], total };
     }
 
-    // Fetch associated items for the orders found above
+    // Fetch associated order items with required produce fields
     const orderIds = ordersResult.map((o) => o.order.id);
 
     const itemsResult = await this.db
       .select({
         orderItem: orderItems,
-        product: produce,
+        product: {
+          id: produce.id,
+          title: produce.title,
+          type: produce.produceType,
+          images: produce.images,
+        },
       })
       .from(orderItems)
       .innerJoin(produce, eq(orderItems.productId, produce.id))
       .where(inArray(orderItems.orderId, orderIds));
 
-    // Aggregate items into order objects
+    // Aggregate items and user profiles into order objects
     const items = ordersResult.map((o) => ({
       ...o.order,
-      counterparty: o.counterparty,
+      buyer: o.buyer,
+      seller: o.seller,
+      counterparty: params.role === 'seller' ? o.buyer : o.seller,
       items: itemsResult
         .filter((i) => i.orderItem.orderId === o.order.id)
         .map((i) => ({
@@ -566,6 +608,7 @@ export const orderRepository = {
         produceSeasonEnd: produce.seasonEnd,
         quantityOz: orderItems.quantityOz,
         pricePerOz: orderItems.pricePerOz,
+        images: produce.images,
       })
       .from(orderItems)
       .innerJoin(produce, eq(orderItems.productId, produce.id))

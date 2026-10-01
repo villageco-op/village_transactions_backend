@@ -423,7 +423,15 @@ describe('OrderService - getOrderDetails', () => {
     sellerId: 'seller_1',
     status: 'pending',
     stripeSessionId: 'cs_test_123',
-    items: [{ productId: 'prod_1', productName: 'Carrots', quantityOz: '16', pricePerOz: '0.5' }],
+    items: [
+      {
+        productId: 'prod_1',
+        productName: 'Carrots',
+        quantityOz: '16',
+        pricePerOz: '0.5',
+        images: ['https://carrot-1-image.jpg', 'https://carrot-1-image-2.jpg'],
+      },
+    ],
   };
 
   const mockBuyer = {
@@ -431,6 +439,7 @@ describe('OrderService - getOrderDetails', () => {
     name: 'Buyer Bob',
     email: 'bob@test.com',
     stripeAccountId: 'acct_1',
+    image: 'https://buyer-1-profile-image.jpg',
     lat: 30.0,
     lng: 23.9,
   };
@@ -439,6 +448,7 @@ describe('OrderService - getOrderDetails', () => {
     name: 'Seller Sam',
     email: 'sam@test.com',
     stripeAccountId: 'acct_2',
+    image: 'https://seller-1-profile-image.jpg',
     lat: 20.0,
     lng: 13.9,
   };

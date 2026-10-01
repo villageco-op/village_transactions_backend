@@ -189,6 +189,7 @@ export const UserBasicInfoSchema = z.object({
   organizationId: EntityIdField.nullable().optional(),
   email: z.string().nullable().optional(),
   location: LocationSchema.nullable().optional(),
+  image: ImageUrlSchema.nullable().optional(),
 });
 
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;

@@ -27,7 +27,7 @@ describe('SourceMap Service - Unit Tests', () => {
           lng: '-87.456',
           totalVolumeOz: '500.50',
           totalSpend: '250.00',
-          produceCategories: ['nightshades', 'leafy_greens'],
+          produceCategories: ['produce_vegetables', 'leafy_greens'],
         },
       ] as any);
 
@@ -42,8 +42,8 @@ describe('SourceMap Service - Unit Tests', () => {
       expect(nodes[0].lng).toBe(-87.456);
       expect(nodes[0].totalVolumeOz).toBe(500.5);
       expect(nodes[0].totalSpend).toBe(250);
-      expect(nodes[0].primaryProduceType).toBe('nightshades'); // Picked first element
-      expect(nodes[0].produceCategories).toEqual(['nightshades', 'leafy_greens']);
+      expect(nodes[0].primaryProduceType).toBe('produce_vegetables'); // Picked first element
+      expect(nodes[0].produceCategories).toEqual(['produce_vegetables', 'leafy_greens']);
     });
 
     it('should gracefully handle null locations and empty produce categories', async () => {
@@ -88,8 +88,8 @@ describe('SourceMap Service - Unit Tests', () => {
           totalOrders: '5',
         },
         breakdown: [
-          { produceType: 'stone_fruits', volumeOz: '150' },
-          { produceType: 'tropical_fruits', volumeOz: '50' },
+          { produceType: 'fruit', volumeOz: '150' },
+          { produceType: 'root_vegetables', volumeOz: '50' },
         ],
       } as any);
 
@@ -114,7 +114,7 @@ describe('SourceMap Service - Unit Tests', () => {
           uniqueGrowers: '0',
           totalOrders: '0',
         },
-        breakdown: [{ produceType: 'stone_fruits', volumeOz: '0' }],
+        breakdown: [{ produceType: 'fruit', volumeOz: '0' }],
       } as any);
 
       const analytics = await getSourceMapAnalytics({ buyerId: 'buyer_1' });

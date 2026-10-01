@@ -62,7 +62,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
   it('should create and retrieve a produce listing successfully', async () => {
     const payload: CreateProducePayload = {
       title: 'Fresh Strawberries',
-      produceType: 'berries',
+      produceType: 'fruit',
       pricePerOz: 1.25,
       totalOzInventory: 500,
       maxOrderQuantityOz: 32,
@@ -80,7 +80,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
     expect(newProduce.id).toBeDefined();
     expect(newProduce.sellerId).toBe(TEST_SELLER_ID);
     expect(newProduce.title).toBe('Fresh Strawberries');
-    expect(newProduce.produceType).toBe('berries');
+    expect(newProduce.produceType).toBe('fruit');
     expect(newProduce.description).toBe('Delicious strawberries');
 
     expect(newProduce.pricePerOz).toBe('1.25');
@@ -101,7 +101,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
   it('should throw an error if the sellerId does not exist (Foreign Key Constraint)', async () => {
     const payload: CreateProducePayload = {
       title: 'Ghost Apples',
-      produceType: 'stone_fruits',
+      produceType: 'fruit',
       pricePerOz: 2.0,
       totalOzInventory: 100,
       harvestFrequencyDays: 7,
@@ -117,7 +117,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
   it('should update an existing produce listing successfully', async () => {
     const createPayload: CreateProducePayload = {
       title: 'Watermelons',
-      produceType: 'melons',
+      produceType: 'produce_vegetables',
       pricePerOz: 0.1,
       totalOzInventory: 1000,
       maxOrderQuantityOz: 100,
@@ -180,7 +180,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
   it('should soft delete an existing produce listing successfully', async () => {
     const createPayload: CreateProducePayload = {
       title: 'Peaches',
-      produceType: 'pome_fruits',
+      produceType: 'fruit',
       pricePerOz: 0.2,
       totalOzInventory: 300,
       harvestFrequencyDays: 5,
@@ -487,7 +487,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
         {
           sellerId: OTHER_SELLER_ID, // Chicago (-87.6298, 41.8781)
           title: 'Jane Apples',
-          produceType: 'stone_fruits',
+          produceType: 'fruit',
           pricePerOz: '0.25',
           totalOzInventory: '500',
           maxOrderQuantityOz: null, // no limit
@@ -665,7 +665,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
         .values({
           sellerId: TEST_SELLER_ID,
           title: 'Giant Pumpkins',
-          produceType: 'melons',
+          produceType: 'produce_vegetables',
           pricePerOz: '0.05',
           totalOzInventory: '5000',
           harvestFrequencyDays: 30,
@@ -836,7 +836,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
           id: crypto.randomUUID(),
           sellerId: TEST_SELLER_ID,
           title: 'Target Strawberry',
-          produceType: 'berries',
+          produceType: 'fruit',
           pricePerOz: '0.50',
           totalOzInventory: '100',
           harvestFrequencyDays: 3,
@@ -849,7 +849,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
           id: crypto.randomUUID(),
           sellerId: TEST_SELLER_ID,
           title: 'Target Blackberry',
-          produceType: 'berries',
+          produceType: 'fruit',
           pricePerOz: '0.60',
           totalOzInventory: '150',
           harvestFrequencyDays: 3,
@@ -862,7 +862,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
           id: crypto.randomUUID(),
           sellerId: OTHER_SELLER_ID,
           title: 'Isolated Blueberries',
-          produceType: 'berries',
+          produceType: 'fruit',
           pricePerOz: '0.70',
           totalOzInventory: '200',
           harvestFrequencyDays: 3,
@@ -911,7 +911,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
           id: crypto.randomUUID(),
           sellerId: TEST_SELLER_ID,
           title: 'Old Active Garlic',
-          produceType: 'alliums',
+          produceType: 'root_vegetables',
           pricePerOz: '0.30',
           totalOzInventory: '50',
           harvestFrequencyDays: 7,
@@ -924,7 +924,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
           id: crypto.randomUUID(),
           sellerId: TEST_SELLER_ID,
           title: 'New Paused Scallions',
-          produceType: 'alliums',
+          produceType: 'root_vegetables',
           pricePerOz: '0.40',
           totalOzInventory: '30',
           harvestFrequencyDays: 7,
@@ -937,7 +937,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
           id: crypto.randomUUID(),
           sellerId: TEST_SELLER_ID,
           title: 'Wiped Leeks',
-          produceType: 'alliums',
+          produceType: 'root_vegetables',
           pricePerOz: '0.50',
           totalOzInventory: '0',
           harvestFrequencyDays: 7,
@@ -967,7 +967,7 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
         id: crypto.randomUUID(),
         sellerId: TEST_SELLER_ID,
         title: 'Ghost Apple',
-        produceType: 'pome_fruits',
+        produceType: 'fruit',
         pricePerOz: '0.10',
         totalOzInventory: '10',
         harvestFrequencyDays: 7,

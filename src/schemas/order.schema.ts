@@ -4,6 +4,7 @@ import { createSelectSchema } from 'drizzle-zod';
 import { orders } from '../db/schema.js';
 
 import {
+  ImageUrlSchema,
   IsoDateTimeSchema,
   OrderStatusSchema,
   PaginationQuerySchema,
@@ -54,12 +55,39 @@ export const GetOrdersQuerySchema = z
   .extend(PaginationQuerySchema.shape)
   .openapi('GetOrdersQuery');
 
+export const OrderListItemProduceSchema = z
+  .object({
+    id: ResourceIdSchema,
+    title: z.string(),
+    distance: z.number().nullable().optional(),
+    type: z.string().nullable().optional(),
+    images: z.array(ImageUrlSchema).nullable().optional(),
+  })
+  .openapi('OrderListItemProduce');
+
 export const OrderSchema = createSelectSchema(orders)
   .omit({ stripeSessionId: true })
   .openapi('Order');
 
+export const OrderListItemSchema = z
+  .object({
+    id: ResourceIdSchema,
+    productId: ResourceIdSchema,
+    quantityOz: z.string(),
+    pricePerOz: z.string(),
+    product: OrderListItemProduceSchema,
+  })
+  .openapi('OrderListItem');
+
+export const OrderSummarySchema = OrderSchema.extend({
+  buyer: UserBasicInfoSchema.nullable(),
+  seller: UserBasicInfoSchema.nullable(),
+  counterparty: UserBasicInfoSchema.nullable().optional(),
+  items: z.array(OrderListItemSchema),
+}).openapi('OrderSummary');
+
 export const OrdersListResponseSchema = createPaginatedResponseSchema(
-  OrderSchema,
+  OrderSummarySchema,
   'OrdersListResponse',
 );
 
@@ -80,6 +108,7 @@ export const OrderItemDetailSchema = z.object({
   produceSeasonEnd: z.date(),
   quantityOz: z.string(),
   pricePerOz: z.string(),
+  images: z.array(ImageUrlSchema).nullable(),
 });
 
 export const OrderDetailResponseSchema = OrderSchema.extend({

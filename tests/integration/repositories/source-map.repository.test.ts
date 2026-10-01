@@ -37,7 +37,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_1_ID,
           title: 'Fresh Apples',
-          produceType: 'stone_fruits',
+          produceType: 'fruit',
           pricePerOz: '0.50',
           totalOzInventory: '1000',
           harvestFrequencyDays: 7,
@@ -159,7 +159,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
       expect(Number(analytics.totals.totalSpend)).toBe(80); // 50 + 20 + 10
 
       expect(analytics.breakdown).toHaveLength(2);
-      const applesBreakdown = analytics.breakdown.find((b) => b.produceType === 'stone_fruits');
+      const applesBreakdown = analytics.breakdown.find((b) => b.produceType === 'fruit');
       expect(Number(applesBreakdown?.volumeOz)).toBe(120); // 100 + 20
     });
 
@@ -173,7 +173,7 @@ describe('SourceMapRepository - Integration', { timeout: 60_000 }, () => {
       // Only order1 should be counted
       expect(Number(springAnalytics.totals.totalOrders)).toBe(1);
       expect(Number(springAnalytics.totals.totalVolumeOz)).toBe(100);
-      expect(springAnalytics.breakdown[0].produceType).toBe('stone_fruits');
+      expect(springAnalytics.breakdown[0].produceType).toBe('fruit');
     });
   });
 });
