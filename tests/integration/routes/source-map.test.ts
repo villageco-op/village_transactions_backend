@@ -37,7 +37,7 @@ describe('Source Map API Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_ID,
           title: 'Api Corn',
-          produceType: 'grains_pulses',
+          produceType: 'produce_vegetables',
           pricePerOz: '0.10',
           totalOzInventory: '500',
           harvestFrequencyDays: 30,
@@ -88,8 +88,8 @@ describe('Source Map API Integration', { timeout: 60_000 }, () => {
       const node = data[0];
       expect(node.sellerId).toBe(SELLER_ID);
       expect(node.totalVolumeOz).toBe(100);
-      expect(node.primaryProduceType).toBe('grains_pulses');
-      expect(node.produceCategories).toEqual(['grains_pulses']);
+      expect(node.primaryProduceType).toBe('produce_vegetables');
+      expect(node.produceCategories).toEqual(['produce_vegetables']);
     });
 
     it('should accept the season query parameter filter', async () => {
@@ -135,14 +135,14 @@ describe('Source Map API Integration', { timeout: 60_000 }, () => {
       expect(data).toHaveProperty('foodMilesSaved', 1480); // 1 order * 1480
 
       expect(data.produceBreakdown).toHaveLength(1);
-      expect(data.produceBreakdown[0].produceType).toBe('grains_pulses');
+      expect(data.produceBreakdown[0].produceType).toBe('produce_vegetables');
       expect(data.produceBreakdown[0].percentage).toBe(100);
     });
 
     it('should accept the produceType query parameter filter', async () => {
       // Valid filter
       const resCorn = await authedRequest(
-        `/api/source-map/analytics?produceType=grains_pulses`,
+        `/api/source-map/analytics?produceType=produce_vegetables`,
         { method: 'GET' },
         { id: BUYER_ID },
       );
@@ -152,7 +152,7 @@ describe('Source Map API Integration', { timeout: 60_000 }, () => {
 
       // Filter with no results
       const resApples = await authedRequest(
-        `/api/source-map/analytics?produceType=stone_fruits`,
+        `/api/source-map/analytics?produceType=fruit`,
         { method: 'GET' },
         { id: BUYER_ID },
       );

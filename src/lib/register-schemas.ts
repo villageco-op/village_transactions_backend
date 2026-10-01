@@ -89,8 +89,11 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
 
   // Order Entities
   app.openAPIRegistry.register('Order', Orders.OrderSchema);
-  app.openAPIRegistry.register('OrderDetailResponse', Orders.OrderDetailResponseSchema);
+  app.openAPIRegistry.register('OrderListItem', Orders.OrderListItemSchema);
+  app.openAPIRegistry.register('OrderListItemProduce', Orders.OrderListItemProduceSchema);
+  app.openAPIRegistry.register('OrderSummary', Orders.OrderSummarySchema);
   app.openAPIRegistry.register('OrderItemDetail', Orders.OrderItemDetailSchema);
+  app.openAPIRegistry.register('OrderDetailResponse', Orders.OrderDetailResponseSchema);
   app.openAPIRegistry.register('OrdersListResponse', Orders.OrdersListResponseSchema);
 
   // Order Payloads & Params

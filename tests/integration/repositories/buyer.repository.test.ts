@@ -83,7 +83,7 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_2_ID,
           title: 'Apples',
-          produceType: 'stone_fruits',
+          produceType: 'fruit',
           pricePerOz: '2.00',
           totalOzInventory: '100',
           harvestFrequencyDays: 7,

@@ -21,28 +21,13 @@ import {
 export const produceStatusEnum = pgEnum('produce_status', ['active', 'paused', 'deleted']);
 export const produceTypeEnum = pgEnum('produce_type', [
   'leafy_greens',
-  'cruciferous',
   'root_vegetables',
-  'tubers',
-  'alliums',
-  'nightshades',
-  'cucurbits',
-  'winter_squash',
-  'legumes',
-  'stalks_stems',
-  'mushrooms',
+  'produce_vegetables',
+  'fruit',
   'fresh_herbs',
-  'pome_fruits',
-  'stone_fruits',
-  'citrus',
-  'berries',
-  'melons',
-  'tropical_fruits',
-  'eggs',
-  'raw_honey',
-  'nuts_seeds',
-  'microgreens',
-  'grains_pulses',
+  'mushrooms',
+  'nuts_seeds_grains',
+  'farm_pantry',
 ]);
 export const paymentMethodEnum = pgEnum('payment_method', ['card', 'snap']);
 export const fulfillmentTypeEnum = pgEnum('fulfillment_type', ['pickup', 'delivery']);

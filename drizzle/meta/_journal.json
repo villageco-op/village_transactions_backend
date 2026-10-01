@@ -239,6 +239,13 @@
       "when": 1785272212549,
       "tag": "0033_ordinary_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790829385697,
+      "tag": "0034_cute_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }

@@ -53,7 +53,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         .values({
           sellerId: TEST_USER_ID,
           title: 'Plums',
-          produceType: 'stone_fruits',
+          produceType: 'fruit',
           pricePerOz: '0.40',
           totalOzInventory: '300',
           maxOrderQuantityOz: '100',
@@ -140,7 +140,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     it('POST /api/produce should return 201 and insert the listing into the DB', async () => {
       const payload = {
         title: 'Organic Honeycrisp Apples',
-        produceType: 'stone_fruits',
+        produceType: 'fruit',
         pricePerOz: 0.25,
         totalOzInventory: 500,
         maxOrderQuantityOz: 160,
@@ -260,7 +260,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         .values({
           sellerId: TEST_USER_ID,
           title: 'Cherries',
-          produceType: 'stone_fruits',
+          produceType: 'fruit',
           pricePerOz: '0.60',
           totalOzInventory: '150',
           harvestFrequencyDays: 1,
@@ -334,7 +334,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       await testDb.insert(produce).values({
         sellerId: TEST_USER_ID,
         title: 'Plums',
-        produceType: 'stone_fruits',
+        produceType: 'fruit',
         pricePerOz: '0.40',
         totalOzInventory: '300',
         harvestFrequencyDays: 5,
@@ -379,7 +379,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       await testDb.insert(produce).values({
         sellerId: TEST_USER_ID,
         title: 'Plums',
-        produceType: 'stone_fruits',
+        produceType: 'fruit',
         pricePerOz: '0.40',
         totalOzInventory: '300',
         harvestFrequencyDays: 5,
@@ -540,7 +540,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         {
           sellerId: TEST_USER_ID,
           title: 'Map Apples',
-          produceType: 'stone_fruits',
+          produceType: 'fruit',
           pricePerOz: '0.50',
           totalOzInventory: '100',
           harvestFrequencyDays: 1,
@@ -596,7 +596,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(appleItem.seasonEnd).toBe('2024-12-31');
       expect(typeof appleItem.availableBy).toBe('string');
       expect(appleItem.isSubscribable).toBe(true);
-      expect(appleItem.type).toBe('stone_fruits');
+      expect(appleItem.type).toBe('fruit');
 
       const carrotItem = sellerGroup.produce.find((p: any) => p.name === 'Map Carrots');
       expect(carrotItem).toBeDefined();
@@ -624,7 +624,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         .values({
           sellerId: TEST_USER_ID,
           title: 'Tomatoes',
-          produceType: 'nightshades',
+          produceType: 'produce_vegetables',
           pricePerOz: '0.20',
           totalOzInventory: '500',
           harvestFrequencyDays: 3,
@@ -694,7 +694,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         .values({
           sellerId: OTHER_SELLER_ID,
           title: 'Not Your Produce',
-          produceType: 'legumes',
+          produceType: 'produce_vegetables',
           pricePerOz: '1.00',
           totalOzInventory: '10',
           harvestFrequencyDays: 1,
@@ -867,7 +867,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         .values({
           sellerId: TEST_USER_ID,
           title: 'Sweet Corn',
-          produceType: 'grains_pulses',
+          produceType: 'produce_vegetables',
           pricePerOz: '0.15',
           totalOzInventory: '1000',
           harvestFrequencyDays: 5,
