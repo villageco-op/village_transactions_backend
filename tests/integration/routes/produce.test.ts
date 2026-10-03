@@ -369,7 +369,6 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(firstItem).toHaveProperty('amount', '300.00');
       expect(firstItem).toHaveProperty('availableBy');
       expect(firstItem).toHaveProperty('distance');
-      console.log('Distance: ' + firstItem.distance);
       expect(typeof firstItem.distance).toBe('number');
       expect(firstItem).toHaveProperty('thumbnail', 'https://example.com/plum1.jpg');
       expect(firstItem).toHaveProperty('description', 'Fresh, sweet plums.');
