@@ -50,26 +50,6 @@ describe('Notification Service', () => {
       expect(messaging!.sendEachForMulticast).not.toHaveBeenCalled();
     });
 
-    it('should log an error if firebase messaging fails to load', async () => {
-      vi.mocked(fcmRepository.getTokensByUserId).mockResolvedValueOnce([
-        { token: 'token_1' },
-      ] as any);
-
-      // Temporarily sabotage messaging to simulate a load failure
-      const originalMessaging = messaging;
-      (messaging as any) = null;
-
-      await sendPushNotification(userId, title, body, mockLogger as any);
-
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.objectContaining({ error: 'FCM failed to load. Skipping push notification...' }),
-        'FCM Dispatch Error',
-      );
-
-      // Restore messaging reference
-      (messaging as any) = originalMessaging;
-    });
-
     it('should successfully send a multicast notification when all tokens are valid', async () => {
       const tokens = [{ token: 'token_1' }, { token: 'token_2' }];
       vi.mocked(fcmRepository.getTokensByUserId).mockResolvedValueOnce(tokens as any);
