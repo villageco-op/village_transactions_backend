@@ -5,6 +5,7 @@ config({ path: '.env' });
 
 export default defineConfig({
   test: {
+    reporters: ['dot'],
     globals: true,
     env: {
       AUTH_SECRET: 'super-secret-test-key-that-is-at-least-32-chars-long',
