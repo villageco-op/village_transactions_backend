@@ -3,10 +3,19 @@ name: Trigger E2E Tests
 on:
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      pr_num:
+        description: 'PR Number to test'
+        required: false
+        default: '1'
+      sha:
+        description: 'Commit SHA to attach status to'
+        required: false
 
 jobs:
   trigger-e2e:
-    if: github.head_ref == 'staging'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'staging'
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App Token
@@ -24,4 +33,9 @@ jobs:
           token: ${{ steps.generate_token.outputs.token }}
           repository: villageco-op/e2e-tests
           event-type: staging-to-main-pr
-          client-payload: '{"repo": "${{ github.repository }}", "pr_num": "${{ github.event.pull_request.number }}"}'
+          client-payload: >
+            {
+              "repo": "${{ github.repository }}",
+              "pr_num": "${{ github.event.pull_request.number }}",
+              "sha": "${{ github.event.pull_request.head.sha }}"
+            }
