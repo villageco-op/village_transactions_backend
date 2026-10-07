@@ -100,7 +100,6 @@ organizationsRoute.openapi(
     },
   }),
   async (c) => {
-    console.log('Creating a repository!');
     const authUser = c.get('authUser');
     const userId = authUser?.session?.user?.id;
     if (!userId) {

@@ -17,7 +17,6 @@ import * as Organizations from '../schemas/organization.schema.js';
 import * as Produce from '../schemas/produce.schema.js';
 import * as Reviews from '../schemas/review.schema.js';
 import * as Seller from '../schemas/seller.schema.js';
-import * as SourceMap from '../schemas/source-map.schema.js';
 import * as Stripe from '../schemas/stripe.schema.js';
 import * as Subscriptions from '../schemas/subscription.schema.js';
 import * as Users from '../schemas/user.schema.js';
@@ -89,8 +88,11 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
 
   // Order Entities
   app.openAPIRegistry.register('Order', Orders.OrderSchema);
-  app.openAPIRegistry.register('OrderDetailResponse', Orders.OrderDetailResponseSchema);
+  app.openAPIRegistry.register('OrderListItem', Orders.OrderListItemSchema);
+  app.openAPIRegistry.register('OrderListItemProduce', Orders.OrderListItemProduceSchema);
+  app.openAPIRegistry.register('OrderSummary', Orders.OrderSummarySchema);
   app.openAPIRegistry.register('OrderItemDetail', Orders.OrderItemDetailSchema);
+  app.openAPIRegistry.register('OrderDetailResponse', Orders.OrderDetailResponseSchema);
   app.openAPIRegistry.register('OrdersListResponse', Orders.OrdersListResponseSchema);
 
   // Order Payloads & Params
@@ -192,15 +194,6 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('MapGrowersQuery', Growers.MapGrowersQuerySchema);
   app.openAPIRegistry.register('MapGrower', Growers.MapGrowerSchema);
   app.openAPIRegistry.register('MapGrowersResponse', Growers.MapGrowersResponseSchema);
-
-  // Source Map
-  app.openAPIRegistry.register('SourceMapQuery', SourceMap.SourceMapQuerySchema);
-  app.openAPIRegistry.register('SourceMapNode', SourceMap.SourceMapNodeSchema);
-  app.openAPIRegistry.register('SourceMapNodesResponse', SourceMap.SourceMapNodesResponseSchema);
-  app.openAPIRegistry.register(
-    'SourceMapAnalyticsResponse',
-    SourceMap.SourceMapAnalyticsResponseSchema,
-  );
 
   // Location
   app.openAPIRegistry.register('GeocodePayload', Location.GeocodeRequestSchema);

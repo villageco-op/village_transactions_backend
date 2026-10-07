@@ -98,7 +98,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
         {
           sellerId: SELLER_2_ID,
           title: 'Apples',
-          produceType: 'stone_fruits',
+          produceType: 'fruit',
           pricePerOz: '1',
           totalOzInventory: '100',
           harvestFrequencyDays: 7,

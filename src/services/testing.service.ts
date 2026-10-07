@@ -130,7 +130,7 @@ export async function seedTestProduce(
   const fallbackProduceData: CreateProducePayload = {
     title: payload.produce.title ?? 'Test Organic Strawberries',
     description: payload.produce.description ?? 'Freshly seeded test strawberries.',
-    produceType: payload.produce.produceType ?? 'nightshades',
+    produceType: payload.produce.produceType ?? 'fruit',
     pricePerOz: payload.produce.pricePerOz ?? 0.5,
     totalOzInventory: payload.produce.totalOzInventory ?? 160.0,
     maxOrderQuantityOz: payload.produce.maxOrderQuantityOz ?? 32.0,
