@@ -119,7 +119,7 @@ export const sellerRepository = {
     const produceSalesThisMonth = await this.db
       .select({
         produceName: produce.title,
-        earned: sql<
+        amount: sql<
           number | string | null
         >`SUM(${orderItems.quantityOz} * ${orderItems.pricePerOz})`,
       })

@@ -69,7 +69,7 @@ export async function getSellerDashboard(sellerId: string): Promise<SellerDashbo
 
   const earningsByProduceThisMonth = data.produceSalesThisMonth.map((item) => ({
     produceName: item.produceName || 'Unknown',
-    earned: Number(Number(item.earned || 0).toFixed(2)),
+    amount: Number(Number(item.amount || 0).toFixed(2)),
   }));
 
   return {
