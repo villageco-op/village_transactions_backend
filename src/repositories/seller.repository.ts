@@ -81,7 +81,7 @@ export const sellerRepository = {
 
   /**
    * Fetches high-level metrics required for the seller dashboard.
-   * @param sellerId - The seller's user ID
+   * @param sellerId The seller's user ID
    * @returns Aggregated metrics for high-level main view
    */
   async getDashboardMetrics(sellerId: string) {
@@ -109,23 +109,12 @@ export const sellerRepository = {
         earnedLastMonth: sql<
           number | string | null
         >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
+        completedOrdersThisMonth: sql<
+          number | string | null
+        >`COUNT(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp) THEN 1 END)`,
       })
       .from(orders)
       .where(and(eq(orders.sellerId, sellerId), eq(orders.status, 'completed')));
-
-    const [weeklySales] = await this.db
-      .select({
-        soldThisWeekOz: sql<number | string | null>`SUM(${orderItems.quantityOz})`,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .where(
-        and(
-          eq(orders.sellerId, sellerId),
-          eq(orders.status, 'completed'),
-          sql`date_trunc('week', ${orders.createdAt}) = date_trunc('week', ${now}::timestamp)`,
-        ),
-      );
 
     const produceSalesThisMonth = await this.db
       .select({
@@ -149,7 +138,6 @@ export const sellerRepository = {
     return {
       seller,
       aggregates,
-      weeklySales,
       produceSalesThisMonth,
     };
   },

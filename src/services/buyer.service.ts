@@ -125,61 +125,28 @@ export async function getBillingSummary(buyerId: string): Promise<BillingSummary
  * @returns Dashboard metrics structure
  */
 export async function getBuyerDashboardMetrics(buyerId: string): Promise<BuyerDashboardResponse> {
-  const [data, activeSubsRaw] = await Promise.all([
+  const [data, activeSubs] = await Promise.all([
     buyerRepository.getDashboardMetrics(buyerId),
     subscriptionRepository.getActiveSubscriptionsForBuyer(buyerId),
   ]);
 
   const ozThisWeek = Number(data.weightAgg?.ozThisWeek || 0);
-  const ozLastWeek = Number(data.weightAgg?.ozLastWeek || 0);
   const spendThisMonth = Number(data.spendAgg?.spendThisMonth || 0);
-  const spendLastMonth = Number(data.spendAgg?.spendLastMonth || 0);
 
   const onOrderThisWeekLbs = ozThisWeek / 16;
-  const onOrderLastWeekLbs = ozLastWeek / 16;
-
-  let percentChangeFromLastWeek = 0;
-  if (onOrderLastWeekLbs === 0) {
-    percentChangeFromLastWeek = onOrderThisWeekLbs > 0 ? 100 : 0;
-  } else {
-    percentChangeFromLastWeek =
-      ((onOrderThisWeekLbs - onOrderLastWeekLbs) / onOrderLastWeekLbs) * 100;
-  }
-
-  const activeSubscriptions = activeSubsRaw.map((s) => ({
-    id: s.id,
-    produceName: s.produceName,
-    amount: Number((Number(s.amount) / 16).toFixed(2)),
-  }));
 
   let localGrowersSupplying = 0;
-  let maxDist = 0;
-  let sumDist = 0;
-  let validDistCount = 0;
 
   for (const g of data.growers) {
     if (g.isLocal) {
       localGrowersSupplying++;
     }
-
-    if (g.distance !== null) {
-      const dist = Number(g.distance);
-      if (dist > maxDist) maxDist = dist;
-      sumDist += dist;
-      validDistCount++;
-    }
   }
-
-  const avgGrowerDistanceMiles = validDistCount > 0 ? sumDist / validDistCount : 0;
 
   return {
     onOrderThisWeekLbs: Number(onOrderThisWeekLbs.toFixed(2)),
-    percentChangeFromLastWeek: Number(percentChangeFromLastWeek.toFixed(2)),
     totalSpendThisMonth: Number(spendThisMonth.toFixed(2)),
-    totalSpendLastMonth: Number(spendLastMonth.toFixed(2)),
-    activeSubscriptions,
+    activeSubscriptions: activeSubs.length,
     localGrowersSupplying,
-    furthestGrowerDistanceMiles: Number(maxDist.toFixed(2)),
-    avgGrowerDistanceMiles: Number(avgGrowerDistanceMiles.toFixed(2)),
   };
 }

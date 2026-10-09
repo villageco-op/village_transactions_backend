@@ -141,7 +141,7 @@ describe('SellerRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   describe('getDashboardMetrics', () => {
-    it('should fetch profile data and current month aggregates', async () => {
+    it('should fetch profile data and current month aggregates including completed orders count', async () => {
       const data = await sellerRepository.getDashboardMetrics(SELLER_ID);
 
       expect(data.seller?.address).toBe('123 Berry Ln');
@@ -150,11 +150,13 @@ describe('SellerRepository - Integration', { timeout: 60_000 }, () => {
 
       expect(Number(data.aggregates?.earnedThisMonth)).toBe(100);
       expect(Number(data.aggregates?.earnedLastMonth)).toBe(200);
-
-      expect(Number(data.weeklySales?.soldThisWeekOz)).toBe(150);
+      expect(Number(data.aggregates?.completedOrdersThisMonth)).toBe(1);
 
       const corn = data.produceSalesThisMonth.find((p) => p.produceName === 'Corn');
       expect(Number(corn?.earned)).toBe(50);
+
+      const beans = data.produceSalesThisMonth.find((p) => p.produceName === 'Beans');
+      expect(Number(beans?.earned)).toBe(50);
     });
   });
 });

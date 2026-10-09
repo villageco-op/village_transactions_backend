@@ -4,7 +4,8 @@ import {
   getSellerEarningsMetrics,
 } from '../../../src/services/seller.service.js';
 import { sellerRepository } from '../../../src/repositories/seller.repository.js';
-import { produceRepository } from '../../../src/repositories/produce.repository.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 
 vi.mock('../../../src/repositories/seller.repository.js', () => ({
   sellerRepository: {
@@ -13,9 +14,15 @@ vi.mock('../../../src/repositories/seller.repository.js', () => ({
   },
 }));
 
-vi.mock('../../../src/repositories/produce.repository.js', () => ({
-  produceRepository: {
-    getActiveListingsBySeller: vi.fn(),
+vi.mock('../../../src/repositories/subscription.repository.js', () => ({
+  subscriptionRepository: {
+    getActiveSubscriptionsForSeller: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/order.repository.js', () => ({
+  orderRepository: {
+    getPendingOrdersBySellerId: vi.fn(),
   },
 }));
 
@@ -89,6 +96,10 @@ describe('SellerService - Unit Tests', () => {
   });
 
   describe('getSellerDashboard', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
     it('should format dashboard metrics and compute onTrackWithGoal correctly (On Track)', async () => {
       vi.mocked(sellerRepository.getDashboardMetrics).mockResolvedValueOnce({
         seller: {
@@ -101,24 +112,39 @@ describe('SellerService - Unit Tests', () => {
           zip: '00021',
           state: 'Idaho',
         },
-        aggregates: { earnedThisMonth: '600.00', earnedLastMonth: '800.00' },
-        weeklySales: { soldThisWeekOz: '320' },
+        aggregates: {
+          earnedThisMonth: '600.00',
+          earnedLastMonth: '800.00',
+          completedOrdersThisMonth: '12',
+        },
         produceSalesThisMonth: [{ produceName: 'Corn', earned: '600.00' }],
       });
 
-      vi.mocked(produceRepository.getActiveListingsBySeller).mockResolvedValueOnce([
-        { title: 'Corn' },
-        { title: 'Tomatoes' },
+      vi.mocked(orderRepository.getPendingOrdersBySellerId).mockResolvedValueOnce([
+        'order_1',
+        'order_2',
+        'order_3',
+      ]);
+
+      vi.mocked(subscriptionRepository.getActiveSubscriptionsForSeller).mockResolvedValueOnce([
+        { id: 'sub_1', produceName: 'Corn', amount: '10.00' },
+        { id: 'sub_2', produceName: 'Tomatoes', amount: '5.00' },
       ]);
 
       const result = await getSellerDashboard('seller_123');
 
+      expect(sellerRepository.getDashboardMetrics).toHaveBeenCalledWith('seller_123');
+      expect(orderRepository.getPendingOrdersBySellerId).toHaveBeenCalledWith('seller_123');
+      expect(subscriptionRepository.getActiveSubscriptionsForSeller).toHaveBeenCalledWith(
+        'seller_123',
+      );
+
       expect(result.earnedThisMonth).toBe(600);
       expect(result.monthlyGoal).toBe(1000);
       expect(result.onTrackWithGoal).toBe(true);
-      expect(result.soldThisWeekLbs).toBe(20);
-      expect(result.activeListingsCount).toBe(2);
-      expect(result.activeListingsNames).toEqual(['Corn', 'Tomatoes']);
+      expect(result.completedOrdersThisMonth).toBe(12);
+      expect(result.pendingOrders).toBe(3);
+      expect(result.activeSubscriptions).toBe(2);
       expect(result.sellerLocation).toEqual({
         lat: 35.1,
         lng: -120.5,
@@ -131,7 +157,7 @@ describe('SellerService - Unit Tests', () => {
       expect(result.earningsByProduceThisMonth).toEqual([{ produceName: 'Corn', earned: 600 }]);
     });
 
-    it('should compute onTrackWithGoal correctly when falling behind (Off Track)', async () => {
+    it('should compute onTrackWithGoal correctly when falling behind (Off Track) and handle null defaults', async () => {
       vi.mocked(sellerRepository.getDashboardMetrics).mockResolvedValueOnce({
         seller: {
           goal: '1000.00',
@@ -143,18 +169,26 @@ describe('SellerService - Unit Tests', () => {
           country: null,
           zip: null,
         },
-        aggregates: { earnedThisMonth: '400.00', earnedLastMonth: '300.00' },
-        weeklySales: { soldThisWeekOz: '160' },
+        aggregates: {
+          earnedThisMonth: '400.00',
+          earnedLastMonth: '300.00',
+          completedOrdersThisMonth: '5',
+        },
         produceSalesThisMonth: [],
       });
 
-      vi.mocked(produceRepository.getActiveListingsBySeller).mockResolvedValueOnce([]);
+      vi.mocked(orderRepository.getPendingOrdersBySellerId).mockResolvedValueOnce([]);
+
+      vi.mocked(subscriptionRepository.getActiveSubscriptionsForSeller).mockResolvedValueOnce([]);
 
       const result = await getSellerDashboard('seller_123');
 
       expect(result.earnedThisMonth).toBe(400);
       expect(result.onTrackWithGoal).toBe(false);
-      expect(result.activeListingsCount).toBe(0);
+      expect(result.completedOrdersThisMonth).toBe(5);
+      expect(result.pendingOrders).toBe(0);
+      expect(result.activeSubscriptions).toBe(0);
+      expect(result.earningsByProduceThisMonth).toEqual([]);
       expect(result.sellerLocation).toEqual({
         lat: null,
         lng: null,

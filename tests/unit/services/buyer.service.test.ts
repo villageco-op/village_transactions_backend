@@ -145,8 +145,8 @@ describe('BuyerService - Unit Tests', () => {
   describe('getBuyerDashboardMetrics', () => {
     it('should correctly aggregate metrics, convert ounces to lbs, and calculate percentages', async () => {
       vi.mocked(buyerRepository.getDashboardMetrics).mockResolvedValueOnce({
-        weightAgg: { ozThisWeek: 320, ozLastWeek: 160 },
-        spendAgg: { spendThisMonth: 1500, spendLastMonth: 1000 },
+        weightAgg: { ozThisWeek: 320 },
+        spendAgg: { spendThisMonth: 1500 },
         growers: [
           { sellerId: 'id_1', isLocal: true, distance: 10 },
           { sellerId: 'id_2', isLocal: false, distance: 50 },
@@ -161,27 +161,18 @@ describe('BuyerService - Unit Tests', () => {
       const metrics = await getBuyerDashboardMetrics('buyer_123');
 
       expect(metrics.onOrderThisWeekLbs).toBe(20);
-      expect(metrics.percentChangeFromLastWeek).toBe(100); // from 10 to 20 is +100%
 
       expect(metrics.totalSpendThisMonth).toBe(1500);
-      expect(metrics.totalSpendLastMonth).toBe(1000);
 
-      expect(metrics.activeSubscriptions).toHaveLength(1);
-      expect(metrics.activeSubscriptions[0]).toEqual({
-        id: 'sub_1',
-        produceName: 'Carrots',
-        amount: 10,
-      });
+      expect(metrics.activeSubscriptions).toBe(1);
 
       expect(metrics.localGrowersSupplying).toBe(2);
-      expect(metrics.furthestGrowerDistanceMiles).toBe(50);
-      expect(metrics.avgGrowerDistanceMiles).toBe(30); // (10 + 50 + 30) / 3
     });
 
     it('should gracefully handle empty or zeroed data', async () => {
       vi.mocked(buyerRepository.getDashboardMetrics).mockResolvedValueOnce({
-        weightAgg: { ozThisWeek: 0, ozLastWeek: 0 },
-        spendAgg: { spendThisMonth: 0, spendLastMonth: 0 },
+        weightAgg: { ozThisWeek: 0 },
+        spendAgg: { spendThisMonth: 0 },
         growers: [{ sellerId: 'id_1', isLocal: false, distance: null }],
       });
 
@@ -190,19 +181,15 @@ describe('BuyerService - Unit Tests', () => {
       const metrics = await getBuyerDashboardMetrics('buyer_zero');
 
       expect(metrics.onOrderThisWeekLbs).toBe(0);
-      expect(metrics.percentChangeFromLastWeek).toBe(0);
       expect(metrics.totalSpendThisMonth).toBe(0);
-      expect(metrics.totalSpendLastMonth).toBe(0);
-      expect(metrics.activeSubscriptions).toHaveLength(0);
+      expect(metrics.activeSubscriptions).toBe(0);
       expect(metrics.localGrowersSupplying).toBe(0);
-      expect(metrics.furthestGrowerDistanceMiles).toBe(0);
-      expect(metrics.avgGrowerDistanceMiles).toBe(0);
     });
 
     it('should calculate 100% increase if last week was 0 and this week has orders', async () => {
       vi.mocked(buyerRepository.getDashboardMetrics).mockResolvedValueOnce({
-        weightAgg: { ozThisWeek: 160, ozLastWeek: 0 },
-        spendAgg: { spendThisMonth: 0, spendLastMonth: 0 },
+        weightAgg: { ozThisWeek: 160 },
+        spendAgg: { spendThisMonth: 0 },
         growers: [],
       });
 
@@ -211,7 +198,6 @@ describe('BuyerService - Unit Tests', () => {
       const metrics = await getBuyerDashboardMetrics('buyer_spike');
 
       expect(metrics.onOrderThisWeekLbs).toBe(10);
-      expect(metrics.percentChangeFromLastWeek).toBe(100);
     });
   });
 });

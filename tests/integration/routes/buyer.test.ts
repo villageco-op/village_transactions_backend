@@ -11,7 +11,7 @@ import { subscriptionRepository } from '../../../src/repositories/subscription.r
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { users, produce, orders, orderItems } from '../../../src/db/schema.js';
 import { sql } from 'drizzle-orm';
-import { GrowerResponse } from '../../../src/schemas/buyer.schema.js';
+import { BuyerDashboardResponse, GrowerResponse } from '../../../src/schemas/buyer.schema.js';
 
 describe('Buyer API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -269,28 +269,17 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
       const res = await authedRequest(`/api/buyer/dashboard`, { method: 'GET' }, { id: BUYER_ID });
 
       expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
+      const body = (await res.json()) as BuyerDashboardResponse;
 
       // Assert Volume (Order 2 + Order 3 = 32oz + 16oz = 48oz = 3 lbs this week)
       expect(body.onOrderThisWeekLbs).toBe(3);
-      // 0 lbs last week -> 3 lbs this week is flagged as a 100% jump
-      expect(body.percentChangeFromLastWeek).toBe(100);
 
       // Assert Spend (Order 2 + Order 3 = $32 + $16 = $48 this month)
-      // Note: order 1 was 2 months ago, so last month's bucket remains $0
       expect(body.totalSpendThisMonth).toBe(48);
-      expect(body.totalSpendLastMonth).toBe(0);
 
       expect(body.localGrowersSupplying).toBe(1); // Farm 1 is in same city / <50 mi
 
-      // Farm 2 is ~77 miles away, Farm 1 is ~3.5 miles away
-      expect(body.furthestGrowerDistanceMiles).toBeGreaterThan(70);
-      expect(body.furthestGrowerDistanceMiles).toBeLessThan(85);
-
-      expect(body.avgGrowerDistanceMiles).toBeGreaterThan(35);
-      expect(body.avgGrowerDistanceMiles).toBeLessThan(45);
-
-      expect(body.activeSubscriptions).toEqual([]);
+      expect(body.activeSubscriptions).toBe(0);
     });
   });
 });
