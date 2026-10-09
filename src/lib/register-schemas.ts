@@ -185,9 +185,8 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   // Seller Dashboard
   app.openAPIRegistry.register('Payout', Seller.PayoutSchema);
   app.openAPIRegistry.register('PayoutHistoryResponse', Seller.PayoutHistoryResponseSchema);
-  app.openAPIRegistry.register('ProduceSales', Seller.ProduceSalesSchema);
+  app.openAPIRegistry.register('ProduceAmount', Seller.ProduceAmountSchema);
   app.openAPIRegistry.register('SellerEarningsResponse', Seller.SellerEarningsResponseSchema);
-  app.openAPIRegistry.register('EarningsByProduce', Seller.EarningsByProduceSchema);
   app.openAPIRegistry.register('SellerDashboardResponse', Seller.SellerDashboardResponseSchema);
 
   // Growers Map

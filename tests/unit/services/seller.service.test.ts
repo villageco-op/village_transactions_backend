@@ -117,7 +117,7 @@ describe('SellerService - Unit Tests', () => {
           earnedLastMonth: '800.00',
           completedOrdersThisMonth: '12',
         },
-        produceSalesThisMonth: [{ produceName: 'Corn', earned: '600.00' }],
+        produceSalesThisMonth: [{ produceName: 'Corn', amount: '600.00' }],
       });
 
       vi.mocked(orderRepository.getPendingOrdersBySellerId).mockResolvedValueOnce([
@@ -154,7 +154,7 @@ describe('SellerService - Unit Tests', () => {
         zip: '00021',
         state: 'Idaho',
       });
-      expect(result.earningsByProduceThisMonth).toEqual([{ produceName: 'Corn', earned: 600 }]);
+      expect(result.earningsByProduceThisMonth).toEqual([{ produceName: 'Corn', amount: 600 }]);
     });
 
     it('should compute onTrackWithGoal correctly when falling behind (Off Track) and handle null defaults', async () => {

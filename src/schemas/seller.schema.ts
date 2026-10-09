@@ -42,12 +42,12 @@ export const PayoutHistoryResponseSchema = createPaginatedResponseSchema(
   'PayoutHistoryResponse',
 );
 
-export const ProduceSalesSchema = z
+export const ProduceAmountSchema = z
   .object({
     produceName: z.string().openapi({ example: 'Organic Apples' }),
     amount: PriceDollarsSchema,
   })
-  .openapi('ProduceSales');
+  .openapi('ProduceAmount');
 
 export const SellerEarningsResponseSchema = z
   .object({
@@ -61,20 +61,11 @@ export const SellerEarningsResponseSchema = z
       example: 4.5,
       description: 'Average revenue generated per pound of produce sold',
     }),
-    amountSoldDollarsPerProduceThisMonth: z.array(ProduceSalesSchema).openapi({
-      description: 'Breakdown of sales revenue by individual produce type',
+    amountSoldDollarsPerProduceThisMonth: z.array(ProduceAmountSchema).openapi({
+      description: 'Breakdown of sales revenue by individual produce name',
     }),
   })
   .openapi('SellerEarningsResponse');
-
-export const EarningsByProduceSchema = z
-  .object({
-    produceName: z.string().openapi({ example: 'Tomatoes' }),
-    earned: z
-      .number()
-      .openapi({ example: 50.0, description: 'Total dollars earned for this produce item' }),
-  })
-  .openapi('EarningsByProduce');
 
 export const SellerDashboardResponseSchema = z
   .object({
@@ -87,7 +78,7 @@ export const SellerDashboardResponseSchema = z
     completedOrdersThisMonth: z.number().openapi({ example: 2 }),
     pendingOrders: z.number().openapi({ example: 2 }),
     activeSubscriptions: z.number().openapi({ example: 2 }),
-    earningsByProduceThisMonth: z.array(EarningsByProduceSchema),
+    earningsByProduceThisMonth: z.array(ProduceAmountSchema),
     sellerLocation: LocationSchema,
   })
   .openapi('SellerDashboardResponse');

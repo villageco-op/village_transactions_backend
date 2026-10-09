@@ -153,10 +153,10 @@ describe('SellerRepository - Integration', { timeout: 60_000 }, () => {
       expect(Number(data.aggregates?.completedOrdersThisMonth)).toBe(1);
 
       const corn = data.produceSalesThisMonth.find((p) => p.produceName === 'Corn');
-      expect(Number(corn?.earned)).toBe(50);
+      expect(Number(corn?.amount)).toBe(50);
 
       const beans = data.produceSalesThisMonth.find((p) => p.produceName === 'Beans');
-      expect(Number(beans?.earned)).toBe(50);
+      expect(Number(beans?.amount)).toBe(50);
     });
   });
 });

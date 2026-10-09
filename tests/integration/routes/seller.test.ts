@@ -162,7 +162,7 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
       expect(body.earningsByProduceThisMonth).toHaveLength(1);
       expect(body.earningsByProduceThisMonth[0]).toMatchObject({
         produceName: 'Fresh Berries',
-        earned: 19.2,
+        amount: 19.2,
       });
       expect(body.sellerLocation).toHaveProperty('lat');
       expect(body.sellerLocation).toHaveProperty('lng');
