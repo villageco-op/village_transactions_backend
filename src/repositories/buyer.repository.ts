@@ -143,9 +143,6 @@ export const buyerRepository = {
         spendThisMonth: sql<
           number | null
         >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp) THEN ${orders.totalAmount} ELSE 0 END)`,
-        spendLastMonth: sql<
-          number | null
-        >`SUM(CASE WHEN date_trunc('month', ${orders.createdAt}) = date_trunc('month', ${now}::timestamp - INTERVAL '1 month') THEN ${orders.totalAmount} ELSE 0 END)`,
       })
       .from(orders)
       .where(and(eq(orders.buyerId, buyerId), ne(orders.status, 'canceled')));
@@ -155,9 +152,6 @@ export const buyerRepository = {
         ozThisWeek: sql<
           number | null
         >`SUM(CASE WHEN date_trunc('week', ${orders.createdAt}) = date_trunc('week', ${now}::timestamp) THEN ${orderItems.quantityOz} ELSE 0 END)`,
-        ozLastWeek: sql<
-          number | null
-        >`SUM(CASE WHEN date_trunc('week', ${orders.createdAt}) = date_trunc('week', ${now}::timestamp - INTERVAL '1 week') THEN ${orderItems.quantityOz} ELSE 0 END)`,
       })
       .from(orders)
       .innerJoin(orderItems, eq(orders.id, orderItems.orderId))

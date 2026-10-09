@@ -235,15 +235,11 @@ describe('BuyerRepository - Integration', { timeout: 60_000 }, () => {
 
       // Spend Aggregations
       // Current Month: orderCurrent1 ($20) + orderCurrent2 ($30) + orderPending2 ($100) = $150
-      // Last Month: 0 (orderPast1 was 2 months ago)
       expect(Number(metrics.spendAgg?.spendThisMonth)).toBe(150);
-      expect(Number(metrics.spendAgg?.spendLastMonth)).toBe(0);
 
       // Weight Aggregations
       // Current Week: orderCurrent1 (20oz) + orderCurrent2 (15oz) + orderPending2 (50oz) = 85oz
-      // Last Week: 0
       expect(Number(metrics.weightAgg?.ozThisWeek)).toBe(85);
-      expect(Number(metrics.weightAgg?.ozLastWeek)).toBe(0);
     });
 
     it('should correctly calculate grower distances and flag local growers', async () => {

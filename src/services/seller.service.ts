@@ -1,5 +1,6 @@
-import { produceRepository } from '../repositories/produce.repository.js';
+import { orderRepository } from '../repositories/order.repository.js';
 import { sellerRepository } from '../repositories/seller.repository.js';
+import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import type { SellerDashboardResponse, SellerEarningsResponse } from '../schemas/seller.schema.js';
 
 /**
@@ -44,19 +45,18 @@ export async function getSellerEarningsMetrics(sellerId: string): Promise<Seller
  * Formats data for the high-level seller dashboard.
  * Calculates track-rate towards the monthly goal to determine if the seller is currently on track.
  * Fetches data concurrently from respective repositories.
- * @param sellerId - The ID of the seller
+ * @param sellerId The ID of the seller
  * @returns Formatted dashboard response object
  */
 export async function getSellerDashboard(sellerId: string): Promise<SellerDashboardResponse> {
-  const [data, activeProduceRaw] = await Promise.all([
+  const [data, pendingOrders, activeSubs] = await Promise.all([
     sellerRepository.getDashboardMetrics(sellerId),
-    produceRepository.getActiveListingsBySeller(sellerId),
+    orderRepository.getPendingOrdersBySellerId(sellerId),
+    subscriptionRepository.getActiveSubscriptionsForSeller(sellerId),
   ]);
 
   const earnedThisMonth = Number(data.aggregates?.earnedThisMonth || 0);
-  const earnedLastMonth = Number(data.aggregates?.earnedLastMonth || 0);
-  const soldThisWeekOz = Number(data.weeklySales?.soldThisWeekOz || 0);
-  const soldThisWeekLbs = soldThisWeekOz / 16;
+  const completedOrdersThisMonth = Number(data.aggregates?.completedOrdersThisMonth || 0);
 
   const monthlyGoal = Number(data.seller?.goal || 0);
 
@@ -67,9 +67,6 @@ export async function getSellerDashboard(sellerId: string): Promise<SellerDashbo
 
   const onTrackWithGoal = monthlyGoal > 0 ? earnedThisMonth >= expectedProratedGoal : true;
 
-  const activeListingsNames = activeProduceRaw.map((p) => p.title || 'Untitled');
-  const activeListingsCount = activeListingsNames.length;
-
   const earningsByProduceThisMonth = data.produceSalesThisMonth.map((item) => ({
     produceName: item.produceName || 'Unknown',
     earned: Number(Number(item.earned || 0).toFixed(2)),
@@ -77,12 +74,11 @@ export async function getSellerDashboard(sellerId: string): Promise<SellerDashbo
 
   return {
     earnedThisMonth: Number(earnedThisMonth.toFixed(2)),
-    earnedLastMonth: Number(earnedLastMonth.toFixed(2)),
-    soldThisWeekLbs: Number(soldThisWeekLbs.toFixed(2)),
     onTrackWithGoal,
     monthlyGoal: Number(monthlyGoal.toFixed(2)),
-    activeListingsCount,
-    activeListingsNames,
+    completedOrdersThisMonth,
+    pendingOrders: pendingOrders.length,
+    activeSubscriptions: activeSubs.length,
     earningsByProduceThisMonth,
     sellerLocation: {
       lat: data.seller?.lat ?? null,

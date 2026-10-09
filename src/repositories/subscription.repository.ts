@@ -68,6 +68,23 @@ export const subscriptionRepository = {
   },
 
   /**
+   * Retrieves all active subscriptions for a specific seller.
+   * @param sellerId The ID of the seller
+   * @returns An array of active subscriptions
+   */
+  async getActiveSubscriptionsForSeller(sellerId: string) {
+    return await this.db
+      .select({
+        id: subscriptions.id,
+        produceName: produce.title,
+        amount: subscriptions.quantityOz,
+      })
+      .from(subscriptions)
+      .innerJoin(produce, eq(subscriptions.productId, produce.id))
+      .where(and(eq(produce.sellerId, sellerId), eq(subscriptions.status, 'active')));
+  },
+
+  /**
    * Retrieves active subscriptions for an array of product IDs to calculate analytics.
    * @param productIds - Array of product IDs
    * @returns The active subscriptions for the given products

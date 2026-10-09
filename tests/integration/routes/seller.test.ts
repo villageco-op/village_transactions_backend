@@ -7,9 +7,10 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
-import { users, orders, orderItems, produce } from '../../../src/db/schema.js';
+import { users, orders, orderItems, produce, subscriptions } from '../../../src/db/schema.js';
 import { sellerRepository } from '../../../src/repositories/seller.repository.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
 
 describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -19,6 +20,7 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
   beforeAll(() => {
     testDb = getTestDb();
     orderRepository.setDb(testDb);
+    subscriptionRepository.setDb(testDb);
     sellerRepository.setDb(testDb);
     produceRepository.setDb(testDb);
   });
@@ -68,6 +70,26 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
       productId: testProduct.id,
       quantityOz: '16',
       pricePerOz: '1.20',
+    });
+
+    await testDb.insert(orders).values({
+      buyerId: BUYER_ID,
+      sellerId: SELLER_ID,
+      stripeSessionId: 'cs_test_pending',
+      status: 'pending',
+      fulfillmentType: 'pickup',
+      scheduledTime: new Date(),
+      createdAt: new Date(),
+      totalAmount: '12.00',
+      paymentMethod: 'card',
+    });
+
+    await testDb.insert(subscriptions).values({
+      buyerId: BUYER_ID,
+      productId: testProduct.id,
+      quantityOz: '10.00',
+      status: 'active',
+      fulfillmentType: 'pickup',
     });
   });
 
@@ -134,9 +156,9 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
 
       expect(body.monthlyGoal).toBe(1000);
       expect(body.earnedThisMonth).toBe(19.2);
-      expect(body.soldThisWeekLbs).toBe(1);
-      expect(body.activeListingsCount).toBe(1);
-      expect(body.activeListingsNames).toEqual(['Fresh Berries']);
+      expect(body.completedOrdersThisMonth).toBe(1);
+      expect(body.pendingOrders).toBe(1);
+      expect(body.activeSubscriptions).toBe(1);
       expect(body.earningsByProduceThisMonth).toHaveLength(1);
       expect(body.earningsByProduceThisMonth[0]).toMatchObject({
         produceName: 'Fresh Berries',

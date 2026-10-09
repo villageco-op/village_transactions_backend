@@ -79,15 +79,14 @@ export const EarningsByProduceSchema = z
 export const SellerDashboardResponseSchema = z
   .object({
     earnedThisMonth: z.number().openapi({ example: 450.0 }),
-    earnedLastMonth: z.number().openapi({ example: 320.0 }),
-    soldThisWeekLbs: z.number().openapi({ example: 12.5 }),
     onTrackWithGoal: z.boolean().openapi({
       example: true,
       description: 'Calculated status indicating if the seller is likely to hit their monthly goal',
     }),
     monthlyGoal: z.number().openapi({ example: 1000.0 }),
-    activeListingsCount: z.number().openapi({ example: 2 }),
-    activeListingsNames: z.array(z.string()).openapi({ example: ['Tomatoes', 'Corn'] }),
+    completedOrdersThisMonth: z.number().openapi({ example: 2 }),
+    pendingOrders: z.number().openapi({ example: 2 }),
+    activeSubscriptions: z.number().openapi({ example: 2 }),
     earningsByProduceThisMonth: z.array(EarningsByProduceSchema),
     sellerLocation: LocationSchema,
   })

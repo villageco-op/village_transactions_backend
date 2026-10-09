@@ -232,6 +232,80 @@ describe('SubscriptionRepository - Integration', { timeout: 60_000 }, () => {
     });
   });
 
+  describe('getActiveSubscriptionsForSeller', () => {
+    it('should return only active subscriptions belonging to the target seller', async () => {
+      const seller1Id = 'seller_1';
+      const seller2Id = 'seller_2';
+      const buyerId = 'buyer_1';
+
+      await testDb.insert(users).values([
+        { id: seller1Id, email: 'seller1@test.com' },
+        { id: seller2Id, email: 'seller2@test.com' },
+        { id: buyerId, email: 'buyer@test.com' },
+      ]);
+
+      const [productSeller1, productSeller2] = await testDb
+        .insert(produce)
+        .values([
+          {
+            sellerId: seller1Id,
+            title: 'Carrots',
+            pricePerOz: '0.50',
+            totalOzInventory: '100',
+            harvestFrequencyDays: 7,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+          },
+          {
+            sellerId: seller2Id,
+            title: 'Potatoes',
+            pricePerOz: '0.30',
+            totalOzInventory: '100',
+            harvestFrequencyDays: 7,
+            seasonStart: '2024-01-01',
+            seasonEnd: '2024-12-31',
+          },
+        ])
+        .returning();
+
+      await testDb.insert(subscriptions).values([
+        {
+          buyerId,
+          productId: productSeller1.id,
+          quantityOz: '10.00',
+          status: 'active',
+          fulfillmentType: 'pickup',
+        },
+        {
+          buyerId,
+          productId: productSeller1.id,
+          quantityOz: '5.00',
+          status: 'paused',
+          fulfillmentType: 'pickup',
+        }, // Paused — should be excluded
+        {
+          buyerId,
+          productId: productSeller2.id,
+          quantityOz: '15.00',
+          status: 'active',
+          fulfillmentType: 'pickup',
+        }, // Different seller — should be excluded
+      ]);
+
+      const results = await subscriptionRepository.getActiveSubscriptionsForSeller(seller1Id);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].produceName).toBe('Carrots');
+      expect(results[0].amount).toBe('10.00');
+    });
+
+    it('should return an empty array when seller has no active subscriptions', async () => {
+      const results =
+        await subscriptionRepository.getActiveSubscriptionsForSeller('unregistered_seller_id');
+      expect(results).toEqual([]);
+    });
+  });
+
   describe('getActiveSubscriptionsForProducts', () => {
     it('should return active subscriptions for the given product IDs', async () => {
       const sellerId = 'seller_1';
