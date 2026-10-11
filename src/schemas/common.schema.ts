@@ -183,14 +183,16 @@ export const PaginationMetadataSchema = z
   })
   .openapi('PaginationMetadata');
 
-export const UserBasicInfoSchema = z.object({
-  id: z.string(),
-  name: z.string().nullable().optional(),
-  organizationId: EntityIdField.nullable().optional(),
-  email: z.string().nullable().optional(),
-  location: LocationSchema.nullable().optional(),
-  image: ImageUrlSchema.nullable().optional(),
-});
+export const UserBasicInfoSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable().optional(),
+    organizationId: EntityIdField.nullable().optional(),
+    email: z.string().nullable().optional(),
+    location: LocationSchema.nullable().optional(),
+    image: ImageUrlSchema.nullable().optional(),
+  })
+  .openapi('UserBasicInfo');
 
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;
 export type Season = z.infer<typeof SeasonSchema>;

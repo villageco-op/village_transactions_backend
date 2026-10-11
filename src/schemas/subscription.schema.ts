@@ -37,7 +37,7 @@ export const SubscriptionDetailResponseSchema = z
     nextDeliveryDate: z.string().nullable(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
-    product: ProduceSchema.loose(),
+    product: ProduceSchema.loose().openapi('Produce'),
     buyer: UserBasicInfoSchema.nullable(),
     seller: UserBasicInfoSchema.nullable(),
   })

@@ -152,39 +152,41 @@ export const ProduceQuerySchema = z
   .extend(PaginationQuerySchema.shape)
   .openapi('ProduceQuery');
 
-export const ProduceMapQuerySchema = z.object({
-  lat: LatitudeSchema,
-  lng: LongitudeSchema,
-  radiusMiles: z.coerce.number().default(50).openapi({
-    description: 'Search radius in miles',
-    example: 25,
-  }),
-  produceType: ProduceTypeSchema.optional(),
-  search: z.string().optional().openapi({
-    description: 'Search produce titles, types, and seller names',
-  }),
-  maxOrderQuantity: z.coerce.number().optional().openapi({
-    description: 'Filter for listings allowing at least this maximum order quantity (oz)',
-  }),
-  isSubscribable: z.enum(['true', 'false']).optional().openapi({
-    description: 'Filter for items that are subscribable',
-  }),
-  availableInventory: z.coerce.number().optional().openapi({
-    description: 'Minimum total available inventory in oz',
-  }),
-  season: SeasonSchema.optional(),
-  availableBy: z.coerce.date().optional().openapi({
-    description: 'Filter for items available on or before this date',
-  }),
-  hasDelivery: z.enum(['true', 'false']).optional(),
-  minPrice: z.coerce.number().optional().openapi({
-    description: 'Minimum price per oz',
-  }),
-  maxPrice: z.coerce.number().optional().openapi({
-    description: 'Filter for items under a specific price point',
-    example: 10,
-  }),
-});
+export const ProduceMapQuerySchema = z
+  .object({
+    lat: LatitudeSchema,
+    lng: LongitudeSchema,
+    radiusMiles: z.coerce.number().default(50).openapi({
+      description: 'Search radius in miles',
+      example: 25,
+    }),
+    produceType: ProduceTypeSchema.optional(),
+    search: z.string().optional().openapi({
+      description: 'Search produce titles, types, and seller names',
+    }),
+    maxOrderQuantity: z.coerce.number().optional().openapi({
+      description: 'Filter for listings allowing at least this maximum order quantity (oz)',
+    }),
+    isSubscribable: z.enum(['true', 'false']).optional().openapi({
+      description: 'Filter for items that are subscribable',
+    }),
+    availableInventory: z.coerce.number().optional().openapi({
+      description: 'Minimum total available inventory in oz',
+    }),
+    season: SeasonSchema.optional(),
+    availableBy: z.coerce.date().optional().openapi({
+      description: 'Filter for items available on or before this date',
+    }),
+    hasDelivery: z.enum(['true', 'false']).optional(),
+    minPrice: z.coerce.number().optional().openapi({
+      description: 'Minimum price per oz',
+    }),
+    maxPrice: z.coerce.number().optional().openapi({
+      description: 'Filter for items under a specific price point',
+      example: 10,
+    }),
+  })
+  .openapi('ProduceMapQuery');
 
 export const ProduceMapItemSchema = z
   .object({
@@ -225,16 +227,18 @@ export const ProduceOrderBuyerSchema = z
   })
   .openapi('ProduceOrderBuyer');
 
-export const ProduceOrderListItemSchema = z.object({
-  id: ResourceIdSchema,
-  status: OrderStatusSchema.nullable(),
-  fulfillmentType: FulfillmentTypeSchema,
-  scheduledTime: IsoDateSchema,
-  totalAmount: z.string().openapi({ example: '25.00' }),
-  quantityOz: z.string().openapi({ example: '32.0' }),
-  createdAt: IsoDateTimeSchema.nullable(),
-  buyer: ProduceOrderBuyerSchema,
-});
+export const ProduceOrderListItemSchema = z
+  .object({
+    id: ResourceIdSchema,
+    status: OrderStatusSchema.nullable(),
+    fulfillmentType: FulfillmentTypeSchema,
+    scheduledTime: IsoDateSchema,
+    totalAmount: z.string().openapi({ example: '25.00' }),
+    quantityOz: z.string().openapi({ example: '32.0' }),
+    createdAt: IsoDateTimeSchema.nullable(),
+    buyer: ProduceOrderBuyerSchema,
+  })
+  .openapi('ProduceOrderListItem');
 
 export const ProduceOrderListResponseSchema = createPaginatedResponseSchema(
   ProduceOrderListItemSchema,
@@ -288,7 +292,7 @@ export const ProduceDetailSchema = ProduceSchema.extend({
       .openapi({ description: 'The sellers maximum delivery range.' }),
     location: LocationSchema.nullable().openapi({ description: 'The sellers pickup location.' }),
   }),
-}).openapi('ProduceDetail');
+}).openapi('ProduceDetails');
 
 export type ProduceDetailPayload = z.infer<typeof ProduceDetailSchema>;
 export type CreateProducePayload = z.infer<typeof CreateProduceSchema>;
