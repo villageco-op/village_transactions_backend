@@ -61,9 +61,11 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
 
   app.openAPIRegistry.register('UserBasicInfo', Common.UserBasicInfoSchema);
 
-  // Produce Request Payloads
+  // Produce Request Payloads & Queries
   app.openAPIRegistry.register('CreateProducePayload', Produce.CreateProduceSchema);
   app.openAPIRegistry.register('UpdateProducePayload', Produce.UpdateProduceSchema);
+  app.openAPIRegistry.register('ProduceMapQuery', Produce.ProduceMapQuerySchema);
+  app.openAPIRegistry.register('ProduceQuery', Produce.ProduceQuerySchema);
 
   // Produce Responses
   app.openAPIRegistry.register('ProduceListResponse', Produce.ProduceListResponseSchema);
@@ -82,6 +84,7 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('ProduceListItem', Produce.ProduceListItemSchema);
   app.openAPIRegistry.register('ProduceMapItem', Produce.ProduceMapItemSchema);
   app.openAPIRegistry.register('SellerMapGroup', Produce.SellerMapGroupSchema);
+  app.openAPIRegistry.register('ProduceOrderListItem', Produce.ProduceOrderListItemSchema);
 
   // Produce Database Models
   app.openAPIRegistry.register('Produce', Produce.ProduceSchema);
@@ -91,7 +94,7 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('OrderListItem', Orders.OrderListItemSchema);
   app.openAPIRegistry.register('OrderListItemProduce', Orders.OrderListItemProduceSchema);
   app.openAPIRegistry.register('OrderSummary', Orders.OrderSummarySchema);
-  app.openAPIRegistry.register('OrderItemDetail', Orders.OrderItemDetailSchema);
+  app.openAPIRegistry.register('OrderItemDetails', Orders.OrderItemDetailSchema);
   app.openAPIRegistry.register('OrderDetailResponse', Orders.OrderDetailResponseSchema);
   app.openAPIRegistry.register('OrdersListResponse', Orders.OrdersListResponseSchema);
 
