@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import {
+  BasePublicUserProfileSchema,
   IsoDateTimeSchema,
   LocationSchema,
   PaginationQuerySchema,
@@ -83,7 +84,40 @@ export const SellerDashboardResponseSchema = z
   })
   .openapi('SellerDashboardResponse');
 
+export const SellerUserProfileSchema = BasePublicUserProfileSchema.extend({
+  aboutMe: z.string().nullable().openapi({
+    description: 'Public bio displayed on the seller storefront',
+  }),
+  specialties: z
+    .array(z.string())
+    .nullable()
+    .openapi({
+      example: ['spinach', 'carrots'],
+      description: 'List of produce the seller specializes in.',
+    }),
+  starRating: z.number().openapi({
+    example: 4.8,
+    description: 'Weighted average of all received reviews',
+  }),
+  totalReviews: z.number().openapi({ example: 124 }),
+  reviewBreakdown: z
+    .object({
+      '1': z.number(),
+      '2': z.number(),
+      '3': z.number(),
+      '4': z.number(),
+      '5': z.number(),
+    })
+    .openapi('ReviewBreakdown', { description: 'Count of reviews for each star level' }),
+  activeBuyerCount: z.number().openapi({
+    example: 12,
+    description: 'Number of unique customers who have ordered recently',
+  }),
+}).openapi('SellerUserProfile');
+
 export type SellerEarningsResponse = z.infer<typeof SellerEarningsResponseSchema>;
 export type GetSellerPayoutsQuery = z.infer<typeof GetSellerPayoutsQuerySchema>;
 export type Payout = z.infer<typeof PayoutSchema>;
 export type SellerDashboardResponse = z.infer<typeof SellerDashboardResponseSchema>;
+export type SellerUserProfile = z.infer<typeof SellerUserProfileSchema>;
+export type ReviewBreakdown = SellerUserProfile['reviewBreakdown'];

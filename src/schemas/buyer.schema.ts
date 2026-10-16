@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import {
+  BasePublicUserProfileSchema,
   IsoDateTimeSchema,
   LocationSchema,
   PaginationQuerySchema,
@@ -107,9 +108,20 @@ export const BuyerDashboardResponseSchema = z
   })
   .openapi('BuyerDashboardResponse');
 
+export const BuyerUserProfileSchema = BasePublicUserProfileSchema.extend({
+  totalOrders: z.number().openapi({ example: 45, description: 'Total orders placed by the buyer' }),
+  activeSubscriptions: z
+    .number()
+    .openapi({ example: 3, description: 'Number of active subscriptions' }),
+  lastOrderDate: z.union([z.string(), z.date()]).nullable().openapi({
+    description: 'Timestamp of the last order placed',
+  }),
+}).openapi('BuyerUserProfile');
+
 export type GetGrowersQuery = z.infer<typeof GetGrowersQuerySchema>;
 export type GrowerResponse = z.infer<typeof GrowerSchema>;
 export type BillingSummaryResponse = z.infer<typeof BillingSummaryResponseSchema>;
 export type ActiveSubscriptionResponse = z.infer<typeof ActiveSubscriptionSchema>;
 export type BuyerDashboardResponse = z.infer<typeof BuyerDashboardResponseSchema>;
 export type GrowersResonse = z.infer<typeof GrowersResponseSchema>;
+export type BuyerUserProfile = z.infer<typeof BuyerUserProfileSchema>;

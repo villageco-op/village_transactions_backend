@@ -3,10 +3,13 @@ import {
   getBillingSummary,
   getGrowersForBuyer,
   getBuyerDashboardMetrics,
+  getBuyerProfile,
 } from '../../../src/services/buyer.service.js';
 import { buyerRepository } from '../../../src/repositories/buyer.repository.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { organizationRepository } from '../../../src/repositories/organization.repository.js';
 
 vi.mock('../../../src/repositories/buyer.repository.js', () => ({
   buyerRepository: {
@@ -25,6 +28,18 @@ vi.mock('../../../src/repositories/user.repository.js', () => ({
 vi.mock('../../../src/repositories/subscription.repository.js', () => ({
   subscriptionRepository: {
     getActiveSubscriptionsForBuyer: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/order.repository.js', () => ({
+  orderRepository: {
+    getBuyerOrderStats: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/organization.repository.js', () => ({
+  organizationRepository: {
+    findById: vi.fn(),
   },
 }));
 
@@ -198,6 +213,124 @@ describe('BuyerService - Unit Tests', () => {
       const metrics = await getBuyerDashboardMetrics('buyer_spike');
 
       expect(metrics.onOrderThisWeekLbs).toBe(10);
+    });
+  });
+
+  describe('getBuyerProfile', () => {
+    it('should successfully return a sanitized buyer profile with organization name when user belongs to an organization', async () => {
+      const buyerId = 'buyer_123';
+      const orgId = 'org_456';
+      const mockDate = new Date('2024-01-15T00:00:00Z');
+      const lastOrderDate = new Date('2024-05-10T12:00:00Z');
+
+      const mockUser = {
+        id: buyerId,
+        name: 'Jane Doe',
+        image: 'https://example.com/avatar.jpg',
+        organizationId: orgId,
+        country: 'USA',
+        state: 'California',
+        city: 'San Francisco',
+        createdAt: mockDate,
+      };
+
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(mockUser as any);
+      vi.mocked(orderRepository.getBuyerOrderStats).mockResolvedValueOnce({
+        totalOrders: 5,
+        lastOrderDate,
+      });
+      vi.mocked(subscriptionRepository.getActiveSubscriptionsForBuyer).mockResolvedValueOnce([
+        { id: 'sub_1' },
+        { id: 'sub_2' },
+      ] as any);
+      vi.mocked(organizationRepository.findById).mockResolvedValueOnce({
+        id: orgId,
+        name: 'Green Thumb Co-op',
+      } as any);
+
+      const profile = await getBuyerProfile(buyerId);
+
+      expect(userRepository.findById).toHaveBeenCalledWith(buyerId);
+      expect(orderRepository.getBuyerOrderStats).toHaveBeenCalledWith(buyerId);
+      expect(subscriptionRepository.getActiveSubscriptionsForBuyer).toHaveBeenCalledWith(buyerId);
+      expect(organizationRepository.findById).toHaveBeenCalledWith(orgId);
+
+      expect(profile).toEqual({
+        id: buyerId,
+        name: 'Jane Doe',
+        image: 'https://example.com/avatar.jpg',
+        organization: 'Green Thumb Co-op',
+        organizationId: orgId,
+        country: 'USA',
+        state: 'California',
+        city: 'San Francisco',
+        joinedAt: mockDate,
+        totalOrders: 5,
+        activeSubscriptions: 2,
+        lastOrderDate,
+      });
+    });
+
+    it('should handle buyer profile without an organization gracefully', async () => {
+      const buyerId = 'buyer_independent';
+      const mockDate = new Date('2024-02-01T00:00:00Z');
+
+      const mockUser = {
+        id: buyerId,
+        name: 'John Independent',
+        image: null,
+        organizationId: null,
+        country: 'USA',
+        state: 'Oregon',
+        city: 'Portland',
+        createdAt: mockDate,
+      };
+
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(mockUser as any);
+      vi.mocked(orderRepository.getBuyerOrderStats).mockResolvedValueOnce({
+        totalOrders: 0,
+        lastOrderDate: null,
+      });
+      vi.mocked(subscriptionRepository.getActiveSubscriptionsForBuyer).mockResolvedValueOnce([]);
+
+      const profile = await getBuyerProfile(buyerId);
+
+      expect(organizationRepository.findById).not.toHaveBeenCalled();
+
+      expect(profile).toEqual({
+        id: buyerId,
+        name: 'John Independent',
+        image: null,
+        organization: null,
+        organizationId: null,
+        country: 'USA',
+        state: 'Oregon',
+        city: 'Portland',
+        joinedAt: mockDate,
+        totalOrders: 0,
+        activeSubscriptions: 0,
+        lastOrderDate: null,
+      });
+    });
+
+    it('should throw a 404 HTTPException and log a warning if the user is not found', async () => {
+      const buyerId = 'non_existent_buyer';
+      const mockLogger = {
+        warn: vi.fn(),
+      };
+
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+      await expect(getBuyerProfile(buyerId, mockLogger as any)).rejects.toThrow(
+        expect.objectContaining({
+          status: 404,
+          message: 'User not found',
+        }),
+      );
+
+      expect(mockLogger.warn).toHaveBeenCalledWith('Requested buyer profile not found');
+      expect(orderRepository.getBuyerOrderStats).not.toHaveBeenCalled();
+      expect(subscriptionRepository.getActiveSubscriptionsForBuyer).not.toHaveBeenCalled();
     });
   });
 });

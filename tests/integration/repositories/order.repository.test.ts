@@ -1365,7 +1365,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
     });
   });
 
-  describe('getPendingOrdersByBuyerId', () => {
+  describe('OrderRepository - getPendingOrdersByBuyerId', () => {
     it('should retrieve order IDs that match the target buyerId and are not canceled, refund_pending, or completed', async () => {
       const TARGET_BUYER_ID = 'buyer_target_123';
       const OTHER_BUYER_ID = 'buyer_isolated_456';
@@ -1433,7 +1433,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
     });
   });
 
-  describe('getPendingOrdersBySellerId', () => {
+  describe('OrderRepository - getPendingOrdersBySellerId', () => {
     it('should retrieve pending order IDs that match the target sellerId and exclude completed/canceled/refund_pending', async () => {
       const TARGET_SELLER_ID = 'seller_target_123';
       const OTHER_SELLER_ID = 'seller_isolated_456';
@@ -1498,6 +1498,109 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
     it('should return an empty array if the seller has no orders in the system', async () => {
       const results = await orderRepository.getPendingOrdersBySellerId('unregistered_seller_uuid');
       expect(results).toEqual([]);
+    });
+  });
+
+  describe('OrderRepository - getBuyerOrderStats Integration', () => {
+    it('should return 0 total orders and null lastOrderDate when the buyer has no orders', async () => {
+      const buyerId = 'buyer_no_orders';
+
+      await testDb
+        .insert(users)
+        .values([{ id: buyerId, name: 'Jane Doe', email: 'jane@example.com' }]);
+
+      const stats = await orderRepository.getBuyerOrderStats(buyerId);
+
+      expect(stats).toEqual({
+        totalOrders: 0,
+        lastOrderDate: null,
+      });
+    });
+
+    it('should return correct total order count and latest order date for a buyer with multiple orders', async () => {
+      const sellerId = 'seller_stats';
+      const buyerId = 'buyer_with_orders';
+
+      await testDb.insert(users).values([
+        { id: sellerId, name: 'Farmer John', email: 'john@farm.com' },
+        { id: buyerId, name: 'Buyer Bob', email: 'bob@example.com' },
+      ]);
+
+      const olderDate = new Date('2024-05-01T10:00:00Z');
+      const newerDate = new Date('2024-05-10T14:30:00Z');
+
+      await testDb.insert(orders).values([
+        {
+          buyerId,
+          sellerId,
+          status: 'completed',
+          totalAmount: '25.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+          createdAt: olderDate,
+        },
+        {
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '40.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+          createdAt: newerDate,
+        },
+      ]);
+
+      const stats = await orderRepository.getBuyerOrderStats(buyerId);
+
+      expect(stats.totalOrders).toBe(2);
+      expect(stats.lastOrderDate).not.toBeNull();
+      expect(new Date(stats.lastOrderDate!)).toEqual(new Date(newerDate));
+    });
+
+    it('should only count orders belonging to the specified buyer and ignore other buyers', async () => {
+      const sellerId = 'seller_stats_multi';
+      const buyer1Id = 'buyer_one';
+      const buyer2Id = 'buyer_two';
+
+      await testDb.insert(users).values([
+        { id: sellerId, name: 'Farmer John', email: 'john@farm.com' },
+        { id: buyer1Id, name: 'Buyer One', email: 'one@example.com' },
+        { id: buyer2Id, name: 'Buyer Two', email: 'two@example.com' },
+      ]);
+
+      const buyer1Date = new Date('2024-05-05T08:00:00Z');
+      const buyer2Date = new Date('2024-05-12T12:00:00Z');
+
+      await testDb.insert(orders).values([
+        {
+          buyerId: buyer1Id,
+          sellerId,
+          status: 'completed',
+          totalAmount: '10.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+          createdAt: buyer1Date,
+        },
+        {
+          buyerId: buyer2Id,
+          sellerId,
+          status: 'completed',
+          totalAmount: '20.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+          createdAt: buyer2Date,
+        },
+      ]);
+
+      const stats = await orderRepository.getBuyerOrderStats(buyer1Id);
+
+      expect(stats.totalOrders).toBe(1);
+      expect(stats.lastOrderDate).not.toBeNull();
+      expect(new Date(stats.lastOrderDate!)).toEqual(new Date(buyer1Date));
     });
   });
 });
