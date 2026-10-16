@@ -343,9 +343,7 @@
             "items": {
               "$ref": "#/components/schemas/ImageUrl"
             },
-            "default": [],
-            "example": ["https://example.com/apple.jpg"],
-            "description": "List of gallery images for the product"
+            "default": []
           },
           "isSubscribable": {
             "type": "boolean",
@@ -414,9 +412,7 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ImageUrl"
-            },
-            "example": ["https://example.com/apple.jpg"],
-            "description": "List of gallery images for the product"
+            }
           },
           "isSubscribable": {
             "type": "boolean",
@@ -1115,8 +1111,7 @@
                         "$ref": "#/components/schemas/Location"
                       },
                       {
-                        "nullable": true,
-                        "description": "The sellers pickup location."
+                        "nullable": true
                       }
                     ]
                   }
@@ -1647,144 +1642,6 @@
           "updatedAt",
           "isOnboardingComplete"
         ]
-      },
-      "PublicUserProfile": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/UserId"
-          },
-          "name": {
-            "type": "string",
-            "nullable": true,
-            "example": "Green Acres"
-          },
-          "image": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ImageUrl"
-              },
-              {
-                "nullable": true
-              }
-            ]
-          },
-          "organization": {
-            "type": "string",
-            "nullable": true,
-            "example": "Green Hill Farms"
-          },
-          "organizationId": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/EntityId"
-              },
-              {
-                "nullable": true
-              }
-            ]
-          },
-          "aboutMe": {
-            "type": "string",
-            "nullable": true,
-            "description": "Public bio displayed on the seller storefront"
-          },
-          "specialties": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            },
-            "example": ["spinach", "carrots"],
-            "description": "List of produce the seller specializes in."
-          },
-          "country": {
-            "type": "string",
-            "nullable": true,
-            "example": "United States of America"
-          },
-          "state": {
-            "type": "string",
-            "nullable": true,
-            "example": "WI"
-          },
-          "city": {
-            "type": "string",
-            "nullable": true,
-            "example": "Madison"
-          },
-          "joinedAt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "nullable": true
-              }
-            ],
-            "description": "Timestamp of when the user first registered"
-          },
-          "starRating": {
-            "type": "number",
-            "example": 4.8,
-            "description": "Weighted average of all received reviews"
-          },
-          "totalReviews": {
-            "type": "number",
-            "example": 124
-          },
-          "reviewBreakdown": {
-            "$ref": "#/components/schemas/ReviewBreakdown"
-          },
-          "activeBuyerCount": {
-            "type": "number",
-            "example": 12,
-            "description": "Number of unique customers who have ordered recently"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "image",
-          "organization",
-          "organizationId",
-          "aboutMe",
-          "specialties",
-          "country",
-          "state",
-          "city",
-          "joinedAt",
-          "starRating",
-          "totalReviews",
-          "reviewBreakdown",
-          "activeBuyerCount"
-        ]
-      },
-      "ReviewBreakdown": {
-        "type": "object",
-        "properties": {
-          "1": {
-            "type": "number"
-          },
-          "2": {
-            "type": "number"
-          },
-          "3": {
-            "type": "number"
-          },
-          "4": {
-            "type": "number"
-          },
-          "5": {
-            "type": "number"
-          }
-        },
-        "required": ["1", "2", "3", "4", "5"],
-        "description": "Count of reviews for each star level"
       },
       "AvailabilityWindow": {
         "type": "object",
@@ -2802,6 +2659,113 @@
           "localGrowersSupplying"
         ]
       },
+      "BuyerUserProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "example": "Green Acres"
+          },
+          "image": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImageUrl"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "organization": {
+            "type": "string",
+            "nullable": true,
+            "example": "Green Hill Farms"
+          },
+          "organizationId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "country": {
+            "type": "string",
+            "nullable": true,
+            "example": "United States of America"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "example": "WI"
+          },
+          "city": {
+            "type": "string",
+            "nullable": true,
+            "example": "Madison"
+          },
+          "joinedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "nullable": true
+              }
+            ],
+            "description": "Timestamp of when the user first registered"
+          },
+          "totalOrders": {
+            "type": "number",
+            "example": 45,
+            "description": "Total orders placed by the buyer"
+          },
+          "activeSubscriptions": {
+            "type": "number",
+            "example": 3,
+            "description": "Number of active subscriptions"
+          },
+          "lastOrderDate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "nullable": true
+              }
+            ],
+            "description": "Timestamp of the last order placed"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "image",
+          "organization",
+          "organizationId",
+          "country",
+          "state",
+          "city",
+          "joinedAt",
+          "totalOrders",
+          "activeSubscriptions",
+          "lastOrderDate"
+        ]
+      },
       "Payout": {
         "type": "object",
         "properties": {
@@ -2950,6 +2914,144 @@
           "earningsByProduceThisMonth",
           "sellerLocation"
         ]
+      },
+      "SellerUserProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "example": "Green Acres"
+          },
+          "image": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImageUrl"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "organization": {
+            "type": "string",
+            "nullable": true,
+            "example": "Green Hill Farms"
+          },
+          "organizationId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "country": {
+            "type": "string",
+            "nullable": true,
+            "example": "United States of America"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "example": "WI"
+          },
+          "city": {
+            "type": "string",
+            "nullable": true,
+            "example": "Madison"
+          },
+          "joinedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "nullable": true
+              }
+            ],
+            "description": "Timestamp of when the user first registered"
+          },
+          "aboutMe": {
+            "type": "string",
+            "nullable": true,
+            "description": "Public bio displayed on the seller storefront"
+          },
+          "specialties": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            },
+            "example": ["spinach", "carrots"],
+            "description": "List of produce the seller specializes in."
+          },
+          "starRating": {
+            "type": "number",
+            "example": 4.8,
+            "description": "Weighted average of all received reviews"
+          },
+          "totalReviews": {
+            "type": "number",
+            "example": 124
+          },
+          "reviewBreakdown": {
+            "$ref": "#/components/schemas/ReviewBreakdown"
+          },
+          "activeBuyerCount": {
+            "type": "number",
+            "example": 12,
+            "description": "Number of unique customers who have ordered recently"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "image",
+          "organization",
+          "organizationId",
+          "country",
+          "state",
+          "city",
+          "joinedAt",
+          "aboutMe",
+          "specialties",
+          "starRating",
+          "totalReviews",
+          "reviewBreakdown",
+          "activeBuyerCount"
+        ]
+      },
+      "ReviewBreakdown": {
+        "type": "object",
+        "properties": {
+          "1": {
+            "type": "number"
+          },
+          "2": {
+            "type": "number"
+          },
+          "3": {
+            "type": "number"
+          },
+          "4": {
+            "type": "number"
+          },
+          "5": {
+            "type": "number"
+          }
+        },
+        "required": ["1", "2", "3", "4", "5"],
+        "description": "Count of reviews for each star level"
       },
       "MapGrowersQuery": {
         "type": "object",
@@ -4442,46 +4544,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaginatedReviewsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/users/{id}": {
-      "get": {
-        "operationId": "getPublicUserProfile",
-        "description": "Get public seller profile including rating/review stats. Excludes sensitive info.",
-        "tags": ["Users"],
-        "parameters": [
-          {
-            "schema": {
-              "$ref": "#/components/schemas/UserId"
-            },
-            "required": true,
-            "description": "The unique identifier for the user, prefixed with \"user_\"",
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Public User Profile Details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublicUserProfile"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -7546,6 +7608,46 @@
         }
       }
     },
+    "/api/seller/{id}": {
+      "get": {
+        "operationId": "getSellerProfile",
+        "description": "Get public seller profile including rating/review stats. Excludes sensitive info.",
+        "tags": ["Sellers"],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/UserId"
+            },
+            "required": true,
+            "description": "The unique identifier for the user, prefixed with \"user_\"",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public User Profile Details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerUserProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/buyer/growers": {
       "get": {
         "operationId": "getBuyerGrowers",
@@ -7674,6 +7776,46 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/buyer/{id}": {
+      "get": {
+        "operationId": "getBuyerProfile",
+        "description": "Get public buyer profile including order stats and active subscriptions.",
+        "tags": ["Buyers"],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/UserId"
+            },
+            "required": true,
+            "description": "The unique identifier for the user, prefixed with \"user_\"",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Buyer User Profile Details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuyerUserProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Buyer not found",
             "content": {
               "application/json": {
                 "schema": {

@@ -23,7 +23,7 @@ import {
 } from './common.schema.js';
 import { createPaginatedResponseSchema } from './util/pagination.js';
 
-const ProduceFields = z.object({
+export const ProduceFields = z.object({
   title: z.string().min(1).openapi({
     example: 'Organic Honeycrisp Apples',
     description: 'The public title of the produce listing',
@@ -48,10 +48,7 @@ const ProduceFields = z.object({
   }),
   seasonStart: IsoDateSchema,
   seasonEnd: IsoDateSchema,
-  images: z.array(ImageUrlSchema).openapi({
-    example: ['https://example.com/apple.jpg'],
-    description: 'List of gallery images for the product',
-  }),
+  images: z.array(ImageUrlSchema),
   isSubscribable: z.boolean().openapi({
     example: true,
     description: 'Whether customers can set up recurring orders for this item',
@@ -290,7 +287,7 @@ export const ProduceDetailSchema = ProduceSchema.extend({
       .number()
       .nullable()
       .openapi({ description: 'The sellers maximum delivery range.' }),
-    location: LocationSchema.nullable().openapi({ description: 'The sellers pickup location.' }),
+    location: LocationSchema.nullable(),
   }),
 }).openapi('ProduceDetails');
 

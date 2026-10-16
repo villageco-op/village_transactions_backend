@@ -75,8 +75,8 @@ export const organizations = pgTable('organizations', {
 
   maxReferrals: integer('max_referrals'),
 
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 export const users = pgTable('users', {
@@ -105,8 +105,8 @@ export const users = pgTable('users', {
   stripeAccountId: text('stripe_account_id').unique(),
   stripeOnboardingComplete: boolean('stripe_onboarding_complete').default(false),
 
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 export const accounts = pgTable(
@@ -154,7 +154,7 @@ export const fcmTokens = pgTable('fcm_tokens', {
     .references(() => users.id, { onDelete: 'cascade' }),
   token: text('token').unique().notNull(),
   platform: text('platform').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 
 export const invites = pgTable(
@@ -207,8 +207,8 @@ export const produce = pgTable('produce', {
   images: jsonb('images').$type<string[]>().default([]),
   isSubscribable: boolean('is_subscribable').default(false),
   status: produceStatusEnum('status').default('active'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 export const cartReservations = pgTable('cart_reservations', {
@@ -224,7 +224,7 @@ export const cartReservations = pgTable('cart_reservations', {
     .references(() => produce.id, { onDelete: 'cascade' }),
   quantityOz: numeric('quantity_oz', { precision: 10, scale: 2 }).notNull(),
   expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 
 export const cartGroups = pgTable('cart_groups', {
@@ -238,7 +238,7 @@ export const cartGroups = pgTable('cart_groups', {
   isSubscription: boolean('is_subscription').default(false).notNull(),
   frequencyDays: integer('frequency_days').default(0).notNull(),
   fulfillmentType: text('fulfillment_type').default('pickup').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const orders = pgTable('orders', {
@@ -258,8 +258,8 @@ export const orders = pgTable('orders', {
   status: orderStatusEnum('status').notNull().default('pending'),
   cancelReason: text('cancel_reason'),
   totalAmount: numeric('total_amount', { precision: 10, scale: 2 }).notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 export const orderItems = pgTable('order_items', {
@@ -288,8 +288,8 @@ export const subscriptions = pgTable('subscriptions', {
   fulfillmentType: fulfillmentTypeEnum('fulfillment_type').notNull(),
   nextDeliveryDate: timestamp('next_delivery_date'),
   cancelReason: text('cancel_reason'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 export const reviews = pgTable(
@@ -307,8 +307,8 @@ export const reviews = pgTable(
       .references(() => orders.id, { onDelete: 'cascade' }),
     rating: integer('rating').notNull(),
     comment: text('comment'),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (t) => [unique().on(t.buyerId, t.orderId)],
 );

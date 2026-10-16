@@ -194,5 +194,19 @@ export const UserBasicInfoSchema = z
   })
   .openapi('UserBasicInfo');
 
+export const BasePublicUserProfileSchema = z.object({
+  id: UserIdSchema,
+  name: z.string().nullable().openapi({ example: 'Green Acres' }),
+  image: ImageUrlSchema.nullable(),
+  organization: z.string().nullable().openapi({ example: 'Green Hill Farms' }),
+  organizationId: EntityIdField.nullable(),
+  country: z.string().nullable().openapi({ example: 'United States of America' }),
+  state: z.string().nullable().openapi({ example: 'WI' }),
+  city: z.string().nullable().openapi({ example: 'Madison' }),
+  joinedAt: z.union([z.string(), z.date()]).nullable().openapi({
+    description: 'Timestamp of when the user first registered',
+  }),
+});
+
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;
 export type Season = z.infer<typeof SeasonSchema>;

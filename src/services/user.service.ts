@@ -1,20 +1,17 @@
 import { del } from '@vercel/blob';
 import { HTTPException } from 'hono/http-exception';
 
-import type { Organization, OrgRole, ScheduleType } from '../db/types.js';
+import type { OrgRole, ScheduleType } from '../db/types.js';
 import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { accountRepository } from '../repositories/account.repository.js';
 import { fcmRepository } from '../repositories/fcm.repository.js';
-import { orderRepository } from '../repositories/order.repository.js';
 import { organizationRepository } from '../repositories/organization.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
-import { reviewRepository } from '../repositories/review.repository.js';
 import { scheduleRuleRepository } from '../repositories/schedule-rule.repository.js';
 import { sessionRepository } from '../repositories/session.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import {
   transformUserProfile,
-  type ReviewBreakdown,
   type UpdateScheduleRulesPayload,
   type UpdateUserPayload,
   type Window,
@@ -142,72 +139,6 @@ export async function updateScheduleRules(
     { pickupCount: dbPickupRules.length, deliveryCount: dbDeliveryRules.length },
     'Replaced seller schedule rules',
   );
-}
-
-/**
- * Retrieves a sanitized public user profile, calculating review stats and active buyer metrics.
- * @param id - The requested user's ID
- * @param log - App logger that defaults to a blank logger
- * @returns Publicly viewable seller details and stats
- */
-export async function getPublicUserProfile(id: string, log: AppLogger = noopLogger) {
-  const user = await userRepository.findById(id);
-
-  if (!user) {
-    log.warn('Requested public profile not found');
-    throw new HTTPException(404, { message: 'User not found' });
-  }
-
-  const reviewStats = await reviewRepository.getReviewStatsBySellerId(id);
-
-  let totalReviews = 0;
-  let totalStars = 0;
-  const reviewBreakdown: ReviewBreakdown = {
-    '1': 0,
-    '2': 0,
-    '3': 0,
-    '4': 0,
-    '5': 0,
-  };
-
-  for (const stat of reviewStats) {
-    const ratingStr = String(stat.rating);
-    if (ratingStr in reviewBreakdown) {
-      const key = ratingStr as keyof ReviewBreakdown;
-      reviewBreakdown[key] = stat.count;
-    }
-    totalReviews += stat.count;
-    totalStars += stat.rating * stat.count;
-  }
-
-  const starRating = totalReviews > 0 ? Number((totalStars / totalReviews).toFixed(1)) : 0;
-
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const activeBuyerCount = await orderRepository.getActiveBuyerCount(id, startOfMonth);
-
-  let organization: Organization | null = null;
-  if (user.organizationId) {
-    organization = await organizationRepository.findById(user.organizationId);
-  }
-
-  return {
-    id: user.id,
-    name: user.name,
-    image: user.image,
-    organization: organization?.name || null,
-    organizationId: user.organizationId,
-    aboutMe: user.aboutMe,
-    specialties: user.specialties,
-    country: user.country,
-    state: user.state,
-    city: user.city,
-    joinedAt: user.createdAt,
-    starRating,
-    totalReviews,
-    reviewBreakdown,
-    activeBuyerCount,
-  };
 }
 
 /**

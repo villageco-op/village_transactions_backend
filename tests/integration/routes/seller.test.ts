@@ -7,12 +7,22 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
-import { users, orders, orderItems, produce, subscriptions } from '../../../src/db/schema.js';
+import {
+  users,
+  orders,
+  orderItems,
+  produce,
+  subscriptions,
+  reviews,
+} from '../../../src/db/schema.js';
 import { sellerRepository } from '../../../src/repositories/seller.repository.js';
 import { produceRepository } from '../../../src/repositories/produce.repository.js';
 import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
+import { request } from '../../test-utils/request.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
+import { reviewRepository } from '../../../src/repositories/review.repository.js';
 
-describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
+describe('Seller API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
   const SELLER_ID = 'seller_integration_abc';
   const BUYER_ID = 'buyer_integration_abc';
@@ -23,6 +33,8 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
     subscriptionRepository.setDb(testDb);
     sellerRepository.setDb(testDb);
     produceRepository.setDb(testDb);
+    userRepository.setDb(testDb);
+    reviewRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -167,6 +179,94 @@ describe('Seller API Integration - Payouts', { timeout: 60_000 }, () => {
       expect(body.sellerLocation).toHaveProperty('lat');
       expect(body.sellerLocation).toHaveProperty('lng');
       expect(body.sellerLocation).toHaveProperty('address');
+    });
+  });
+
+  describe('GET /api/seller/:id', () => {
+    const SELLER_ID = 'public_seller_123';
+    const BUYER_1_ID = 'public_buyer_1';
+    const BUYER_2_ID = 'public_buyer_2';
+
+    beforeEach(async () => {
+      await testDb.insert(users).values([
+        {
+          id: SELLER_ID,
+          name: 'Farmer John',
+          email: 'john@example.com',
+          aboutMe: 'Farm life',
+          specialties: ['corn', 'beans'],
+          city: 'Omaha',
+          createdAt: new Date('2023-01-01'),
+        },
+        { id: BUYER_1_ID, name: 'Buyer 1', email: 'b1@example.com' },
+        { id: BUYER_2_ID, name: 'Buyer 2', email: 'b2@example.com' },
+      ]);
+
+      const orderId1 = '11111111-1111-1111-1111-111111111111';
+      const orderId2 = '22222222-2222-2222-2222-222222222222';
+
+      await testDb.insert(orders).values([
+        {
+          id: orderId1,
+          buyerId: BUYER_1_ID,
+          sellerId: SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '10',
+          createdAt: new Date(), // This month
+        },
+        {
+          id: orderId2,
+          buyerId: BUYER_2_ID,
+          sellerId: SELLER_ID,
+          paymentMethod: 'card',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          totalAmount: '15',
+          createdAt: new Date(), // This month
+        },
+      ]);
+
+      await testDb.insert(reviews).values([
+        {
+          buyerId: BUYER_1_ID,
+          sellerId: SELLER_ID,
+          orderId: orderId1,
+          rating: 5,
+          comment: 'Great!',
+        },
+        { buyerId: BUYER_2_ID, sellerId: SELLER_ID, orderId: orderId2, rating: 4, comment: 'Good' },
+      ]);
+    });
+
+    it('should return public profile with stats and exclude sensitive info', async () => {
+      const res = await request(`/api/seller/${SELLER_ID}`);
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.id).toBe(SELLER_ID);
+      expect(body.name).toBe('Farmer John');
+      expect(body.city).toBe('Omaha');
+      expect(body.aboutMe).toBe('Farm life');
+      expect(body.specialties).toEqual(['corn', 'beans']);
+      expect(body.joinedAt).toBeDefined();
+
+      expect(body).not.toHaveProperty('email');
+
+      expect(body.totalReviews).toBe(2);
+      expect(body.starRating).toBe(4.5); // (5 + 4) / 2
+      expect(body.reviewBreakdown).toEqual({ '1': 0, '2': 0, '3': 0, '4': 1, '5': 1 });
+      expect(body.activeBuyerCount).toBe(2);
+    });
+
+    it('should return 404 for missing user', async () => {
+      const res = await request('/api/seller/not-found');
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('User not found');
     });
   });
 });

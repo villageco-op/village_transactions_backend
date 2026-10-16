@@ -564,6 +564,28 @@ export const orderRepository = {
   },
 
   /**
+   * Gets total order count and last order date for a buyer.
+   * @param buyerId The unique identifier of the buyer
+   * @returns Total orders and last order date
+   */
+  async getBuyerOrderStats(
+    buyerId: string,
+  ): Promise<{ totalOrders: number; lastOrderDate: Date | null }> {
+    const [result] = await this.db
+      .select({
+        totalOrders: sql<number>`count(*)::int`,
+        lastOrderDate: sql<Date>`max(${orders.createdAt})`,
+      })
+      .from(orders)
+      .where(eq(orders.buyerId, buyerId));
+
+    return {
+      totalOrders: result?.totalOrders ?? 0,
+      lastOrderDate: result?.lastOrderDate ?? null,
+    };
+  },
+
+  /**
    * Retrieves specific analytics data for an array of product IDs.
    * @param productIds - An array of product IDs
    * @returns Analytics like quantity, price, and status for the given products

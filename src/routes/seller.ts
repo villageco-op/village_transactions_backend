@@ -3,16 +3,21 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 
 import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
-import { ErrorResponseSchema } from '../schemas/common.schema.js';
+import { ErrorResponseSchema, UserParamSchema } from '../schemas/common.schema.js';
 import {
   GetSellerPayoutsQuerySchema,
   PayoutHistoryResponseSchema,
   SellerDashboardResponseSchema,
   SellerEarningsResponseSchema,
+  SellerUserProfileSchema,
 } from '../schemas/seller.schema.js';
 import { getPaginationParams } from '../schemas/util/pagination.js';
 import { getSellerPayouts } from '../services/order.service.js';
-import { getSellerDashboard, getSellerEarningsMetrics } from '../services/seller.service.js';
+import {
+  getPublicSellerProfile,
+  getSellerDashboard,
+  getSellerEarningsMetrics,
+} from '../services/seller.service.js';
 
 export const sellerRoute = new OpenAPIHono<RouteEnv>();
 
@@ -129,5 +134,40 @@ sellerRoute.openapi(
     const dashboardData = await getSellerDashboard(userId);
 
     return c.json(dashboardData, 200);
+  },
+);
+
+sellerRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}',
+    operationId: 'getSellerProfile',
+    description:
+      'Get public seller profile including rating/review stats. Excludes sensitive info.',
+    tags: [TAGS.SELLERS],
+    request: {
+      params: UserParamSchema,
+    },
+    responses: {
+      200: {
+        description: 'Public User Profile Details',
+        content: { 'application/json': { schema: SellerUserProfileSchema } },
+      },
+      404: {
+        description: 'User not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+
+    const log = c.get('logger').child({
+      action: 'getPublicUserProfile',
+    });
+
+    const profile = await getPublicSellerProfile(id, log);
+
+    return c.json(profile, 200);
   },
 );

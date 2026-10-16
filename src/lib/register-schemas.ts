@@ -108,11 +108,6 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
 
   // User Entities
   app.openAPIRegistry.register('User', Users.UserProfileSchema);
-  app.openAPIRegistry.register('PublicUserProfile', Users.PublicUserProfileSchema);
-  app.openAPIRegistry.register(
-    'ReviewBreakdown',
-    Users.PublicUserProfileSchema.shape.reviewBreakdown,
-  );
   app.openAPIRegistry.register('AvailabilityWindow', Users.WindowSchema);
 
   // User Payloads
@@ -178,19 +173,25 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('ConversationsResponse', Messaging.ConversationsResponseSchema);
   app.openAPIRegistry.register('MessagesResponse', Messaging.MessagesResponseSchema);
 
-  // Buyer Dashboard
+  // Buyer
   app.openAPIRegistry.register('Grower', Buyer.GrowerSchema);
   app.openAPIRegistry.register('GrowersResponse', Buyer.GrowersResponseSchema);
   app.openAPIRegistry.register('BillingSummaryResponse', Buyer.BillingSummaryResponseSchema);
   app.openAPIRegistry.register('ActiveSubscription', Buyer.ActiveSubscriptionSchema);
   app.openAPIRegistry.register('BuyerDashboardResponse', Buyer.BuyerDashboardResponseSchema);
+  app.openAPIRegistry.register('BuyerUserProfile', Buyer.BuyerUserProfileSchema);
 
-  // Seller Dashboard
+  // Seller
   app.openAPIRegistry.register('Payout', Seller.PayoutSchema);
   app.openAPIRegistry.register('PayoutHistoryResponse', Seller.PayoutHistoryResponseSchema);
   app.openAPIRegistry.register('ProduceAmount', Seller.ProduceAmountSchema);
   app.openAPIRegistry.register('SellerEarningsResponse', Seller.SellerEarningsResponseSchema);
   app.openAPIRegistry.register('SellerDashboardResponse', Seller.SellerDashboardResponseSchema);
+  app.openAPIRegistry.register('SellerUserProfile', Seller.SellerUserProfileSchema);
+  app.openAPIRegistry.register(
+    'ReviewBreakdown',
+    Seller.SellerUserProfileSchema.shape.reviewBreakdown,
+  );
 
   // Growers Map
   app.openAPIRegistry.register('MapGrowersQuery', Growers.MapGrowersQuerySchema);
