@@ -6,8 +6,10 @@ import {
   getTestLatestInviteCode,
   seedTestClient,
   seedTestInvite,
+  seedTestOrder,
   seedTestOrganization,
   seedTestProduce,
+  seedTestSubscription,
   seedTestUser,
 } from '../services/testing.service.js';
 import { getLatestVerificationToken } from '../services/verification.service.js';
@@ -114,5 +116,29 @@ if (isTestingEnvironment) {
 
     const client = await seedTestClient(body, log);
     return c.json({ success: true, client }, 201);
+  });
+
+  testingRoute.post('/seed-order', async (c) => {
+    const log = c.get('logger').child({ action: 'seedTestOrder' });
+    const body = await c.req.json();
+
+    if (!body.buyerEmail) {
+      return c.json({ error: 'Missing required field: buyerEmail' }, 400);
+    }
+
+    const order = await seedTestOrder(body, log);
+    return c.json({ success: true, order }, 201);
+  });
+
+  testingRoute.post('/seed-subscription', async (c) => {
+    const log = c.get('logger').child({ action: 'seedTestSubscription' });
+    const body = await c.req.json();
+
+    if (!body.buyerEmail || !body.produceId) {
+      return c.json({ error: 'Missing required fields: buyerEmail and produceId' }, 400);
+    }
+
+    const subscription = await seedTestSubscription(body, log);
+    return c.json({ success: true, subscription }, 201);
   });
 }
