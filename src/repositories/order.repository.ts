@@ -23,7 +23,14 @@ import {
   users,
   cartGroups,
 } from '../db/schema.js';
-import type { DbClient, OrderStatus, Order } from '../db/types.js';
+import type {
+  DbClient,
+  Order,
+  OrderItem,
+  OrderStatus,
+  FulfillmentType,
+  PaymentMethod,
+} from '../db/types.js';
 
 export const orderRepository = {
   db: defaultDb as unknown as DbClient,
@@ -698,5 +705,77 @@ export const orderRepository = {
       );
 
     return records.map((r) => r.id);
+  },
+
+  /**
+   * Creates an order with associated order line items in a transaction.
+   * @param data The order and line item data
+   * @param data.buyerId ID of the buying user
+   * @param data.sellerId ID of the selling user
+   * @param data.paymentMethod payment method used for the order
+   * @param data.fulfillmentType method of fulfillment (e.g., delivery, pickup)
+   * @param data.scheduledTime scheduled time for fulfillment
+   * @param data.status current status of the order
+   * @param data.totalAmount total payment amount for the order
+   * @param data.cancelReason reason for cancellation if cancelled
+   * @param data.stripeReceiptUrl Stripe receipt URL
+   * @param data.stripeSessionId Stripe checkout session ID
+   * @param data.items array of line items associated with the order
+   * @returns The created order with its nested items
+   */
+  async createOrderWithItems(data: {
+    buyerId: string;
+    sellerId: string;
+    paymentMethod: PaymentMethod;
+    fulfillmentType: FulfillmentType;
+    scheduledTime: Date;
+    status: OrderStatus;
+    totalAmount: string;
+    cancelReason?: string | null;
+    stripeReceiptUrl?: string | null;
+    stripeSessionId?: string | null;
+    items: Array<{
+      productId: string;
+      quantityOz: string;
+      pricePerOz: string;
+    }>;
+  }): Promise<Order & { items: OrderItem[] }> {
+    return await this.db.transaction(async (tx) => {
+      const [newOrder] = await tx
+        .insert(orders)
+        .values({
+          buyerId: data.buyerId,
+          sellerId: data.sellerId,
+          paymentMethod: data.paymentMethod,
+          fulfillmentType: data.fulfillmentType,
+          scheduledTime: data.scheduledTime,
+          status: data.status,
+          totalAmount: data.totalAmount,
+          cancelReason: data.cancelReason ?? null,
+          stripeReceiptUrl: data.stripeReceiptUrl ?? null,
+          stripeSessionId: data.stripeSessionId ?? null,
+        })
+        .returning();
+
+      const createdItems: OrderItem[] = [];
+      for (const item of data.items) {
+        const [orderItem] = await tx
+          .insert(orderItems)
+          .values({
+            orderId: newOrder.id,
+            productId: item.productId,
+            quantityOz: item.quantityOz,
+            pricePerOz: item.pricePerOz,
+          })
+          .returning();
+
+        createdItems.push(orderItem);
+      }
+
+      return {
+        ...newOrder,
+        items: createdItems,
+      };
+    });
   },
 };

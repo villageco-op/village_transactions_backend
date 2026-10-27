@@ -3,12 +3,20 @@ import { randomUUID } from 'crypto';
 import { encode } from '@auth/core/jwt';
 import { HTTPException } from 'hono/http-exception';
 
-import type { OrgRole } from '../db/types.js';
+import type {
+  FulfillmentType,
+  OrderStatus,
+  OrgRole,
+  PaymentMethod,
+  SubscriptionStatus,
+} from '../db/types.js';
 import { noopLogger, type AppLogger } from '../interfaces/logger.interface.js';
 import { clientRepository } from '../repositories/client.repository.js';
 import { inviteRepository } from '../repositories/invite.repository.js';
+import { orderRepository } from '../repositories/order.repository.js';
 import { organizationRepository } from '../repositories/organization.repository.js';
 import { produceRepository } from '../repositories/produce.repository.js';
+import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import type { CreateClientPayload } from '../schemas/client.schema.js';
 import type { CreateOrganizationPayload } from '../schemas/organization.schema.js';
@@ -233,7 +241,7 @@ export async function seedTestInvite(
 }
 
 /**
- * TESTING ONLY: Forcefully seeds a client entity into the system database.
+ * TESTING ONLY: Forcefully seeds a client entity directly.
  *
  * @param payload - Client data parameters required for seeding
  * @param payload.organizationId - Target organization ID owner
@@ -272,4 +280,200 @@ export async function seedTestClient(
   };
 
   return await clientRepository.create(fallbackClientData);
+}
+
+export interface SeedTestOrderPayload {
+  buyerEmail: string;
+  sellerEmail?: string;
+  produceId?: string;
+  items?: Array<{
+    produceId: string;
+    quantityOz: number;
+    pricePerOz: number;
+  }>;
+  status?: OrderStatus;
+  totalPrice?: number;
+  totalAmount?: number;
+  fulfillmentType?: FulfillmentType;
+  scheduledTime?: string | Date;
+  scheduledDate?: string | Date;
+  paymentMethod?: PaymentMethod;
+  cancelReason?: string;
+  stripeReceiptUrl?: string;
+}
+
+/**
+ * TESTING ONLY: Forcefully inserts an order with associated order items.
+ *
+ * @param payload data parameters required for seeding
+ * @param payload.buyerEmail buyer email address
+ * @param payload.sellerEmail seller email address (optional)
+ * @param payload.produceId produce item ID if a single item is used (optional)
+ * @param payload.items list of order items to insert (optional)
+ * @param payload.status order status override
+ * @param payload.totalPrice total price override
+ * @param payload.totalAmount total amount override
+ * @param payload.fulfillmentType fulfillment type override
+ * @param payload.scheduledTime scheduled fulfillment time
+ * @param payload.scheduledDate scheduled fulfillment date
+ * @param payload.paymentMethod payment method used
+ * @param payload.cancelReason reason for cancellation if cancelled
+ * @param payload.stripeReceiptUrl Stripe receipt URL
+ * @param log logger that defaults to a blank logger
+ * @returns The newly created database order object with its items
+ */
+export async function seedTestOrder(payload: SeedTestOrderPayload, log: AppLogger = noopLogger) {
+  log.info({ buyerEmail: payload.buyerEmail }, 'Seeding e2e test order');
+
+  const buyer = await userRepository.findByEmail(payload.buyerEmail);
+  if (!buyer) {
+    throw new HTTPException(404, {
+      message: `Buyer not found with email: ${payload.buyerEmail}`,
+    });
+  }
+
+  let sellerId: string | undefined;
+
+  if (payload.sellerEmail) {
+    const seller = await userRepository.findByEmail(payload.sellerEmail);
+    if (!seller) {
+      throw new HTTPException(404, {
+        message: `Seller not found with email: ${payload.sellerEmail}`,
+      });
+    }
+    sellerId = seller.id;
+  }
+
+  let itemsToInsert = payload.items;
+
+  if (!itemsToInsert || itemsToInsert.length === 0) {
+    if (!payload.produceId) {
+      throw new HTTPException(400, {
+        message: 'Must provide either produceId or items array to seed an order',
+      });
+    }
+
+    const foundProduce = await produceRepository.getById(payload.produceId);
+    if (!foundProduce) {
+      throw new HTTPException(404, {
+        message: `Produce not found with id: ${payload.produceId}`,
+      });
+    }
+
+    if (!sellerId) {
+      sellerId = foundProduce.sellerId;
+    }
+
+    itemsToInsert = [
+      {
+        produceId: foundProduce.id,
+        quantityOz: 16,
+        pricePerOz: Number(foundProduce.pricePerOz),
+      },
+    ];
+  }
+
+  if (!sellerId) {
+    throw new HTTPException(400, {
+      message: 'Could not resolve seller for the order.',
+    });
+  }
+
+  const calculatedTotal = itemsToInsert.reduce(
+    (sum, item) => sum + item.quantityOz * item.pricePerOz,
+    0,
+  );
+  const totalAmount = (payload.totalAmount ?? payload.totalPrice ?? calculatedTotal).toFixed(2);
+
+  const scheduledTime = payload.scheduledTime
+    ? new Date(payload.scheduledTime)
+    : payload.scheduledDate
+      ? new Date(payload.scheduledDate)
+      : new Date();
+
+  return await orderRepository.createOrderWithItems({
+    buyerId: buyer.id,
+    sellerId,
+    paymentMethod: payload.paymentMethod ?? 'card',
+    fulfillmentType: payload.fulfillmentType ?? 'delivery',
+    scheduledTime,
+    status: payload.status ?? 'pending',
+    cancelReason: payload.cancelReason ?? null,
+    totalAmount,
+    stripeReceiptUrl: payload.stripeReceiptUrl ?? null,
+    items: itemsToInsert.map((item) => ({
+      productId: item.produceId,
+      quantityOz: item.quantityOz.toString(),
+      pricePerOz: item.pricePerOz.toString(),
+    })),
+  });
+}
+
+export interface SeedTestSubscriptionPayload {
+  buyerEmail: string;
+  produceId: string;
+  status?: SubscriptionStatus;
+  quantityOz?: number;
+  fulfillmentType?: FulfillmentType;
+  nextDeliveryDate?: string | Date;
+  cancelReason?: string;
+  stripeSubscriptionId?: string;
+}
+
+/**
+ * TESTING ONLY: Forcefully inserts a subscription directly.
+ *
+ * @param payload data parameters required for seeding
+ * @param payload.buyerEmail buyer email address
+ * @param payload.produceId produce item ID
+ * @param payload.status subscription status override
+ * @param payload.quantityOz quantity in ounces override
+ * @param payload.fulfillmentType fulfillment type override
+ * @param payload.nextDeliveryDate next scheduled delivery date
+ * @param payload.cancelReason reason for cancellation if cancelled
+ * @param payload.stripeSubscriptionId Stripe subscription ID override
+ * @param log logger that defaults to a blank logger
+ * @returns The newly created database subscription object
+ */
+export async function seedTestSubscription(
+  payload: SeedTestSubscriptionPayload,
+  log: AppLogger = noopLogger,
+) {
+  log.info(
+    { buyerEmail: payload.buyerEmail, produceId: payload.produceId },
+    'Seeding e2e test subscription',
+  );
+
+  const buyer = await userRepository.findByEmail(payload.buyerEmail);
+  if (!buyer) {
+    throw new HTTPException(404, {
+      message: `Buyer not found with email: ${payload.buyerEmail}`,
+    });
+  }
+
+  const foundProduce = await produceRepository.getById(payload.produceId);
+  if (!foundProduce) {
+    throw new HTTPException(404, {
+      message: `Produce not found with id: ${payload.produceId}`,
+    });
+  }
+
+  let nextDeliveryDate: Date | null = null;
+  if (payload.nextDeliveryDate) {
+    nextDeliveryDate = new Date(payload.nextDeliveryDate);
+  } else {
+    nextDeliveryDate = new Date();
+    nextDeliveryDate.setDate(nextDeliveryDate.getDate() + (foundProduce.harvestFrequencyDays || 7));
+  }
+
+  return await subscriptionRepository.create({
+    buyerId: buyer.id,
+    productId: payload.produceId,
+    stripeSubscriptionId: payload.stripeSubscriptionId ?? `sub_test_${Date.now()}`,
+    quantityOz: (payload.quantityOz ?? 16).toString(),
+    status: payload.status ?? 'active',
+    fulfillmentType: payload.fulfillmentType ?? 'delivery',
+    nextDeliveryDate,
+    cancelReason: payload.cancelReason ?? null,
+  });
 }
