@@ -23,6 +23,8 @@ import type { CreateOrganizationPayload } from '../schemas/organization.schema.j
 import type { CreateProducePayload } from '../schemas/produce.schema.js';
 import { cookieName } from '../utils.js';
 
+import { createTestStripeSubscription } from './stripe.service.js';
+
 /**
  * Creates a user profile directly in the database with custom attributes.
  * @param payload - The user data
@@ -413,6 +415,7 @@ export interface SeedTestSubscriptionPayload {
   buyerEmail: string;
   produceId: string;
   status?: SubscriptionStatus;
+  pricePerOz?: number;
   quantityOz?: number;
   fulfillmentType?: FulfillmentType;
   nextDeliveryDate?: string | Date;
@@ -427,6 +430,7 @@ export interface SeedTestSubscriptionPayload {
  * @param payload.buyerEmail buyer email address
  * @param payload.produceId produce item ID
  * @param payload.status subscription status override
+ * @param payload.pricePerOz price per ounce override
  * @param payload.quantityOz quantity in ounces override
  * @param payload.fulfillmentType fulfillment type override
  * @param payload.nextDeliveryDate next scheduled delivery date
@@ -441,11 +445,11 @@ export async function seedTestSubscription(
 ) {
   log.info(
     { buyerEmail: payload.buyerEmail, produceId: payload.produceId },
-    'Seeding e2e test subscription',
+    'Seeding e2e test subscription with real Stripe objects',
   );
 
   const buyer = await userRepository.findByEmail(payload.buyerEmail);
-  if (!buyer) {
+  if (!buyer || buyer.email === null) {
     throw new HTTPException(404, {
       message: `Buyer not found with email: ${payload.buyerEmail}`,
     });
@@ -458,6 +462,18 @@ export async function seedTestSubscription(
     });
   }
 
+  const pricePerOz = payload.pricePerOz ?? 0.75;
+  const quantityOz = payload.quantityOz ?? 16;
+  const unitAmountCents = Math.round(pricePerOz * quantityOz * 100);
+
+  const { stripeSubscriptionId } = await createTestStripeSubscription(
+    buyer.email,
+    buyer.name || 'E2E Test Buyer',
+    foundProduce.title || 'Test Produce',
+    unitAmountCents,
+    log,
+  );
+
   let nextDeliveryDate: Date | null = null;
   if (payload.nextDeliveryDate) {
     nextDeliveryDate = new Date(payload.nextDeliveryDate);
@@ -469,8 +485,8 @@ export async function seedTestSubscription(
   return await subscriptionRepository.create({
     buyerId: buyer.id,
     productId: payload.produceId,
-    stripeSubscriptionId: payload.stripeSubscriptionId ?? `sub_test_${Date.now()}`,
-    quantityOz: (payload.quantityOz ?? 16).toString(),
+    stripeSubscriptionId,
+    quantityOz: quantityOz.toString(),
     status: payload.status ?? 'active',
     fulfillmentType: payload.fulfillmentType ?? 'delivery',
     nextDeliveryDate,

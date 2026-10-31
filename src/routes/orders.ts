@@ -27,6 +27,54 @@ export const ordersRoute = new OpenAPIHono<RouteEnv>();
 ordersRoute.openapi(
   createRoute({
     method: 'get',
+    path: '/{id}',
+    operationId: 'getOrderById',
+    description:
+      'Get detailed information for a specific order by ID. Accessible only by the buyer or seller associated with the order.',
+    tags: [TAGS.ORDERS],
+    middleware: [verifyAuth()],
+    request: {
+      params: GetOrderParamsSchema,
+    },
+    responses: {
+      200: {
+        description: 'Order details successfully retrieved',
+        content: { 'application/json': { schema: OrderDetailResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized - User not logged in',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Not Found - Order does not exist or user lacks permission to view it',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id: orderId } = c.req.valid('param');
+
+    const log = c.get('logger').child({
+      orderId,
+      action: 'getOrderById',
+    });
+
+    const orderDetails = await getOrderDetails(orderId, userId, log);
+
+    return c.json(orderDetails, 200);
+  },
+);
+
+ordersRoute.openapi(
+  createRoute({
+    method: 'get',
     path: '/',
     operationId: 'getOrders',
     description: 'Get historical or active orders.',
@@ -191,53 +239,5 @@ ordersRoute.openapi(
     await cancelOrder(orderId, reason, userId, log);
 
     return c.json({ success: true }, 200);
-  },
-);
-
-ordersRoute.openapi(
-  createRoute({
-    method: 'get',
-    path: '/{id}',
-    operationId: 'getOrderById',
-    description:
-      'Get detailed information for a specific order by ID. Accessible only by the buyer or seller associated with the order.',
-    tags: [TAGS.ORDERS],
-    middleware: [verifyAuth()],
-    request: {
-      params: GetOrderParamsSchema,
-    },
-    responses: {
-      200: {
-        description: 'Order details successfully retrieved',
-        content: { 'application/json': { schema: OrderDetailResponseSchema } },
-      },
-      401: {
-        description: 'Unauthorized - User not logged in',
-        content: { 'application/json': { schema: ErrorResponseSchema } },
-      },
-      404: {
-        description: 'Not Found - Order does not exist or user lacks permission to view it',
-        content: { 'application/json': { schema: ErrorResponseSchema } },
-      },
-    },
-  }),
-  async (c) => {
-    const authUser = c.get('authUser');
-    const userId = authUser?.session?.user?.id;
-
-    if (!userId) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const { id: orderId } = c.req.valid('param');
-
-    const log = c.get('logger').child({
-      orderId,
-      action: 'getOrderById',
-    });
-
-    const orderDetails = await getOrderDetails(orderId, userId, log);
-
-    return c.json(orderDetails, 200);
   },
 );
