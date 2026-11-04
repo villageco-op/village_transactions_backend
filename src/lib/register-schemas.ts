@@ -61,9 +61,11 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
 
   app.openAPIRegistry.register('UserBasicInfo', Common.UserBasicInfoSchema);
 
-  // Produce Request Payloads
+  // Produce Request Payloads & Queries
   app.openAPIRegistry.register('CreateProducePayload', Produce.CreateProduceSchema);
   app.openAPIRegistry.register('UpdateProducePayload', Produce.UpdateProduceSchema);
+  app.openAPIRegistry.register('ProduceMapQuery', Produce.ProduceMapQuerySchema);
+  app.openAPIRegistry.register('ProduceQuery', Produce.ProduceQuerySchema);
 
   // Produce Responses
   app.openAPIRegistry.register('ProduceListResponse', Produce.ProduceListResponseSchema);
@@ -82,6 +84,7 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('ProduceListItem', Produce.ProduceListItemSchema);
   app.openAPIRegistry.register('ProduceMapItem', Produce.ProduceMapItemSchema);
   app.openAPIRegistry.register('SellerMapGroup', Produce.SellerMapGroupSchema);
+  app.openAPIRegistry.register('ProduceOrderListItem', Produce.ProduceOrderListItemSchema);
 
   // Produce Database Models
   app.openAPIRegistry.register('Produce', Produce.ProduceSchema);
@@ -91,7 +94,7 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('OrderListItem', Orders.OrderListItemSchema);
   app.openAPIRegistry.register('OrderListItemProduce', Orders.OrderListItemProduceSchema);
   app.openAPIRegistry.register('OrderSummary', Orders.OrderSummarySchema);
-  app.openAPIRegistry.register('OrderItemDetail', Orders.OrderItemDetailSchema);
+  app.openAPIRegistry.register('OrderItemDetails', Orders.OrderItemDetailSchema);
   app.openAPIRegistry.register('OrderDetailResponse', Orders.OrderDetailResponseSchema);
   app.openAPIRegistry.register('OrdersListResponse', Orders.OrdersListResponseSchema);
 
@@ -105,11 +108,6 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
 
   // User Entities
   app.openAPIRegistry.register('User', Users.UserProfileSchema);
-  app.openAPIRegistry.register('PublicUserProfile', Users.PublicUserProfileSchema);
-  app.openAPIRegistry.register(
-    'ReviewBreakdown',
-    Users.PublicUserProfileSchema.shape.reviewBreakdown,
-  );
   app.openAPIRegistry.register('AvailabilityWindow', Users.WindowSchema);
 
   // User Payloads
@@ -175,20 +173,25 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('ConversationsResponse', Messaging.ConversationsResponseSchema);
   app.openAPIRegistry.register('MessagesResponse', Messaging.MessagesResponseSchema);
 
-  // Buyer Dashboard
+  // Buyer
   app.openAPIRegistry.register('Grower', Buyer.GrowerSchema);
   app.openAPIRegistry.register('GrowersResponse', Buyer.GrowersResponseSchema);
   app.openAPIRegistry.register('BillingSummaryResponse', Buyer.BillingSummaryResponseSchema);
   app.openAPIRegistry.register('ActiveSubscription', Buyer.ActiveSubscriptionSchema);
   app.openAPIRegistry.register('BuyerDashboardResponse', Buyer.BuyerDashboardResponseSchema);
+  app.openAPIRegistry.register('BuyerUserProfile', Buyer.BuyerUserProfileSchema);
 
-  // Seller Dashboard
+  // Seller
   app.openAPIRegistry.register('Payout', Seller.PayoutSchema);
   app.openAPIRegistry.register('PayoutHistoryResponse', Seller.PayoutHistoryResponseSchema);
-  app.openAPIRegistry.register('ProduceSales', Seller.ProduceSalesSchema);
+  app.openAPIRegistry.register('ProduceAmount', Seller.ProduceAmountSchema);
   app.openAPIRegistry.register('SellerEarningsResponse', Seller.SellerEarningsResponseSchema);
-  app.openAPIRegistry.register('EarningsByProduce', Seller.EarningsByProduceSchema);
   app.openAPIRegistry.register('SellerDashboardResponse', Seller.SellerDashboardResponseSchema);
+  app.openAPIRegistry.register('SellerUserProfile', Seller.SellerUserProfileSchema);
+  app.openAPIRegistry.register(
+    'ReviewBreakdown',
+    Seller.SellerUserProfileSchema.shape.reviewBreakdown,
+  );
 
   // Growers Map
   app.openAPIRegistry.register('MapGrowersQuery', Growers.MapGrowersQuerySchema);

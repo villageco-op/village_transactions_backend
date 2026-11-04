@@ -3,14 +3,7 @@ import { createSelectSchema } from 'drizzle-zod';
 
 import { users } from '../db/schema.js';
 
-import {
-  EntityIdField,
-  ImageUrlSchema,
-  LatitudeSchema,
-  LongitudeSchema,
-  PriceDollarsSchema,
-  UserIdSchema,
-} from './common.schema.js';
+import { LatitudeSchema, LongitudeSchema, PriceDollarsSchema } from './common.schema.js';
 
 const BaseProfileSchema = createSelectSchema(users).omit({
   location: true,
@@ -101,50 +94,6 @@ export const UpdateScheduleRulesSchema = z
   })
   .openapi('UpdateScheduleRulesPayload');
 
-export const PublicUserProfileSchema = z
-  .object({
-    id: UserIdSchema,
-    name: z.string().nullable().openapi({ example: 'Green Acres' }),
-    image: ImageUrlSchema.nullable(),
-    organization: z.string().nullable().openapi({ example: 'Green Hill Farms' }),
-    organizationId: EntityIdField.nullable(),
-    aboutMe: z.string().nullable().openapi({
-      description: 'Public bio displayed on the seller storefront',
-    }),
-    specialties: z
-      .array(z.string())
-      .nullable()
-      .openapi({
-        example: ['spinach', 'carrots'],
-        description: 'List of produce the seller specializes in.',
-      }),
-    country: z.string().nullable().openapi({ example: 'United States of America' }),
-    state: z.string().nullable().openapi({ example: 'WI' }),
-    city: z.string().nullable().openapi({ example: 'Madison' }),
-    joinedAt: z.union([z.string(), z.date()]).nullable().openapi({
-      description: 'Timestamp of when the user first registered',
-    }),
-    starRating: z.number().openapi({
-      example: 4.8,
-      description: 'Weighted average of all received reviews',
-    }),
-    totalReviews: z.number().openapi({ example: 124 }),
-    reviewBreakdown: z
-      .object({
-        '1': z.number(),
-        '2': z.number(),
-        '3': z.number(),
-        '4': z.number(),
-        '5': z.number(),
-      })
-      .openapi('ReviewBreakdown', { description: 'Count of reviews for each star level' }),
-    activeBuyerCount: z.number().openapi({
-      example: 12,
-      description: 'Number of unique customers who have ordered recently',
-    }),
-  })
-  .openapi('PublicUserProfile');
-
 export const RegisterFcmTokenSchema = z
   .object({
     token: z.string().openapi({
@@ -188,6 +137,4 @@ export type GetFcmStatusQuery = z.infer<typeof GetFcmStatusQuerySchema>;
 export type UpdateScheduleRulesPayload = z.infer<typeof UpdateScheduleRulesSchema>;
 export type Window = z.infer<typeof WindowSchema>;
 export type UpdateUserPayload = z.infer<typeof UpdateUserSchema>;
-export type PublicUserProfile = z.infer<typeof PublicUserProfileSchema>;
-export type ReviewBreakdown = PublicUserProfile['reviewBreakdown'];
 export type UserProfile = z.infer<typeof UserProfileSchema>;

@@ -2,22 +2,25 @@ import { verifyAuth } from '@hono/auth-js';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 
+import type { RouteEnv } from '../app.js';
 import { TAGS } from '../constants/tags.js';
 import {
   BillingSummaryResponseSchema,
   BuyerDashboardResponseSchema,
+  BuyerUserProfileSchema,
   GetGrowersQuerySchema,
   GrowersResponseSchema,
 } from '../schemas/buyer.schema.js';
-import { ErrorResponseSchema } from '../schemas/common.schema.js';
+import { ErrorResponseSchema, UserParamSchema } from '../schemas/common.schema.js';
 import { getPaginationParams } from '../schemas/util/pagination.js';
 import {
   getBillingSummary,
   getBuyerDashboardMetrics,
+  getBuyerProfile,
   getGrowersForBuyer,
 } from '../services/buyer.service.js';
 
-export const buyerRoute = new OpenAPIHono();
+export const buyerRoute = new OpenAPIHono<RouteEnv>();
 
 buyerRoute.openapi(
   createRoute({
@@ -129,5 +132,35 @@ buyerRoute.openapi(
     const metrics = await getBuyerDashboardMetrics(userId);
 
     return c.json(metrics, 200);
+  },
+);
+
+buyerRoute.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}',
+    operationId: 'getBuyerProfile',
+    description: 'Get public buyer profile including order stats and active subscriptions.',
+    tags: [TAGS.BUYERS],
+    request: {
+      params: UserParamSchema,
+    },
+    responses: {
+      200: {
+        description: 'Buyer User Profile Details',
+        content: { 'application/json': { schema: BuyerUserProfileSchema } },
+      },
+      404: {
+        description: 'Buyer not found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const log = c.get('logger').child({ action: 'getBuyerProfile' });
+
+    const profile = await getBuyerProfile(id, log);
+    return c.json(profile, 200);
   },
 );

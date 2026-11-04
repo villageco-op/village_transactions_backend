@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import {
+  BasePublicUserProfileSchema,
   IsoDateTimeSchema,
   LocationSchema,
   PaginationQuerySchema,
@@ -42,12 +43,12 @@ export const PayoutHistoryResponseSchema = createPaginatedResponseSchema(
   'PayoutHistoryResponse',
 );
 
-export const ProduceSalesSchema = z
+export const ProduceAmountSchema = z
   .object({
     produceName: z.string().openapi({ example: 'Organic Apples' }),
     amount: PriceDollarsSchema,
   })
-  .openapi('ProduceSales');
+  .openapi('ProduceAmount');
 
 export const SellerEarningsResponseSchema = z
   .object({
@@ -61,39 +62,62 @@ export const SellerEarningsResponseSchema = z
       example: 4.5,
       description: 'Average revenue generated per pound of produce sold',
     }),
-    amountSoldDollarsPerProduceThisMonth: z.array(ProduceSalesSchema).openapi({
-      description: 'Breakdown of sales revenue by individual produce type',
+    amountSoldDollarsPerProduceThisMonth: z.array(ProduceAmountSchema).openapi({
+      description: 'Breakdown of sales revenue by individual produce name',
     }),
   })
   .openapi('SellerEarningsResponse');
 
-export const EarningsByProduceSchema = z
-  .object({
-    produceName: z.string().openapi({ example: 'Tomatoes' }),
-    earned: z
-      .number()
-      .openapi({ example: 50.0, description: 'Total dollars earned for this produce item' }),
-  })
-  .openapi('EarningsByProduce');
-
 export const SellerDashboardResponseSchema = z
   .object({
     earnedThisMonth: z.number().openapi({ example: 450.0 }),
-    earnedLastMonth: z.number().openapi({ example: 320.0 }),
-    soldThisWeekLbs: z.number().openapi({ example: 12.5 }),
     onTrackWithGoal: z.boolean().openapi({
       example: true,
       description: 'Calculated status indicating if the seller is likely to hit their monthly goal',
     }),
     monthlyGoal: z.number().openapi({ example: 1000.0 }),
-    activeListingsCount: z.number().openapi({ example: 2 }),
-    activeListingsNames: z.array(z.string()).openapi({ example: ['Tomatoes', 'Corn'] }),
-    earningsByProduceThisMonth: z.array(EarningsByProduceSchema),
+    completedOrdersThisMonth: z.number().openapi({ example: 2 }),
+    pendingOrders: z.number().openapi({ example: 2 }),
+    activeSubscriptions: z.number().openapi({ example: 2 }),
+    earningsByProduceThisMonth: z.array(ProduceAmountSchema),
     sellerLocation: LocationSchema,
   })
   .openapi('SellerDashboardResponse');
+
+export const SellerUserProfileSchema = BasePublicUserProfileSchema.extend({
+  aboutMe: z.string().nullable().openapi({
+    description: 'Public bio displayed on the seller storefront',
+  }),
+  specialties: z
+    .array(z.string())
+    .nullable()
+    .openapi({
+      example: ['spinach', 'carrots'],
+      description: 'List of produce the seller specializes in.',
+    }),
+  starRating: z.number().openapi({
+    example: 4.8,
+    description: 'Weighted average of all received reviews',
+  }),
+  totalReviews: z.number().openapi({ example: 124 }),
+  reviewBreakdown: z
+    .object({
+      '1': z.number(),
+      '2': z.number(),
+      '3': z.number(),
+      '4': z.number(),
+      '5': z.number(),
+    })
+    .openapi('ReviewBreakdown', { description: 'Count of reviews for each star level' }),
+  activeBuyerCount: z.number().openapi({
+    example: 12,
+    description: 'Number of unique customers who have ordered recently',
+  }),
+}).openapi('SellerUserProfile');
 
 export type SellerEarningsResponse = z.infer<typeof SellerEarningsResponseSchema>;
 export type GetSellerPayoutsQuery = z.infer<typeof GetSellerPayoutsQuerySchema>;
 export type Payout = z.infer<typeof PayoutSchema>;
 export type SellerDashboardResponse = z.infer<typeof SellerDashboardResponseSchema>;
+export type SellerUserProfile = z.infer<typeof SellerUserProfileSchema>;
+export type ReviewBreakdown = SellerUserProfile['reviewBreakdown'];

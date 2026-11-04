@@ -11,7 +11,8 @@ import { subscriptionRepository } from '../../../src/repositories/subscription.r
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { users, produce, orders, orderItems } from '../../../src/db/schema.js';
 import { sql } from 'drizzle-orm';
-import { GrowerResponse } from '../../../src/schemas/buyer.schema.js';
+import { BuyerDashboardResponse, GrowerResponse } from '../../../src/schemas/buyer.schema.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
 
 describe('Buyer API Integration', { timeout: 60_000 }, () => {
   let testDb: any;
@@ -24,6 +25,7 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
     buyerRepository.setDb(testDb);
     userRepository.setDb(testDb);
     subscriptionRepository.setDb(testDb);
+    orderRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -269,28 +271,99 @@ describe('Buyer API Integration', { timeout: 60_000 }, () => {
       const res = await authedRequest(`/api/buyer/dashboard`, { method: 'GET' }, { id: BUYER_ID });
 
       expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
+      const body = (await res.json()) as BuyerDashboardResponse;
 
       // Assert Volume (Order 2 + Order 3 = 32oz + 16oz = 48oz = 3 lbs this week)
       expect(body.onOrderThisWeekLbs).toBe(3);
-      // 0 lbs last week -> 3 lbs this week is flagged as a 100% jump
-      expect(body.percentChangeFromLastWeek).toBe(100);
 
       // Assert Spend (Order 2 + Order 3 = $32 + $16 = $48 this month)
-      // Note: order 1 was 2 months ago, so last month's bucket remains $0
       expect(body.totalSpendThisMonth).toBe(48);
-      expect(body.totalSpendLastMonth).toBe(0);
 
       expect(body.localGrowersSupplying).toBe(1); // Farm 1 is in same city / <50 mi
 
-      // Farm 2 is ~77 miles away, Farm 1 is ~3.5 miles away
-      expect(body.furthestGrowerDistanceMiles).toBeGreaterThan(70);
-      expect(body.furthestGrowerDistanceMiles).toBeLessThan(85);
+      expect(body.activeSubscriptions).toBe(0);
+    });
+  });
 
-      expect(body.avgGrowerDistanceMiles).toBeGreaterThan(35);
-      expect(body.avgGrowerDistanceMiles).toBeLessThan(45);
+  describe('GET /api/buyer/:id', () => {
+    const TARGET_BUYER_ID = 'target_buyer_profile_test';
+    const OTHER_BUYER_ID = 'other_buyer_test';
+    const SELLER_ID = 'seller_profile_test';
+    const ORG_ID = crypto.randomUUID();
 
-      expect(body.activeSubscriptions).toEqual([]);
+    beforeEach(async () => {
+      await testDb.insert(users).values([
+        {
+          id: TARGET_BUYER_ID,
+          name: 'Jane Profile Buyer',
+          email: 'profile.buyer@example.com',
+          image: 'https://example.com/avatar.png',
+          organizationId: ORG_ID,
+          country: 'USA',
+          state: 'California',
+          city: 'Los Angeles',
+          createdAt: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: OTHER_BUYER_ID,
+          name: 'Other Buyer',
+          email: 'other@example.com',
+          createdAt: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: SELLER_ID,
+          name: 'Profile Farm',
+          email: 'farm@example.com',
+          createdAt: new Date('2024-01-01T00:00:00Z'),
+        },
+      ]);
+
+      const orderDate = new Date('2024-05-10T10:00:00Z');
+      await testDb.insert(orders).values([
+        {
+          buyerId: TARGET_BUYER_ID,
+          sellerId: SELLER_ID,
+          status: 'completed',
+          totalAmount: '50.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: orderDate,
+          paymentMethod: 'card',
+          createdAt: orderDate,
+        },
+      ]);
+    });
+
+    it('should successfully return the buyer profile with order stats and active subscriptions', async () => {
+      const res = await authedRequest(
+        `/api/buyer/${TARGET_BUYER_ID}`,
+        { method: 'GET' },
+        { id: TARGET_BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.id).toBe(TARGET_BUYER_ID);
+      expect(body.name).toBe('Jane Profile Buyer');
+      expect(body.image).toBe('https://example.com/avatar.png');
+      expect(body.organizationId).toBe(ORG_ID);
+      expect(body.country).toBe('USA');
+      expect(body.state).toBe('California');
+      expect(body.city).toBe('Los Angeles');
+      expect(body.joinedAt).toBeDefined();
+      expect(body.totalOrders).toBe(1);
+      expect(body.activeSubscriptions).toBe(0);
+      expect(body.lastOrderDate).toBeDefined();
+    });
+
+    it('should return 404 when attempting to fetch a non-existent buyer profile', async () => {
+      const res = await authedRequest(
+        `/api/buyer/non_existent_user_id`,
+        { method: 'GET' },
+        { id: TARGET_BUYER_ID },
+      );
+
+      expect(res.status).toBe(404);
     });
   });
 });

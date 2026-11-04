@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 
 import {
+  BasePublicUserProfileSchema,
   IsoDateTimeSchema,
   LocationSchema,
   PaginationQuerySchema,
@@ -95,29 +96,27 @@ export const BuyerDashboardResponseSchema = z
       example: 25.4,
       description: 'Total weight of produce scheduled for delivery this week',
     }),
-    percentChangeFromLastWeek: z.number().openapi({
-      example: 12.5,
-      description: 'Percentage change in order volume compared to the previous week',
-    }),
     totalSpendThisMonth: PriceDollarsSchema,
-    totalSpendLastMonth: PriceDollarsSchema,
-    activeSubscriptions: z.array(ActiveSubscriptionSchema).openapi({
-      description: 'List of currently active recurring orders',
+    activeSubscriptions: z.number().openapi({
+      example: 3,
+      description: 'Count of active subscriptions',
     }),
     localGrowersSupplying: z.number().openapi({
       example: 3,
       description: 'Count of local growers currently fulfilling orders',
     }),
-    furthestGrowerDistanceMiles: z.number().openapi({
-      example: 45.2,
-      description: 'Distance in miles to the most distant supplier',
-    }),
-    avgGrowerDistanceMiles: z.number().openapi({
-      example: 18.4,
-      description: 'Mean distance in miles across all active suppliers',
-    }),
   })
   .openapi('BuyerDashboardResponse');
+
+export const BuyerUserProfileSchema = BasePublicUserProfileSchema.extend({
+  totalOrders: z.number().openapi({ example: 45, description: 'Total orders placed by the buyer' }),
+  activeSubscriptions: z
+    .number()
+    .openapi({ example: 3, description: 'Number of active subscriptions' }),
+  lastOrderDate: z.union([z.string(), z.date()]).nullable().openapi({
+    description: 'Timestamp of the last order placed',
+  }),
+}).openapi('BuyerUserProfile');
 
 export type GetGrowersQuery = z.infer<typeof GetGrowersQuerySchema>;
 export type GrowerResponse = z.infer<typeof GrowerSchema>;
@@ -125,3 +124,4 @@ export type BillingSummaryResponse = z.infer<typeof BillingSummaryResponseSchema
 export type ActiveSubscriptionResponse = z.infer<typeof ActiveSubscriptionSchema>;
 export type BuyerDashboardResponse = z.infer<typeof BuyerDashboardResponseSchema>;
 export type GrowersResonse = z.infer<typeof GrowersResponseSchema>;
+export type BuyerUserProfile = z.infer<typeof BuyerUserProfileSchema>;

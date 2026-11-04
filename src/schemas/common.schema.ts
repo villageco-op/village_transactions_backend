@@ -183,13 +183,29 @@ export const PaginationMetadataSchema = z
   })
   .openapi('PaginationMetadata');
 
-export const UserBasicInfoSchema = z.object({
-  id: z.string(),
-  name: z.string().nullable().optional(),
-  organizationId: EntityIdField.nullable().optional(),
-  email: z.string().nullable().optional(),
-  location: LocationSchema.nullable().optional(),
-  image: ImageUrlSchema.nullable().optional(),
+export const UserBasicInfoSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().nullable().optional(),
+    organizationId: EntityIdField.nullable().optional(),
+    email: z.string().nullable().optional(),
+    location: LocationSchema.nullable().optional(),
+    image: ImageUrlSchema.nullable().optional(),
+  })
+  .openapi('UserBasicInfo');
+
+export const BasePublicUserProfileSchema = z.object({
+  id: UserIdSchema,
+  name: z.string().nullable().openapi({ example: 'Green Acres' }),
+  image: ImageUrlSchema.nullable(),
+  organization: z.string().nullable().openapi({ example: 'Green Hill Farms' }),
+  organizationId: EntityIdField.nullable(),
+  country: z.string().nullable().openapi({ example: 'United States of America' }),
+  state: z.string().nullable().openapi({ example: 'WI' }),
+  city: z.string().nullable().openapi({ example: 'Madison' }),
+  joinedAt: z.union([z.string(), z.date()]).nullable().openapi({
+    description: 'Timestamp of when the user first registered',
+  }),
 });
 
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;

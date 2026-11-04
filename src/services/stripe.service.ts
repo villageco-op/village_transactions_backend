@@ -21,6 +21,9 @@ type StripeClient = Pick<
   | 'subscriptionItems'
   | 'refunds'
   | 'charges'
+  | 'customers'
+  | 'prices'
+  | 'products'
 >;
 
 let stripe: StripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
@@ -171,6 +174,16 @@ export async function createCheckoutSession(
     });
   }
 
+  const MIN_ORDER_PRICE = parseFloat(process.env.MIN_ORDER_PRICE || '0.5');
+
+  if (totalCartAmountCents < MIN_ORDER_PRICE * 100) {
+    log.warn(
+      { totalCartAmountCents },
+      'Checkout failed: order total is below the minimum requirement',
+    );
+    throw new HTTPException(400, { message: `Minimum checkout total is $${MIN_ORDER_PRICE}.` });
+  }
+
   const sellerUser = await userRepository.findById(seller.id);
   if (!sellerUser || !sellerUser.stripeAccountId || !sellerUser.stripeOnboardingComplete) {
     throw new HTTPException(400, {
@@ -215,7 +228,15 @@ export async function createCheckoutSession(
     log.info('Adding distance-based delivery fee to checkout session');
   }
 
-  const session = await stripe.checkout.sessions.create(sessionConfig);
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe.checkout.sessions.create(sessionConfig);
+  } catch (err) {
+    log.error({ err }, 'Stripe API error while creating checkout session');
+    throw new HTTPException(502, {
+      message: 'Failed to communicate with payment provider. Please try again.',
+    });
+  }
 
   if (!session.url) {
     throw new HTTPException(500, { message: 'Failed to create checkout session URL.' });
@@ -638,4 +659,59 @@ export async function handleSubscriptionUpdated(
       'Failed to process subscription updated webhook',
     );
   }
+}
+
+/**
+ * TESTING ONLY: Creates a real test customer and subscription in Stripe for E2E seeding.
+ * @param customerEmail - The customer email
+ * @param customerName - The customer name
+ * @param productName - The produce name
+ * @param unitAmountCents - The subscription amount in cents
+ * @param log - App logger that defaults to a blank logger
+ * @returns The subscription and customer IDs
+ */
+export async function createTestStripeSubscription(
+  customerEmail: string,
+  customerName: string,
+  productName: string,
+  unitAmountCents: number,
+  log: AppLogger = noopLogger,
+): Promise<{ stripeSubscriptionId: string; stripeCustomerId: string }> {
+  log.info({ customerEmail, productName }, 'Creating test Stripe customer and subscription');
+
+  const existingCustomers = await stripe.customers.list({ email: customerEmail, limit: 1 });
+  let customerId: string;
+
+  if (existingCustomers.data.length > 0) {
+    customerId = existingCustomers.data[0].id;
+  } else {
+    const customer = await stripe.customers.create({
+      email: customerEmail,
+      name: customerName,
+    });
+    customerId = customer.id;
+  }
+
+  const product = await stripe.products.create({
+    name: productName,
+  });
+
+  const price = await stripe.prices.create({
+    unit_amount: unitAmountCents,
+    currency: 'usd',
+    recurring: { interval: 'week' },
+    product: product.id,
+  });
+
+  const subscription = await stripe.subscriptions.create({
+    customer: customerId,
+    items: [{ price: price.id }],
+    payment_behavior: 'default_incomplete',
+    expand: ['latest_invoice.payment_intent'],
+  });
+
+  return {
+    stripeSubscriptionId: subscription.id,
+    stripeCustomerId: customerId,
+  };
 }

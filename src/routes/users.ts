@@ -17,7 +17,6 @@ import {
   UpdateScheduleRulesSchema,
   UserProfileSchema,
   UpdateUserSchema,
-  PublicUserProfileSchema,
   RegisterFcmTokenSchema,
   UnregisterFcmTokenSchema,
   FcmStatusResponseSchema,
@@ -34,7 +33,6 @@ import {
   getCurrentUser,
   updateCurrentUser,
   updateScheduleRules,
-  getPublicUserProfile,
   deleteAccount,
   leaveOrganization,
 } from '../services/user.service.js';
@@ -441,41 +439,6 @@ usersRoute.openapi(
     const result = await getSellerReviews(id, query, log);
 
     return c.json(result, 200);
-  },
-);
-
-usersRoute.openapi(
-  createRoute({
-    method: 'get',
-    path: '/{id}',
-    operationId: 'getPublicUserProfile',
-    description:
-      'Get public seller profile including rating/review stats. Excludes sensitive info.',
-    tags: [TAGS.USERS],
-    request: {
-      params: UserParamSchema,
-    },
-    responses: {
-      200: {
-        description: 'Public User Profile Details',
-        content: { 'application/json': { schema: PublicUserProfileSchema } },
-      },
-      404: {
-        description: 'User not found',
-        content: { 'application/json': { schema: ErrorResponseSchema } },
-      },
-    },
-  }),
-  async (c) => {
-    const { id } = c.req.valid('param');
-
-    const log = c.get('logger').child({
-      action: 'getPublicUserProfile',
-    });
-
-    const profile = await getPublicUserProfile(id, log);
-
-    return c.json(profile, 200);
   },
 );
 

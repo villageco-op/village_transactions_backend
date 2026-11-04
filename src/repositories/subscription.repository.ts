@@ -3,7 +3,7 @@ import { alias } from 'drizzle-orm/pg-core';
 
 import { db as defaultDb } from '../db/index.js';
 import { produce, subscriptions, users } from '../db/schema.js';
-import type { DbClient, Subscription } from '../db/types.js';
+import type { DbClient, FulfillmentType, Subscription, SubscriptionStatus } from '../db/types.js';
 import type { GetSubscriptionsQuery } from '../schemas/subscription.schema.js';
 
 export const subscriptionRepository = {
@@ -65,6 +65,23 @@ export const subscriptionRepository = {
       .from(subscriptions)
       .innerJoin(produce, eq(subscriptions.productId, produce.id))
       .where(and(eq(subscriptions.buyerId, buyerId), eq(subscriptions.status, 'active')));
+  },
+
+  /**
+   * Retrieves all active subscriptions for a specific seller.
+   * @param sellerId The ID of the seller
+   * @returns An array of active subscriptions
+   */
+  async getActiveSubscriptionsForSeller(sellerId: string) {
+    return await this.db
+      .select({
+        id: subscriptions.id,
+        produceName: produce.title,
+        amount: subscriptions.quantityOz,
+      })
+      .from(subscriptions)
+      .innerJoin(produce, eq(subscriptions.productId, produce.id))
+      .where(and(eq(produce.sellerId, sellerId), eq(subscriptions.status, 'active')));
   },
 
   /**
@@ -273,5 +290,45 @@ export const subscriptionRepository = {
       .select()
       .from(subscriptions)
       .where(and(eq(subscriptions.productId, productId), inArray(subscriptions.status, statuses)));
+  },
+
+  /**
+   * Inserts a new subscription record.
+   * @param data The subscription values
+   * @param data.buyerId ID of the buying user
+   * @param data.productId ID of the produce/product being subscribed to
+   * @param data.stripeSubscriptionId Stripe subscription ID
+   * @param data.quantityOz quantity in ounces for the subscription
+   * @param data.status current status of the subscription
+   * @param data.fulfillmentType method of fulfillment (e.g., delivery, pickup)
+   * @param data.nextDeliveryDate date of the next scheduled delivery
+   * @param data.cancelReason reason for cancellation if cancelled
+   * @returns The newly created subscription record
+   */
+  async create(data: {
+    buyerId: string;
+    productId: string;
+    stripeSubscriptionId?: string | null;
+    quantityOz: string;
+    status: SubscriptionStatus;
+    fulfillmentType: FulfillmentType;
+    nextDeliveryDate?: Date | null;
+    cancelReason?: string | null;
+  }): Promise<Subscription> {
+    const [newSubscription] = await this.db
+      .insert(subscriptions)
+      .values({
+        buyerId: data.buyerId,
+        productId: data.productId,
+        stripeSubscriptionId: data.stripeSubscriptionId ?? null,
+        quantityOz: data.quantityOz,
+        status: data.status,
+        fulfillmentType: data.fulfillmentType,
+        nextDeliveryDate: data.nextDeliveryDate ?? null,
+        cancelReason: data.cancelReason ?? null,
+      })
+      .returning();
+
+    return newSubscription;
   },
 };

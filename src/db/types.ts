@@ -23,10 +23,14 @@ export type DbTransaction = PgTransaction<
   ExtractTablesWithRelations<typeof schema>
 >;
 export type Subscription = InferSelectModel<typeof schema.subscriptions>;
+export type SubscriptionStatus = InferEnum<typeof schema.subscriptionStatusEnum>;
 export type ScheduleType = InferEnum<typeof schema.fulfillmentTypeEnum>;
 export type OrderStatus = InferEnum<typeof schema.orderStatusEnum>;
 export type ProduceType = InferEnum<typeof schema.produceTypeEnum>;
 export type Order = InferSelectModel<typeof schema.orders>;
+export type OrderItem = InferSelectModel<typeof schema.orderItems>;
+export type PaymentMethod = InferEnum<typeof schema.paymentMethodEnum>;
+export type FulfillmentType = InferEnum<typeof schema.fulfillmentTypeEnum>;
 export type Produce = InferSelectModel<typeof schema.produce>;
 export type Invite = InferSelectModel<typeof schema.invites>;
 export type NewInvite = InferInsertModel<typeof schema.invites>;

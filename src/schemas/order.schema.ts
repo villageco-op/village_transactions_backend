@@ -80,10 +80,10 @@ export const OrderListItemSchema = z
   .openapi('OrderListItem');
 
 export const OrderSummarySchema = OrderSchema.extend({
-  buyer: UserBasicInfoSchema.nullable(),
-  seller: UserBasicInfoSchema.nullable(),
-  counterparty: UserBasicInfoSchema.nullable().optional(),
-  items: z.array(OrderListItemSchema),
+  buyer: UserBasicInfoSchema.nullable().openapi('UserBasicInfo'),
+  seller: UserBasicInfoSchema.nullable().openapi('UserBasicInfo'),
+  counterparty: UserBasicInfoSchema.nullable().optional().openapi('UserBasicInfo'),
+  items: z.array(OrderListItemSchema.openapi('OrderListItem')),
 }).openapi('OrderSummary');
 
 export const OrdersListResponseSchema = createPaginatedResponseSchema(
@@ -91,30 +91,34 @@ export const OrdersListResponseSchema = createPaginatedResponseSchema(
   'OrdersListResponse',
 );
 
-export const GetOrderParamsSchema = z.object({
-  id: ResourceIdSchema,
-});
+export const GetOrderParamsSchema = z
+  .object({
+    id: ResourceIdSchema,
+  })
+  .openapi('GetOrderParams');
 
-export const OrderItemDetailSchema = z.object({
-  id: ResourceIdSchema,
-  productId: ResourceIdSchema,
-  productName: z.string(),
-  maxOrderQuantityOz: z.string().nullable(),
-  isProduceSubscribable: z.boolean().nullable(),
-  produceStatus: ProduceStatusSchema.nullable(),
-  produceTotalOzInventory: z.string(),
-  produceAvailableBy: z.date(),
-  produceSeasonStart: z.date(),
-  produceSeasonEnd: z.date(),
-  quantityOz: z.string(),
-  pricePerOz: z.string(),
-  images: z.array(ImageUrlSchema).nullable(),
-});
+export const OrderItemDetailSchema = z
+  .object({
+    id: ResourceIdSchema,
+    productId: ResourceIdSchema,
+    productName: z.string(),
+    maxOrderQuantityOz: z.string().nullable(),
+    isProduceSubscribable: z.boolean().nullable(),
+    produceStatus: ProduceStatusSchema.nullable(),
+    produceTotalOzInventory: z.string(),
+    produceAvailableBy: z.date(),
+    produceSeasonStart: z.date(),
+    produceSeasonEnd: z.date(),
+    quantityOz: z.string(),
+    pricePerOz: z.string(),
+    images: z.array(ImageUrlSchema).nullable(),
+  })
+  .openapi('OrderItemDetails');
 
 export const OrderDetailResponseSchema = OrderSchema.extend({
-  buyer: UserBasicInfoSchema.nullable(),
-  seller: UserBasicInfoSchema.nullable(),
-  items: z.array(OrderItemDetailSchema),
+  buyer: UserBasicInfoSchema.nullable().openapi('UserBasicInfo'),
+  seller: UserBasicInfoSchema.nullable().openapi('UserBasicInfo'),
+  items: z.array(OrderItemDetailSchema.openapi('OrderItemDetails')),
 }).openapi('OrderDetailResponse');
 
 export type GetOrderParams = z.infer<typeof GetOrderParamsSchema>;

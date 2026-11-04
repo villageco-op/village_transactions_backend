@@ -1,10 +1,16 @@
+import { HTTPException } from 'hono/http-exception';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
 import {
+  getPublicSellerProfile,
   getSellerDashboard,
   getSellerEarningsMetrics,
 } from '../../../src/services/seller.service.js';
 import { sellerRepository } from '../../../src/repositories/seller.repository.js';
-import { produceRepository } from '../../../src/repositories/produce.repository.js';
+import { orderRepository } from '../../../src/repositories/order.repository.js';
+import { subscriptionRepository } from '../../../src/repositories/subscription.repository.js';
+import { userRepository } from '../../../src/repositories/user.repository.js';
+import { reviewRepository } from '../../../src/repositories/review.repository.js';
 
 vi.mock('../../../src/repositories/seller.repository.js', () => ({
   sellerRepository: {
@@ -13,9 +19,28 @@ vi.mock('../../../src/repositories/seller.repository.js', () => ({
   },
 }));
 
-vi.mock('../../../src/repositories/produce.repository.js', () => ({
-  produceRepository: {
-    getActiveListingsBySeller: vi.fn(),
+vi.mock('../../../src/repositories/subscription.repository.js', () => ({
+  subscriptionRepository: {
+    getActiveSubscriptionsForSeller: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/order.repository.js', () => ({
+  orderRepository: {
+    getPendingOrdersBySellerId: vi.fn(),
+    getActiveBuyerCount: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/review.repository.js', () => ({
+  reviewRepository: {
+    getReviewStatsBySellerId: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/user.repository.js', () => ({
+  userRepository: {
+    findById: vi.fn(),
   },
 }));
 
@@ -89,6 +114,10 @@ describe('SellerService - Unit Tests', () => {
   });
 
   describe('getSellerDashboard', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
     it('should format dashboard metrics and compute onTrackWithGoal correctly (On Track)', async () => {
       vi.mocked(sellerRepository.getDashboardMetrics).mockResolvedValueOnce({
         seller: {
@@ -101,24 +130,39 @@ describe('SellerService - Unit Tests', () => {
           zip: '00021',
           state: 'Idaho',
         },
-        aggregates: { earnedThisMonth: '600.00', earnedLastMonth: '800.00' },
-        weeklySales: { soldThisWeekOz: '320' },
-        produceSalesThisMonth: [{ produceName: 'Corn', earned: '600.00' }],
+        aggregates: {
+          earnedThisMonth: '600.00',
+          earnedLastMonth: '800.00',
+          completedOrdersThisMonth: '12',
+        },
+        produceSalesThisMonth: [{ produceName: 'Corn', amount: '600.00' }],
       });
 
-      vi.mocked(produceRepository.getActiveListingsBySeller).mockResolvedValueOnce([
-        { title: 'Corn' },
-        { title: 'Tomatoes' },
+      vi.mocked(orderRepository.getPendingOrdersBySellerId).mockResolvedValueOnce([
+        'order_1',
+        'order_2',
+        'order_3',
+      ]);
+
+      vi.mocked(subscriptionRepository.getActiveSubscriptionsForSeller).mockResolvedValueOnce([
+        { id: 'sub_1', produceName: 'Corn', amount: '10.00' },
+        { id: 'sub_2', produceName: 'Tomatoes', amount: '5.00' },
       ]);
 
       const result = await getSellerDashboard('seller_123');
 
+      expect(sellerRepository.getDashboardMetrics).toHaveBeenCalledWith('seller_123');
+      expect(orderRepository.getPendingOrdersBySellerId).toHaveBeenCalledWith('seller_123');
+      expect(subscriptionRepository.getActiveSubscriptionsForSeller).toHaveBeenCalledWith(
+        'seller_123',
+      );
+
       expect(result.earnedThisMonth).toBe(600);
       expect(result.monthlyGoal).toBe(1000);
       expect(result.onTrackWithGoal).toBe(true);
-      expect(result.soldThisWeekLbs).toBe(20);
-      expect(result.activeListingsCount).toBe(2);
-      expect(result.activeListingsNames).toEqual(['Corn', 'Tomatoes']);
+      expect(result.completedOrdersThisMonth).toBe(12);
+      expect(result.pendingOrders).toBe(3);
+      expect(result.activeSubscriptions).toBe(2);
       expect(result.sellerLocation).toEqual({
         lat: 35.1,
         lng: -120.5,
@@ -128,10 +172,10 @@ describe('SellerService - Unit Tests', () => {
         zip: '00021',
         state: 'Idaho',
       });
-      expect(result.earningsByProduceThisMonth).toEqual([{ produceName: 'Corn', earned: 600 }]);
+      expect(result.earningsByProduceThisMonth).toEqual([{ produceName: 'Corn', amount: 600 }]);
     });
 
-    it('should compute onTrackWithGoal correctly when falling behind (Off Track)', async () => {
+    it('should compute onTrackWithGoal correctly when falling behind (Off Track) and handle null defaults', async () => {
       vi.mocked(sellerRepository.getDashboardMetrics).mockResolvedValueOnce({
         seller: {
           goal: '1000.00',
@@ -143,18 +187,26 @@ describe('SellerService - Unit Tests', () => {
           country: null,
           zip: null,
         },
-        aggregates: { earnedThisMonth: '400.00', earnedLastMonth: '300.00' },
-        weeklySales: { soldThisWeekOz: '160' },
+        aggregates: {
+          earnedThisMonth: '400.00',
+          earnedLastMonth: '300.00',
+          completedOrdersThisMonth: '5',
+        },
         produceSalesThisMonth: [],
       });
 
-      vi.mocked(produceRepository.getActiveListingsBySeller).mockResolvedValueOnce([]);
+      vi.mocked(orderRepository.getPendingOrdersBySellerId).mockResolvedValueOnce([]);
+
+      vi.mocked(subscriptionRepository.getActiveSubscriptionsForSeller).mockResolvedValueOnce([]);
 
       const result = await getSellerDashboard('seller_123');
 
       expect(result.earnedThisMonth).toBe(400);
       expect(result.onTrackWithGoal).toBe(false);
-      expect(result.activeListingsCount).toBe(0);
+      expect(result.completedOrdersThisMonth).toBe(5);
+      expect(result.pendingOrders).toBe(0);
+      expect(result.activeSubscriptions).toBe(0);
+      expect(result.earningsByProduceThisMonth).toEqual([]);
       expect(result.sellerLocation).toEqual({
         lat: null,
         lng: null,
@@ -163,6 +215,68 @@ describe('SellerService - Unit Tests', () => {
         state: null,
         country: null,
         zip: null,
+      });
+    });
+  });
+
+  describe('getSellerUserProfile', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should throw a 404 HTTPException if the user is not found', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce(null);
+
+      await expect(getPublicSellerProfile('missing_user_id')).rejects.toThrow(HTTPException);
+      expect(userRepository.findById).toHaveBeenCalledWith('missing_user_id');
+    });
+
+    it('should return default zeroed stats if user has no reviews or buyers', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: 'user_123',
+        name: 'Alice',
+      } as any);
+      vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([]);
+      vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(0);
+
+      const result = await getPublicSellerProfile('user_123');
+
+      expect(result).toMatchObject({
+        id: 'user_123',
+        name: 'Alice',
+        starRating: 0,
+        totalReviews: 0,
+        reviewBreakdown: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
+        activeBuyerCount: 0,
+      });
+    });
+
+    it('should correctly calculate star rating, total reviews, and map breakdown', async () => {
+      vi.mocked(userRepository.findById).mockResolvedValueOnce({
+        id: 'user_123',
+        name: 'Alice',
+        city: 'Seattle',
+      } as any);
+
+      // 10 total reviews: (5 * 4 stars = 20) + (3 * 5 stars = 15) + (2 * 1 star = 2) = 37 total stars
+      // Average: 37 / 10 = 3.7
+      vi.mocked(reviewRepository.getReviewStatsBySellerId).mockResolvedValueOnce([
+        { rating: 4, count: 5 },
+        { rating: 5, count: 3 },
+        { rating: 1, count: 2 },
+      ]);
+      vi.mocked(orderRepository.getActiveBuyerCount).mockResolvedValueOnce(12);
+
+      const result = await getPublicSellerProfile('user_123');
+
+      expect(result).toMatchObject({
+        id: 'user_123',
+        name: 'Alice',
+        city: 'Seattle',
+        starRating: 3.7,
+        totalReviews: 10,
+        reviewBreakdown: { '1': 2, '2': 0, '3': 0, '4': 5, '5': 3 },
+        activeBuyerCount: 12,
       });
     });
   });

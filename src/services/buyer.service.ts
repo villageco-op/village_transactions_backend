@@ -1,4 +1,9 @@
+import { HTTPException } from 'hono/http-exception';
+
+import { type AppLogger, noopLogger } from '../interfaces/logger.interface.js';
 import { buyerRepository } from '../repositories/buyer.repository.js';
+import { orderRepository } from '../repositories/order.repository.js';
+import { organizationRepository } from '../repositories/organization.repository.js';
 import { subscriptionRepository } from '../repositories/subscription.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import type {
@@ -125,61 +130,66 @@ export async function getBillingSummary(buyerId: string): Promise<BillingSummary
  * @returns Dashboard metrics structure
  */
 export async function getBuyerDashboardMetrics(buyerId: string): Promise<BuyerDashboardResponse> {
-  const [data, activeSubsRaw] = await Promise.all([
+  const [data, activeSubs] = await Promise.all([
     buyerRepository.getDashboardMetrics(buyerId),
     subscriptionRepository.getActiveSubscriptionsForBuyer(buyerId),
   ]);
 
   const ozThisWeek = Number(data.weightAgg?.ozThisWeek || 0);
-  const ozLastWeek = Number(data.weightAgg?.ozLastWeek || 0);
   const spendThisMonth = Number(data.spendAgg?.spendThisMonth || 0);
-  const spendLastMonth = Number(data.spendAgg?.spendLastMonth || 0);
 
   const onOrderThisWeekLbs = ozThisWeek / 16;
-  const onOrderLastWeekLbs = ozLastWeek / 16;
-
-  let percentChangeFromLastWeek = 0;
-  if (onOrderLastWeekLbs === 0) {
-    percentChangeFromLastWeek = onOrderThisWeekLbs > 0 ? 100 : 0;
-  } else {
-    percentChangeFromLastWeek =
-      ((onOrderThisWeekLbs - onOrderLastWeekLbs) / onOrderLastWeekLbs) * 100;
-  }
-
-  const activeSubscriptions = activeSubsRaw.map((s) => ({
-    id: s.id,
-    produceName: s.produceName,
-    amount: Number((Number(s.amount) / 16).toFixed(2)),
-  }));
 
   let localGrowersSupplying = 0;
-  let maxDist = 0;
-  let sumDist = 0;
-  let validDistCount = 0;
 
   for (const g of data.growers) {
     if (g.isLocal) {
       localGrowersSupplying++;
     }
-
-    if (g.distance !== null) {
-      const dist = Number(g.distance);
-      if (dist > maxDist) maxDist = dist;
-      sumDist += dist;
-      validDistCount++;
-    }
   }
-
-  const avgGrowerDistanceMiles = validDistCount > 0 ? sumDist / validDistCount : 0;
 
   return {
     onOrderThisWeekLbs: Number(onOrderThisWeekLbs.toFixed(2)),
-    percentChangeFromLastWeek: Number(percentChangeFromLastWeek.toFixed(2)),
     totalSpendThisMonth: Number(spendThisMonth.toFixed(2)),
-    totalSpendLastMonth: Number(spendLastMonth.toFixed(2)),
-    activeSubscriptions,
+    activeSubscriptions: activeSubs.length,
     localGrowersSupplying,
-    furthestGrowerDistanceMiles: Number(maxDist.toFixed(2)),
-    avgGrowerDistanceMiles: Number(avgGrowerDistanceMiles.toFixed(2)),
+  };
+}
+
+/**
+ * Retrieves a sanitized buyer profile including order history stats and active subscriptions.
+ * @param id - The requested buyer's ID
+ * @param log - App logger that defaults to a blank logger
+ * @returns The buyer profile information
+ */
+export async function getBuyerProfile(id: string, log: AppLogger = noopLogger) {
+  const user = await userRepository.findById(id);
+
+  if (!user) {
+    log.warn('Requested buyer profile not found');
+    throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  const [orderStats, activeSubs, organization] = await Promise.all([
+    orderRepository.getBuyerOrderStats(id),
+    subscriptionRepository.getActiveSubscriptionsForBuyer(id),
+    user.organizationId
+      ? organizationRepository.findById(user.organizationId)
+      : Promise.resolve(null),
+  ]);
+
+  return {
+    id: user.id,
+    name: user.name,
+    image: user.image,
+    organization: organization?.name || null,
+    organizationId: user.organizationId,
+    country: user.country,
+    state: user.state,
+    city: user.city,
+    joinedAt: user.createdAt,
+    totalOrders: orderStats.totalOrders,
+    activeSubscriptions: activeSubs.length,
+    lastOrderDate: orderStats.lastOrderDate,
   };
 }
