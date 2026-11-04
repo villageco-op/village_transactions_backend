@@ -174,6 +174,16 @@ export async function createCheckoutSession(
     });
   }
 
+  const MIN_ORDER_PRICE = parseFloat(process.env.MIN_ORDER_PRICE || '0.5');
+
+  if (totalCartAmountCents < MIN_ORDER_PRICE * 100) {
+    log.warn(
+      { totalCartAmountCents },
+      'Checkout failed: order total is below the minimum requirement',
+    );
+    throw new HTTPException(400, { message: `Minimum checkout total is $${MIN_ORDER_PRICE}.` });
+  }
+
   const sellerUser = await userRepository.findById(seller.id);
   if (!sellerUser || !sellerUser.stripeAccountId || !sellerUser.stripeOnboardingComplete) {
     throw new HTTPException(400, {
@@ -218,7 +228,15 @@ export async function createCheckoutSession(
     log.info('Adding distance-based delivery fee to checkout session');
   }
 
-  const session = await stripe.checkout.sessions.create(sessionConfig);
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe.checkout.sessions.create(sessionConfig);
+  } catch (err) {
+    log.error({ err }, 'Stripe API error while creating checkout session');
+    throw new HTTPException(502, {
+      message: 'Failed to communicate with payment provider. Please try again.',
+    });
+  }
 
   if (!session.url) {
     throw new HTTPException(500, { message: 'Failed to create checkout session URL.' });
