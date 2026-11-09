@@ -60,6 +60,7 @@ export function registerSharedSchemas(app: OpenAPIHono<AppBindings>) {
   app.openAPIRegistry.register('PaginationMetadata', Common.PaginationMetadataSchema);
 
   app.openAPIRegistry.register('UserBasicInfo', Common.UserBasicInfoSchema);
+  app.openAPIRegistry.register('Review', Common.ReviewSchema);
 
   // Produce Request Payloads & Queries
   app.openAPIRegistry.register('CreateProducePayload', Produce.CreateProduceSchema);

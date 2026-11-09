@@ -10,6 +10,7 @@ import {
   PaginationQuerySchema,
   ProduceStatusSchema,
   ResourceIdSchema,
+  ReviewSchema,
   UserBasicInfoSchema,
 } from './common.schema.js';
 import { createPaginatedResponseSchema } from './util/pagination.js';
@@ -119,6 +120,7 @@ export const OrderDetailResponseSchema = OrderSchema.extend({
   buyer: UserBasicInfoSchema.nullable().openapi('UserBasicInfo'),
   seller: UserBasicInfoSchema.nullable().openapi('UserBasicInfo'),
   items: z.array(OrderItemDetailSchema.openapi('OrderItemDetails')),
+  review: ReviewSchema.nullable().openapi('Review'),
 }).openapi('OrderDetailResponse');
 
 export type GetOrderParams = z.infer<typeof GetOrderParamsSchema>;

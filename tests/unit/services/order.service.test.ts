@@ -14,6 +14,7 @@ import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
+import { reviewRepository } from '../../../src/repositories/review.repository.js';
 
 vi.mock('../../../src/repositories/order.repository.js', () => ({
   orderRepository: {
@@ -31,6 +32,12 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
 vi.mock('../../../src/repositories/user.repository.js', () => ({
   userRepository: {
     findById: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/review.repository.js', () => ({
+  reviewRepository: {
+    findByOrderAndBuyer: vi.fn(),
   },
 }));
 
@@ -452,48 +459,62 @@ describe('OrderService - getOrderDetails', () => {
     lat: 20.0,
     lng: 13.9,
   };
+  const mockReview = {
+    id: 'rev_1',
+    sellerId: 'seller_1',
+    buyerId: 'buyer_1',
+    orderId: 'order_123',
+    rating: 5,
+    comment: 'Wonderful fresh produce!',
+    createdAt: new Date().toISOString(),
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should successfully return order details for the buyer without sensitive fields', async () => {
+  it('should successfully return order details with review for the buyer without sensitive fields', async () => {
     vi.mocked(orderRepository.getOrderWithItemsById).mockResolvedValueOnce(
       mockOrderWithItems as any,
     );
     vi.mocked(userRepository.findById)
       .mockResolvedValueOnce(mockBuyer as any) // first call (buyer)
       .mockResolvedValueOnce(mockSeller as any); // second call (seller)
+    vi.mocked(reviewRepository.findByOrderAndBuyer).mockResolvedValueOnce(mockReview as any);
 
     const result = await getOrderDetails('order_123', 'buyer_1');
 
     expect(orderRepository.getOrderWithItemsById).toHaveBeenCalledWith('order_123');
     expect(userRepository.findById).toHaveBeenCalledTimes(2);
+    expect(reviewRepository.findByOrderAndBuyer).toHaveBeenCalledWith('order_123', 'buyer_1');
 
     // Ensure stripeSessionId is stripped
     expect((result as any).stripeSessionId).toBeUndefined();
     expect(result.id).toBe('order_123');
     expect(result.items).toHaveLength(1);
 
-    // Ensure sensitive user data is stripped
+    // Ensure sensitive user data is stripped & review is included
     expect(result.buyer?.name).toBe('Buyer Bob');
     expect(result.buyer?.location.lat).toBe(30.0);
     expect((result.buyer as any).stripeAccountId).toBeUndefined();
     expect(result.seller?.name).toBe('Seller Sam');
     expect(result.seller?.location.lat).toBe(20.0);
+    expect(result.review).toEqual(mockReview);
   });
 
-  it('should successfully return order details for the seller', async () => {
+  it('should successfully return order details for the seller with null review if none exists', async () => {
     vi.mocked(orderRepository.getOrderWithItemsById).mockResolvedValueOnce(
       mockOrderWithItems as any,
     );
-    vi.mocked(userRepository.findById).mockResolvedValue(null as any); // Mock users not found just to test safe fallbacks
+    vi.mocked(userRepository.findById).mockResolvedValue(null as any);
+    vi.mocked(reviewRepository.findByOrderAndBuyer).mockResolvedValueOnce(null as any);
 
     const result = await getOrderDetails('order_123', 'seller_1');
 
     expect(result.id).toBe('order_123');
     expect(result.buyer).toBeNull();
     expect(result.seller).toBeNull();
+    expect(result.review).toBeNull();
   });
 
   it('should throw an HTTPException 404 if the order does not exist', async () => {

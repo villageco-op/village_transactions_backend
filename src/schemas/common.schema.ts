@@ -208,5 +208,24 @@ export const BasePublicUserProfileSchema = z.object({
   }),
 });
 
+export const ReviewSchema = z
+  .object({
+    id: ResourceIdSchema,
+    sellerId: UserIdSchema.optional(),
+    buyerId: UserIdSchema.optional(),
+    orderId: ResourceIdSchema.optional(),
+    rating: z.number().int().min(1).max(5).openapi({
+      example: 5,
+      description: 'Star rating from 1 to 5',
+    }),
+    comment: z.string().nullable().openapi({
+      example: 'The apples were incredibly crisp and sweet!',
+      description: 'Text review from the buyer',
+    }),
+    createdAt: IsoDateTimeSchema.nullable(),
+  })
+  .openapi('Review');
+
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;
 export type Season = z.infer<typeof SeasonSchema>;
+export type Review = z.infer<typeof ReviewSchema>;
