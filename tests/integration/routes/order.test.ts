@@ -7,11 +7,12 @@ import {
   closeTestDbConnection,
 } from '../../test-utils/testcontainer-db.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
-import { users, orders, orderItems, produce } from '../../../src/db/schema.js';
+import { users, orders, orderItems, produce, reviews } from '../../../src/db/schema.js';
 
 import * as stripeService from '../../../src/services/stripe.service.js';
 import * as notificationService from '../../../src/services/notification.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
+import { reviewRepository } from '../../../src/repositories/review.repository.js';
 
 vi.spyOn(stripeService, 'refundCheckoutSession').mockResolvedValue();
 vi.spyOn(notificationService, 'sendPushNotification').mockResolvedValue();
@@ -27,6 +28,7 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
     testDb = getTestDb();
     orderRepository.setDb(testDb);
     userRepository.setDb(testDb);
+    reviewRepository.setDb(testDb);
   });
 
   afterAll(async () => {
@@ -253,7 +255,17 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
   });
 
   describe('GET /api/orders/:id', () => {
-    it('should return 200 and the correct comprehensive details for the buyer', async () => {
+    it('should return 200 and the correct comprehensive details including review for the buyer', async () => {
+      const reviewId = crypto.randomUUID();
+      await testDb.insert(reviews).values({
+        id: reviewId,
+        sellerId: SELLER_ID,
+        buyerId: BUYER_ID,
+        orderId: testOrder.id,
+        rating: 5,
+        comment: 'Absolute perfection!',
+      });
+
       const res = await authedRequest(
         `/api/orders/${testOrder.id}`,
         { method: 'GET' },
@@ -277,6 +289,12 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       expect(body.seller.id).toBe(SELLER_ID);
       expect(body.seller.name).toBe('Test Seller');
 
+      // Validate Review Details
+      expect(body.review).toBeDefined();
+      expect(body.review.id).toBe(reviewId);
+      expect(body.review.rating).toBe(5);
+      expect(body.review.comment).toBe('Absolute perfection!');
+
       // Validate Items Joined Correctly
       expect(body.items).toHaveLength(1);
 
@@ -292,7 +310,7 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       expect(item.produceSeasonEnd).toBe('2025-12-31');
     });
 
-    it('should return 200 and details when requested by the seller', async () => {
+    it('should return 200 and details with a null review when none has been submitted', async () => {
       const res = await authedRequest(
         `/api/orders/${testOrder.id}`,
         { method: 'GET' },
@@ -301,6 +319,7 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.id).toBe(testOrder.id);
+      expect(body.review).toBeNull();
     });
 
     it('should return 404 when requested by an unrelated user (unauthorized view)', async () => {

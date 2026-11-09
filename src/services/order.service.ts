@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { OrderStatus } from '../db/types.js';
 import { noopLogger, type AppLogger } from '../interfaces/logger.interface.js';
 import { orderRepository } from '../repositories/order.repository.js';
+import { reviewRepository } from '../repositories/review.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
 import { sendPushNotification } from './notification.service.js';
@@ -335,12 +336,13 @@ export async function getOrderDetails(
     throw new HTTPException(404, { message: 'Order not found' });
   }
 
-  const [buyerData, sellerData] = await Promise.all([
+  const [buyerData, sellerData, reviewData] = await Promise.all([
     userRepository.findById(orderData.buyerId),
     userRepository.findById(orderData.sellerId),
+    reviewRepository.findByOrderAndBuyer(orderId, orderData.buyerId),
   ]);
 
-  log.info('Successfully compiled order, buyer, and seller data');
+  log.info('Successfully compiled order, buyer, seller, and review data');
 
   const safeBuyer = buyerData
     ? {
@@ -382,5 +384,6 @@ export async function getOrderDetails(
     ...safeOrderData,
     buyer: safeBuyer,
     seller: safeSeller,
+    review: reviewData ?? null,
   };
 }
