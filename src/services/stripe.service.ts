@@ -200,7 +200,7 @@ export async function createCheckoutSession(
     line_items: lineItems,
     mode: isSub ? 'subscription' : 'payment',
     success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/cart`,
+    cancel_url: `${appUrl}/buyer/browse`,
     metadata: {
       buyerId,
       sellerId: seller.id,
