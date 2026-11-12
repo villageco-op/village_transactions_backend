@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 
-import type { OrderStatus } from '../db/types.js';
+import type { BuyerReport, OrderStatus, SellerReport } from '../db/types.js';
 import { noopLogger, type AppLogger } from '../interfaces/logger.interface.js';
 import { orderRepository } from '../repositories/order.repository.js';
 import { reviewRepository } from '../repositories/review.repository.js';
@@ -386,4 +386,110 @@ export async function getOrderDetails(
     seller: safeSeller,
     review: reviewData ?? null,
   };
+}
+
+/**
+ * Report a new status for an order as the buyer or seller.
+ * @param orderId - The order Id
+ * @param userId - The user Id
+ * @param reportData - The reported status
+ * @param reportData.report - The status
+ * @returns - The updated order
+ */
+export async function reportOrderStatus(
+  orderId: string,
+  userId: string,
+  reportData: { report: BuyerReport | SellerReport },
+) {
+  const order = await orderRepository.getOrderById(orderId);
+  if (!order) {
+    throw new HTTPException(404, { message: 'Order not found' });
+  }
+
+  const now = new Date();
+  const scheduledTime = new Date(order.scheduledTime);
+  const hoursSinceScheduled = (now.getTime() - scheduledTime.getTime()) / (1000 * 60 * 60);
+
+  const isBuyer = order.buyerId === userId;
+  const isSeller = order.sellerId === userId;
+
+  if (!isBuyer && !isSeller) {
+    throw new HTTPException(403, { message: 'Forbidden' });
+  }
+
+  if (isBuyer) {
+    if (hoursSinceScheduled < 0) {
+      throw new HTTPException(400, { message: 'Cannot report status before scheduled time' });
+    }
+
+    if (hoursSinceScheduled > 24 && !order.buyerReport) {
+      throw new HTTPException(400, { message: 'Buyer reporting window (24 hours) has passed' });
+    }
+
+    if (reportData.report === 'received') {
+      return await orderRepository.updateBuyerReport(orderId, 'received', 'completed');
+    } else {
+      return await orderRepository.updateBuyerReport(orderId, 'not_received');
+    }
+  } else {
+    if (hoursSinceScheduled <= 24 && !order.buyerReport) {
+      throw new HTTPException(400, {
+        message: 'Must wait for buyer reporting window (24h) to pass before seller reporting',
+      });
+    }
+
+    return await orderRepository.updateSellerReport(orderId, 'fulfilled', 'completed');
+  }
+}
+
+/**
+ * Dispute an order as the buyer or seller.
+ * @param orderId - The order Id
+ * @param userId - The user Id
+ * @returns The updated order
+ */
+export async function disputeOrder(orderId: string, userId: string) {
+  const order = await orderRepository.getOrderById(orderId);
+  if (!order) {
+    throw new HTTPException(404, { message: 'Order not found' });
+  }
+
+  const now = new Date();
+  const statusUpdatedAt = order.statusUpdatedAt
+    ? new Date(order.statusUpdatedAt)
+    : new Date(order.updatedAt!);
+  const hoursSinceStatusUpdate = (now.getTime() - statusUpdatedAt.getTime()) / (1000 * 60 * 60);
+
+  if (hoursSinceStatusUpdate > 48) {
+    throw new HTTPException(400, { message: 'Dispute window has closed (48 hours exceeded)' });
+  }
+
+  const isBuyer = order.buyerId === userId;
+  const isSeller = order.sellerId === userId;
+
+  if (!isBuyer && !isSeller) {
+    throw new HTTPException(403, { message: 'Forbidden' });
+  }
+
+  if (isBuyer) {
+    if (!order.sellerReport && order.status !== 'completed') {
+      throw new HTTPException(400, {
+        message: 'Buyer can only dispute if seller reported or order was auto completed',
+      });
+    }
+  } else {
+    if (!order.buyerReport) {
+      throw new HTTPException(400, { message: 'Seller can only dispute if buyer reported' });
+    }
+  }
+
+  return await orderRepository.disputeOrder(orderId);
+}
+
+/**
+ * Autocompletes all passed orders.
+ * @returns The updated orders
+ */
+export async function autoCompletePassedOrders() {
+  return await orderRepository.autoCompletePassedOrders();
 }

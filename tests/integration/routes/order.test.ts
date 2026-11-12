@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 
 import { authedRequest } from '../../test-utils/auth.js';
@@ -13,6 +14,17 @@ import * as stripeService from '../../../src/services/stripe.service.js';
 import * as notificationService from '../../../src/services/notification.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
 import { reviewRepository } from '../../../src/repositories/review.repository.js';
+
+vi.mock('../../../src/services/email.service.js', () => {
+  return {
+    emailService: {
+      send: vi.fn().mockResolvedValue({ success: true }),
+      sendDisputeNotification: vi.fn().mockResolvedValue({ success: true }),
+    },
+  };
+});
+
+import { emailService as mockEmailService } from '../../../src/services/email.service.js';
 
 vi.spyOn(stripeService, 'refundCheckoutSession').mockResolvedValue();
 vi.spyOn(notificationService, 'sendPushNotification').mockResolvedValue();
@@ -343,6 +355,83 @@ describe('Order API Integration', { timeout: 60_000 }, () => {
       );
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Order API - Reporting and Disputing', () => {
+    it('POST /api/orders/:id/report should allow buyer to report received status successfully', async () => {
+      vi.useFakeTimers();
+      const scheduledTime = new Date('2026-05-15T10:00:00Z');
+      // Set current time to 2 hours after the scheduled time
+      vi.setSystemTime(new Date('2026-05-15T12:00:00Z'));
+
+      await testDb
+        .update(orders)
+        .set({ scheduledTime: scheduledTime })
+        .where(eq(orders.id, testOrder.id));
+
+      const res = await authedRequest(
+        `/api/orders/${testOrder.id}/report`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ report: 'received' }),
+        },
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.buyerReport).toBe('received');
+      expect(body.data.status).toBe('completed');
+    });
+
+    it('POST /api/orders/:id/report should return 400 if buyer reports before scheduled time', async () => {
+      // Set scheduled time far in the future
+      const futureScheduledTime = new Date('2030-01-01T00:00:00Z');
+      await testDb
+        .update(orders)
+        .set({ scheduledTime: futureScheduledTime })
+        .where(eq(orders.id, testOrder.id));
+
+      const res = await authedRequest(
+        `/api/orders/${testOrder.id}/report`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ report: 'received' }),
+        },
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error || body.message).toBeDefined();
+    });
+
+    it('POST /api/orders/:id/dispute should allow disputing within the window successfully', async () => {
+      // Set seller report so the buyer is allowed to dispute
+      await testDb
+        .update(orders)
+        .set({
+          sellerReport: 'fulfilled',
+          statusUpdatedAt: new Date(),
+        })
+        .where(eq(orders.id, testOrder.id));
+
+      const res = await authedRequest(
+        `/api/orders/${testOrder.id}/dispute`,
+        {
+          method: 'POST',
+        },
+        { id: BUYER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.status).toBe('disputed');
+
+      expect(mockEmailService.sendDisputeNotification).toHaveBeenCalledTimes(1);
     });
   });
 });

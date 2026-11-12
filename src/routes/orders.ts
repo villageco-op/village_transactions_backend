@@ -11,16 +11,21 @@ import {
   GetOrdersQuerySchema,
   OrderDetailResponseSchema,
   OrdersListResponseSchema,
+  ReportOrderStatusBodySchema,
   RescheduleOrderBodySchema,
   RescheduleOrderParamsSchema,
 } from '../schemas/order.schema.js';
 import { getPaginationParams } from '../schemas/util/pagination.js';
+import { emailService } from '../services/email.service.js';
 import {
   cancelOrder,
+  disputeOrder,
   getOrderDetails,
   getOrders,
+  reportOrderStatus,
   rescheduleOrder,
 } from '../services/order.service.js';
+import { getCurrentUser } from '../services/user.service.js';
 
 export const ordersRoute = new OpenAPIHono<RouteEnv>();
 
@@ -239,5 +244,119 @@ ordersRoute.openapi(
     await cancelOrder(orderId, reason, userId, log);
 
     return c.json({ success: true }, 200);
+  },
+);
+
+ordersRoute.openapi(
+  createRoute({
+    method: 'post',
+    path: '/{id}/report',
+    operationId: 'reportOrderStatus',
+    description: 'Report order completion or non-receipt status as buyer or seller.',
+    tags: [TAGS.ORDERS],
+    middleware: [verifyAuth()],
+    request: {
+      params: GetOrderParamsSchema,
+      body: {
+        content: {
+          'application/json': {
+            schema: ReportOrderStatusBodySchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Order status successfully reported',
+        content: { 'application/json': { schema: SuccessResponseSchema } },
+      },
+      400: {
+        description: 'Bad Request',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: 'Forbidden',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Not Found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id: orderId } = c.req.valid('param');
+    const { report } = c.req.valid('json');
+
+    const updatedOrder = await reportOrderStatus(orderId, userId, { report });
+
+    return c.json({ success: true, data: updatedOrder }, 200);
+  },
+);
+
+ordersRoute.openapi(
+  createRoute({
+    method: 'post',
+    path: '/{id}/dispute',
+    operationId: 'disputeOrder',
+    description: 'Dispute an order within the 48-hour window as buyer or seller.',
+    tags: [TAGS.ORDERS],
+    middleware: [verifyAuth()],
+    request: {
+      params: GetOrderParamsSchema,
+    },
+    responses: {
+      200: {
+        description: 'Order successfully marked as disputed',
+        content: { 'application/json': { schema: SuccessResponseSchema } },
+      },
+      400: {
+        description: 'Bad Request',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      401: {
+        description: 'Unauthorized',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      403: {
+        description: 'Forbidden',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+      404: {
+        description: 'Not Found',
+        content: { 'application/json': { schema: ErrorResponseSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const authUser = c.get('authUser');
+    const userId = authUser?.session?.user?.id;
+
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { id: orderId } = c.req.valid('param');
+
+    const log = c.get('logger').child({ orderId, action: 'disputeOrder' });
+
+    const updatedOrder = await disputeOrder(orderId, userId);
+
+    const user = await getCurrentUser(userId);
+
+    await emailService.sendDisputeNotification(orderId, userId, user.email!, log);
+
+    return c.json({ success: true, data: updatedOrder }, 200);
   },
 );
