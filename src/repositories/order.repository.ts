@@ -30,6 +30,8 @@ import type {
   OrderStatus,
   FulfillmentType,
   PaymentMethod,
+  BuyerReport,
+  SellerReport,
 } from '../db/types.js';
 
 export const orderRepository = {
@@ -237,21 +239,30 @@ export const orderRepository = {
   },
 
   /**
-   * The "Janitor" worker function. Finds orders that are 'paid' but their
-   * scheduled fulfillment time passed 24+ hours ago, and marks them 'completed'.
-   * @returns The updated order
+   * Cron job worker: auto-completes paid orders where scheduledTime + 48 hours passed
+   * and no one reported.
+   * @returns The updated orders
    */
   async autoCompletePassedOrders() {
     const bufferTime = new Date();
-    bufferTime.setHours(bufferTime.getHours() - 24);
+    bufferTime.setHours(bufferTime.getHours() - 48);
 
+    const now = new Date();
     return await this.db
       .update(orders)
       .set({
         status: 'completed',
-        updatedAt: new Date(),
+        statusUpdatedAt: now,
+        updatedAt: now,
       })
-      .where(and(eq(orders.status, 'paid'), lt(orders.scheduledTime, bufferTime)))
+      .where(
+        and(
+          eq(orders.status, 'paid'),
+          lt(orders.scheduledTime, bufferTime),
+          sql`${orders.buyerReport} IS NULL`,
+          sql`${orders.sellerReport} IS NULL`,
+        ),
+      )
       .returning();
   },
 
@@ -292,6 +303,7 @@ export const orderRepository = {
       .update(orders)
       .set({
         status,
+        statusUpdatedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(orders.id, orderId))
@@ -354,6 +366,96 @@ export const orderRepository = {
       .set({
         scheduledTime: newTime,
         updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
+  },
+
+  /**
+   * Adds a buyer report to an order and optionally updates the order status.
+   * @param orderId - The order Id
+   * @param report - The buyer report
+   * @param newStatus - The new status
+   * @returns The updated order
+   */
+  async updateBuyerReport(orderId: string, report: BuyerReport, newStatus?: OrderStatus) {
+    const now = new Date();
+    const updateData: {
+      buyerReport: BuyerReport;
+      buyerReportedAt: Date;
+      updatedAt: Date;
+      status?: OrderStatus;
+      statusUpdatedAt?: Date;
+    } = {
+      buyerReport: report,
+      buyerReportedAt: now,
+      updatedAt: now,
+    };
+
+    if (newStatus) {
+      updateData.status = newStatus;
+      updateData.statusUpdatedAt = now;
+    }
+
+    const [updatedOrder] = await this.db
+      .update(orders)
+      .set(updateData)
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
+  },
+
+  /**
+   * Adds a seller report to an order and optionally updates the order status.
+   * @param orderId - The order Id
+   * @param report - The seller report
+   * @param newStatus - The new status
+   * @returns The updated order
+   */
+  async updateSellerReport(orderId: string, report: SellerReport, newStatus?: OrderStatus) {
+    const now = new Date();
+    const updateData: {
+      sellerReport: SellerReport;
+      sellerReportedAt: Date;
+      updatedAt: Date;
+      status?: OrderStatus;
+      statusUpdatedAt?: Date;
+    } = {
+      sellerReport: report,
+      sellerReportedAt: now,
+      updatedAt: now,
+    };
+
+    if (newStatus) {
+      updateData.status = newStatus;
+      updateData.statusUpdatedAt = now;
+    }
+
+    const [updatedOrder] = await this.db
+      .update(orders)
+      .set(updateData)
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
+  },
+
+  /**
+   * Updates an orders status to disputed.
+   * @param orderId - The order Id
+   * @returns The updated order
+   */
+  async disputeOrder(orderId: string) {
+    const now = new Date();
+    const [updatedOrder] = await this.db
+      .update(orders)
+      .set({
+        status: 'disputed',
+        statusUpdatedAt: now,
+        updatedAt: now,
       })
       .where(eq(orders.id, orderId))
       .returning();

@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { createSelectSchema } from 'drizzle-zod';
 
-import { orders } from '../db/schema.js';
+import { buyerReportEnum, orders, sellerReportEnum } from '../db/schema.js';
 
 import {
   ImageUrlSchema,
@@ -37,6 +37,12 @@ export const RescheduleOrderBodySchema = z
     newTime: IsoDateTimeSchema,
   })
   .openapi('RescheduleOrderPayload');
+
+export const ReportOrderStatusBodySchema = z
+  .object({
+    report: z.enum([...buyerReportEnum.enumValues, ...sellerReportEnum.enumValues]),
+  })
+  .openapi('ReportOrderStatusPayload');
 
 export const GetOrdersQuerySchema = z
   .object({
