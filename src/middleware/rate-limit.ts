@@ -8,7 +8,7 @@ const ratelimit = new Ratelimit({
 });
 
 export const rateLimitMiddleware = createMiddleware(async (c, next) => {
-  const isE2ETest = c.req.header('x-e2e-neon-db-url') || c.req.header('x-e2e-bypass-ratelimit');
+  const isE2ETest = c.req.header('x-e2e-neon-db-url');
   const isPreview = process.env.VERCEL_ENV === 'preview';
 
   if (isE2ETest && isPreview) {
