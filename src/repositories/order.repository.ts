@@ -822,6 +822,11 @@ export const orderRepository = {
    * @param data.cancelReason reason for cancellation if cancelled
    * @param data.stripeReceiptUrl Stripe receipt URL
    * @param data.stripeSessionId Stripe checkout session ID
+   * @param data.buyerReport buyer report status
+   * @param data.buyerReportedAt timestamp when the buyer reported
+   * @param data.sellerReport seller report status
+   * @param data.sellerReportedAt timestamp when the seller reported
+   * @param data.statusUpdatedAt timestamp when order status was last updated
    * @param data.items array of line items associated with the order
    * @returns The created order with its nested items
    */
@@ -836,6 +841,11 @@ export const orderRepository = {
     cancelReason?: string | null;
     stripeReceiptUrl?: string | null;
     stripeSessionId?: string | null;
+    buyerReport?: BuyerReport | null;
+    buyerReportedAt?: Date | null;
+    sellerReport?: SellerReport | null;
+    sellerReportedAt?: Date | null;
+    statusUpdatedAt?: Date | null;
     items: Array<{
       productId: string;
       quantityOz: string;
@@ -856,6 +866,11 @@ export const orderRepository = {
           cancelReason: data.cancelReason ?? null,
           stripeReceiptUrl: data.stripeReceiptUrl ?? null,
           stripeSessionId: data.stripeSessionId ?? null,
+          buyerReport: data.buyerReport ?? null,
+          buyerReportedAt: data.buyerReportedAt ?? null,
+          sellerReport: data.sellerReport ?? null,
+          sellerReportedAt: data.sellerReportedAt ?? null,
+          statusUpdatedAt: data.statusUpdatedAt ?? null,
         })
         .returning();
 
