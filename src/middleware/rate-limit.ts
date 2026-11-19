@@ -8,6 +8,13 @@ const ratelimit = new Ratelimit({
 });
 
 export const rateLimitMiddleware = createMiddleware(async (c, next) => {
+  const isE2ETest = c.req.header('x-e2e-neon-db-url');
+  const isPreview = process.env.VERCEL_ENV === 'preview';
+
+  if (isE2ETest && isPreview) {
+    return await next();
+  }
+
   const clientIp =
     c.req.header('x-forwarded-for')?.split(',')[0].trim() ||
     c.req.header('x-real-ip') ||

@@ -4,10 +4,12 @@ import { encode } from '@auth/core/jwt';
 import { HTTPException } from 'hono/http-exception';
 
 import type {
+  BuyerReport,
   FulfillmentType,
   OrderStatus,
   OrgRole,
   PaymentMethod,
+  SellerReport,
   SubscriptionStatus,
 } from '../db/types.js';
 import { noopLogger, type AppLogger } from '../interfaces/logger.interface.js';
@@ -302,6 +304,11 @@ export interface SeedTestOrderPayload {
   paymentMethod?: PaymentMethod;
   cancelReason?: string;
   stripeReceiptUrl?: string;
+  buyerReport?: BuyerReport;
+  buyerReportedAt?: string | Date;
+  sellerReport?: SellerReport;
+  sellerReportedAt?: string | Date;
+  statusUpdatedAt?: string | Date;
 }
 
 /**
@@ -321,6 +328,11 @@ export interface SeedTestOrderPayload {
  * @param payload.paymentMethod payment method used
  * @param payload.cancelReason reason for cancellation if cancelled
  * @param payload.stripeReceiptUrl Stripe receipt URL
+ * @param payload.buyerReport buyer report status
+ * @param payload.buyerReportedAt timestamp when the buyer reported
+ * @param payload.sellerReport seller report status
+ * @param payload.sellerReportedAt timestamp when the seller reported
+ * @param payload.statusUpdatedAt timestamp when the order status was last updated
  * @param log logger that defaults to a blank logger
  * @returns The newly created database order object with its items
  */
@@ -403,6 +415,11 @@ export async function seedTestOrder(payload: SeedTestOrderPayload, log: AppLogge
     cancelReason: payload.cancelReason ?? null,
     totalAmount,
     stripeReceiptUrl: payload.stripeReceiptUrl ?? null,
+    buyerReport: payload.buyerReport ?? null,
+    buyerReportedAt: payload.buyerReportedAt ? new Date(payload.buyerReportedAt) : null,
+    sellerReport: payload.sellerReport ?? null,
+    sellerReportedAt: payload.sellerReportedAt ? new Date(payload.sellerReportedAt) : null,
+    statusUpdatedAt: payload.statusUpdatedAt ? new Date(payload.statusUpdatedAt) : null,
     items: itemsToInsert.map((item) => ({
       productId: item.produceId,
       quantityOz: item.quantityOz.toString(),

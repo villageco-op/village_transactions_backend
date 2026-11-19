@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { createSelectSchema } from 'drizzle-zod';
 
-import { orders } from '../db/schema.js';
+import { buyerReportEnum, orders, sellerReportEnum } from '../db/schema.js';
 
 import {
   ImageUrlSchema,
@@ -10,6 +10,7 @@ import {
   PaginationQuerySchema,
   ProduceStatusSchema,
   ResourceIdSchema,
+  ReviewSchema,
   UserBasicInfoSchema,
 } from './common.schema.js';
 import { createPaginatedResponseSchema } from './util/pagination.js';
@@ -36,6 +37,12 @@ export const RescheduleOrderBodySchema = z
     newTime: IsoDateTimeSchema,
   })
   .openapi('RescheduleOrderPayload');
+
+export const ReportOrderStatusBodySchema = z
+  .object({
+    report: z.enum([...buyerReportEnum.enumValues, ...sellerReportEnum.enumValues]),
+  })
+  .openapi('ReportOrderStatusPayload');
 
 export const GetOrdersQuerySchema = z
   .object({
@@ -119,6 +126,7 @@ export const OrderDetailResponseSchema = OrderSchema.extend({
   buyer: UserBasicInfoSchema.nullable().openapi('UserBasicInfo'),
   seller: UserBasicInfoSchema.nullable().openapi('UserBasicInfo'),
   items: z.array(OrderItemDetailSchema.openapi('OrderItemDetails')),
+  review: ReviewSchema.nullable().openapi('Review'),
 }).openapi('OrderDetailResponse');
 
 export type GetOrderParams = z.infer<typeof GetOrderParamsSchema>;

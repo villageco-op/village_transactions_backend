@@ -2,9 +2,9 @@ import { z } from '@hono/zod-openapi';
 
 import {
   ImageUrlSchema,
-  IsoDateTimeSchema,
   PaginationMetadataSchema,
   ResourceIdSchema,
+  ReviewSchema,
   UserIdSchema,
 } from './common.schema.js';
 
@@ -64,15 +64,9 @@ export const ReviewBuyerSchema = z
   })
   .openapi('ReviewBuyer');
 
-export const SellerReviewItemSchema = z
-  .object({
-    id: ResourceIdSchema,
-    rating: z.number().openapi({ example: 4 }),
-    comment: z.string().nullable().openapi({ example: 'Great produce, slightly late delivery.' }),
-    createdAt: IsoDateTimeSchema,
-    buyer: ReviewBuyerSchema.nullable(),
-  })
-  .openapi('SellerReviewItem');
+export const SellerReviewItemSchema = ReviewSchema.extend({
+  buyer: ReviewBuyerSchema.nullable(),
+}).openapi('SellerReviewItem');
 
 export const PaginatedReviewsResponseSchema = z
   .object({

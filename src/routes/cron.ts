@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import type { RouteEnv } from '../app.js';
 import { releaseExpiredCarts } from '../services/cart.service.js';
 import { clearExpiredInvites } from '../services/invite.service.js';
+import { autoCompletePassedOrders } from '../services/order.service.js';
 
 export const cronRoute = new Hono<RouteEnv>();
 
@@ -59,4 +60,31 @@ cronRoute.post('/clear-expired-invites', async (c) => {
   }
 
   return c.json({ success: true, count }, 200);
+});
+
+cronRoute.post('/auto-complete-orders', async (c) => {
+  const log = c.get('logger').child({ action: 'autoCompletePassedOrders' });
+
+  const authHeader = c.req.header('Authorization');
+  const expectedSecret = process.env.CRON_SECRET;
+
+  if (!expectedSecret) {
+    log.error('System configuration error: CRON_SECRET is missing');
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const token = authHeader?.replace(/^Bearer\s+/i, '').trim();
+
+  if (token !== expectedSecret) {
+    log.warn('Unauthorized cron trigger attempt on auto-complete orders');
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const updatedOrders = await autoCompletePassedOrders();
+
+  if (updatedOrders.length > 0) {
+    log.info({ count: updatedOrders.length }, 'Cron job completed: auto-completed passed orders');
+  }
+
+  return c.json({ success: true, count: updatedOrders.length }, 200);
 });

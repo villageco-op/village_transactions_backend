@@ -77,6 +77,53 @@ export class EmailService {
       return { success: false, error: errorInstance };
     }
   }
+
+  /**
+   * Sends a dispute notification email to the village contact team.
+   * @param orderId The ID of the order being disputed
+   * @param userId The ID of the user filing the dispute
+   * @param userEmail The email address of the user filing the dispute
+   * @param log App logger instance
+   * @returns Promise contains success and error
+   */
+  async sendDisputeNotification(
+    orderId: string,
+    userId: string,
+    userEmail: string,
+    log: AppLogger = noopLogger,
+  ): Promise<{ success: boolean; error?: Error }> {
+    const contactEmail = process.env.VILLAGE_CONTACT_EMAIL || 'support@village.com';
+    const subject = `New Dispute Filed: Order #${orderId}`;
+
+    const text =
+      `A new dispute has been filed.\n\n` +
+      `Order ID: ${orderId}\n` +
+      `User ID: ${userId}\n` +
+      `User Email: ${userEmail}\n\n`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
+        <h2 style="color: #d9534f;">New Dispute Filed</h2>
+        <p>A new dispute has been submitted by a user.</p>
+        <ul style="list-style-type: none; padding: 0;">
+          <li><strong>Order ID:</strong> ${orderId}</li>
+          <li><strong>User ID:</strong> ${userId}</li>
+          <li><strong>User Email:</strong> <a href="mailto:${userEmail}">${userEmail}</a></li>
+        </ul>
+      </div>
+    `;
+
+    return this.send(
+      {
+        to: contactEmail,
+        subject,
+        text,
+        html,
+        replyTo: userEmail,
+      },
+      log,
+    );
+  }
 }
 
 /**

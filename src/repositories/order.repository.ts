@@ -30,6 +30,8 @@ import type {
   OrderStatus,
   FulfillmentType,
   PaymentMethod,
+  BuyerReport,
+  SellerReport,
 } from '../db/types.js';
 
 export const orderRepository = {
@@ -237,21 +239,30 @@ export const orderRepository = {
   },
 
   /**
-   * The "Janitor" worker function. Finds orders that are 'paid' but their
-   * scheduled fulfillment time passed 24+ hours ago, and marks them 'completed'.
-   * @returns The updated order
+   * Cron job worker: auto-completes paid orders where scheduledTime + 48 hours passed
+   * and no one reported.
+   * @returns The updated orders
    */
   async autoCompletePassedOrders() {
     const bufferTime = new Date();
-    bufferTime.setHours(bufferTime.getHours() - 24);
+    bufferTime.setHours(bufferTime.getHours() - 48);
 
+    const now = new Date();
     return await this.db
       .update(orders)
       .set({
         status: 'completed',
-        updatedAt: new Date(),
+        statusUpdatedAt: now,
+        updatedAt: now,
       })
-      .where(and(eq(orders.status, 'paid'), lt(orders.scheduledTime, bufferTime)))
+      .where(
+        and(
+          eq(orders.status, 'paid'),
+          lt(orders.scheduledTime, bufferTime),
+          sql`${orders.buyerReport} IS NULL`,
+          sql`${orders.sellerReport} IS NULL`,
+        ),
+      )
       .returning();
   },
 
@@ -292,6 +303,7 @@ export const orderRepository = {
       .update(orders)
       .set({
         status,
+        statusUpdatedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(orders.id, orderId))
@@ -354,6 +366,96 @@ export const orderRepository = {
       .set({
         scheduledTime: newTime,
         updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
+  },
+
+  /**
+   * Adds a buyer report to an order and optionally updates the order status.
+   * @param orderId - The order Id
+   * @param report - The buyer report
+   * @param newStatus - The new status
+   * @returns The updated order
+   */
+  async updateBuyerReport(orderId: string, report: BuyerReport, newStatus?: OrderStatus) {
+    const now = new Date();
+    const updateData: {
+      buyerReport: BuyerReport;
+      buyerReportedAt: Date;
+      updatedAt: Date;
+      status?: OrderStatus;
+      statusUpdatedAt?: Date;
+    } = {
+      buyerReport: report,
+      buyerReportedAt: now,
+      updatedAt: now,
+    };
+
+    if (newStatus) {
+      updateData.status = newStatus;
+      updateData.statusUpdatedAt = now;
+    }
+
+    const [updatedOrder] = await this.db
+      .update(orders)
+      .set(updateData)
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
+  },
+
+  /**
+   * Adds a seller report to an order and optionally updates the order status.
+   * @param orderId - The order Id
+   * @param report - The seller report
+   * @param newStatus - The new status
+   * @returns The updated order
+   */
+  async updateSellerReport(orderId: string, report: SellerReport, newStatus?: OrderStatus) {
+    const now = new Date();
+    const updateData: {
+      sellerReport: SellerReport;
+      sellerReportedAt: Date;
+      updatedAt: Date;
+      status?: OrderStatus;
+      statusUpdatedAt?: Date;
+    } = {
+      sellerReport: report,
+      sellerReportedAt: now,
+      updatedAt: now,
+    };
+
+    if (newStatus) {
+      updateData.status = newStatus;
+      updateData.statusUpdatedAt = now;
+    }
+
+    const [updatedOrder] = await this.db
+      .update(orders)
+      .set(updateData)
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
+  },
+
+  /**
+   * Updates an orders status to disputed.
+   * @param orderId - The order Id
+   * @returns The updated order
+   */
+  async disputeOrder(orderId: string) {
+    const now = new Date();
+    const [updatedOrder] = await this.db
+      .update(orders)
+      .set({
+        status: 'disputed',
+        statusUpdatedAt: now,
+        updatedAt: now,
       })
       .where(eq(orders.id, orderId))
       .returning();
@@ -720,6 +822,11 @@ export const orderRepository = {
    * @param data.cancelReason reason for cancellation if cancelled
    * @param data.stripeReceiptUrl Stripe receipt URL
    * @param data.stripeSessionId Stripe checkout session ID
+   * @param data.buyerReport buyer report status
+   * @param data.buyerReportedAt timestamp when the buyer reported
+   * @param data.sellerReport seller report status
+   * @param data.sellerReportedAt timestamp when the seller reported
+   * @param data.statusUpdatedAt timestamp when order status was last updated
    * @param data.items array of line items associated with the order
    * @returns The created order with its nested items
    */
@@ -734,6 +841,11 @@ export const orderRepository = {
     cancelReason?: string | null;
     stripeReceiptUrl?: string | null;
     stripeSessionId?: string | null;
+    buyerReport?: BuyerReport | null;
+    buyerReportedAt?: Date | null;
+    sellerReport?: SellerReport | null;
+    sellerReportedAt?: Date | null;
+    statusUpdatedAt?: Date | null;
     items: Array<{
       productId: string;
       quantityOz: string;
@@ -754,6 +866,11 @@ export const orderRepository = {
           cancelReason: data.cancelReason ?? null,
           stripeReceiptUrl: data.stripeReceiptUrl ?? null,
           stripeSessionId: data.stripeSessionId ?? null,
+          buyerReport: data.buyerReport ?? null,
+          buyerReportedAt: data.buyerReportedAt ?? null,
+          sellerReport: data.sellerReport ?? null,
+          sellerReportedAt: data.sellerReportedAt ?? null,
+          statusUpdatedAt: data.statusUpdatedAt ?? null,
         })
         .returning();
 

@@ -350,6 +350,103 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
     });
   });
 
+  describe('OrderRepository - Reporting and Disputing Integration', () => {
+    it('should add a buyer report and update status', async () => {
+      const buyerId = 'b_buyer_report_test';
+      const sellerId = 's_buyer_report_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'b_report@test.com' },
+        { id: sellerId, email: 's_report@test.com' },
+      ]);
+
+      const [order] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '20.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      const updatedOrder = await orderRepository.updateBuyerReport(
+        order.id,
+        'not_received',
+        'disputed',
+      );
+
+      expect(updatedOrder.buyerReport).toBe('not_received');
+      expect(updatedOrder.buyerReportedAt).toBeDefined();
+      expect(updatedOrder.status).toBe('disputed');
+      expect(updatedOrder.statusUpdatedAt).toBeDefined();
+      expect(updatedOrder.updatedAt).toBeDefined();
+    });
+
+    it('should add a seller report without changing status if newStatus is omitted', async () => {
+      const buyerId = 'b_seller_report_test';
+      const sellerId = 's_seller_report_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'b_sreport@test.com' },
+        { id: sellerId, email: 's_sreport@test.com' },
+      ]);
+
+      const [order] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '15.00',
+          fulfillmentType: 'delivery',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      const updatedOrder = await orderRepository.updateSellerReport(order.id, 'fulfilled');
+
+      expect(updatedOrder.sellerReport).toBe('fulfilled');
+      expect(updatedOrder.sellerReportedAt).toBeDefined();
+      expect(updatedOrder.status).toBe('pending');
+      expect(updatedOrder.statusUpdatedAt).toBeNull();
+      expect(updatedOrder.updatedAt).toBeDefined();
+    });
+
+    it('should update an order status to disputed directly', async () => {
+      const buyerId = 'b_dispute_test';
+      const sellerId = 's_dispute_test';
+
+      await testDb.insert(users).values([
+        { id: buyerId, email: 'b_dispute@test.com' },
+        { id: sellerId, email: 's_dispute@test.com' },
+      ]);
+
+      const [order] = await testDb
+        .insert(orders)
+        .values({
+          buyerId,
+          sellerId,
+          status: 'pending',
+          totalAmount: '30.00',
+          fulfillmentType: 'pickup',
+          scheduledTime: new Date(),
+          paymentMethod: 'card',
+        })
+        .returning();
+
+      const disputedOrder = await orderRepository.disputeOrder(order.id);
+
+      expect(disputedOrder.status).toBe('disputed');
+      expect(disputedOrder.statusUpdatedAt).toBeDefined();
+      expect(disputedOrder.updatedAt).toBeDefined();
+    });
+  });
+
   describe('OrderRepository - getOrders Integration', () => {
     it('should retrieve a list of orders mapped correctly with items, buyer, seller, counterparty, and produce fields', async () => {
       const buyerId = 'b_list_1';
@@ -1213,7 +1310,7 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
   });
 
   describe('OrderRepository - autoCompletePassedOrders', () => {
-    it('should mark "paid" orders as "completed" if they passed the 24-hour buffer', async () => {
+    it('should mark "paid" orders as "completed" if they passed the 48-hour buffer', async () => {
       const buyerId = 'b_janitor';
       const sellerId = 's_janitor';
       await testDb.insert(users).values([
@@ -1225,10 +1322,10 @@ describe('OrderRepository - Integration', { timeout: 60_000 }, () => {
       vi.setSystemTime(now);
 
       const oldTime = new Date(now);
-      oldTime.setHours(oldTime.getHours() - 25); // 25 hours ago (Eligible)
+      oldTime.setHours(oldTime.getHours() - 49); // 49 hours ago (Eligible)
 
       const recentTime = new Date(now);
-      recentTime.setHours(recentTime.getHours() - 23); // 23 hours ago (Ineligible)
+      recentTime.setHours(recentTime.getHours() - 47); // 47 hours ago (Ineligible)
 
       const eligibleId = crypto.randomUUID();
       const ineligibleId = crypto.randomUUID();

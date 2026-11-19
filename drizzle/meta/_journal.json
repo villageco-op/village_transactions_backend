@@ -253,6 +253,13 @@
       "when": 1792166948996,
       "tag": "0035_regular_elektra",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794493820558,
+      "tag": "0036_steep_purple_man",
+      "breakpoints": true
     }
   ]
 }

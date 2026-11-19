@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
 import {
@@ -9,11 +9,14 @@ import {
   rescheduleOrder,
   batchCancelPendingOrders,
   batchCancelAllPendingOrdersPlacedByUser,
+  disputeOrder,
+  reportOrderStatus,
 } from '../../../src/services/order.service.js';
 import { orderRepository } from '../../../src/repositories/order.repository.js';
 import { refundCheckoutSession } from '../../../src/services/stripe.service.js';
 import { sendPushNotification } from '../../../src/services/notification.service.js';
 import { userRepository } from '../../../src/repositories/user.repository.js';
+import { reviewRepository } from '../../../src/repositories/review.repository.js';
 
 vi.mock('../../../src/repositories/order.repository.js', () => ({
   orderRepository: {
@@ -25,12 +28,21 @@ vi.mock('../../../src/repositories/order.repository.js', () => ({
     getOrderWithItemsById: vi.fn(),
     getPendingOrdersByProductId: vi.fn(),
     getPendingOrdersByBuyerId: vi.fn(),
+    updateBuyerReport: vi.fn(),
+    updateSellerReport: vi.fn(),
+    disputeOrder: vi.fn(),
   },
 }));
 
 vi.mock('../../../src/repositories/user.repository.js', () => ({
   userRepository: {
     findById: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/review.repository.js', () => ({
+  reviewRepository: {
+    findByOrderAndBuyer: vi.fn(),
   },
 }));
 
@@ -452,48 +464,62 @@ describe('OrderService - getOrderDetails', () => {
     lat: 20.0,
     lng: 13.9,
   };
+  const mockReview = {
+    id: 'rev_1',
+    sellerId: 'seller_1',
+    buyerId: 'buyer_1',
+    orderId: 'order_123',
+    rating: 5,
+    comment: 'Wonderful fresh produce!',
+    createdAt: new Date().toISOString(),
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should successfully return order details for the buyer without sensitive fields', async () => {
+  it('should successfully return order details with review for the buyer without sensitive fields', async () => {
     vi.mocked(orderRepository.getOrderWithItemsById).mockResolvedValueOnce(
       mockOrderWithItems as any,
     );
     vi.mocked(userRepository.findById)
       .mockResolvedValueOnce(mockBuyer as any) // first call (buyer)
       .mockResolvedValueOnce(mockSeller as any); // second call (seller)
+    vi.mocked(reviewRepository.findByOrderAndBuyer).mockResolvedValueOnce(mockReview as any);
 
     const result = await getOrderDetails('order_123', 'buyer_1');
 
     expect(orderRepository.getOrderWithItemsById).toHaveBeenCalledWith('order_123');
     expect(userRepository.findById).toHaveBeenCalledTimes(2);
+    expect(reviewRepository.findByOrderAndBuyer).toHaveBeenCalledWith('order_123', 'buyer_1');
 
     // Ensure stripeSessionId is stripped
     expect((result as any).stripeSessionId).toBeUndefined();
     expect(result.id).toBe('order_123');
     expect(result.items).toHaveLength(1);
 
-    // Ensure sensitive user data is stripped
+    // Ensure sensitive user data is stripped & review is included
     expect(result.buyer?.name).toBe('Buyer Bob');
     expect(result.buyer?.location.lat).toBe(30.0);
     expect((result.buyer as any).stripeAccountId).toBeUndefined();
     expect(result.seller?.name).toBe('Seller Sam');
     expect(result.seller?.location.lat).toBe(20.0);
+    expect(result.review).toEqual(mockReview);
   });
 
-  it('should successfully return order details for the seller', async () => {
+  it('should successfully return order details for the seller with null review if none exists', async () => {
     vi.mocked(orderRepository.getOrderWithItemsById).mockResolvedValueOnce(
       mockOrderWithItems as any,
     );
-    vi.mocked(userRepository.findById).mockResolvedValue(null as any); // Mock users not found just to test safe fallbacks
+    vi.mocked(userRepository.findById).mockResolvedValue(null as any);
+    vi.mocked(reviewRepository.findByOrderAndBuyer).mockResolvedValueOnce(null as any);
 
     const result = await getOrderDetails('order_123', 'seller_1');
 
     expect(result.id).toBe('order_123');
     expect(result.buyer).toBeNull();
     expect(result.seller).toBeNull();
+    expect(result.review).toBeNull();
   });
 
   it('should throw an HTTPException 404 if the order does not exist', async () => {
@@ -602,5 +628,234 @@ describe('OrderService - batchCancelAllPendingOrdersPlacedByUser', () => {
       { buyerId: mockBuyerId, failureCount: 1, total: 2 },
       'Batch buyer order cancellation completed with partial failures',
     );
+  });
+});
+
+describe('OrderService - Reporting and Disputing', () => {
+  const mockOrder = {
+    id: 'order_123',
+    buyerId: 'buyer_1',
+    sellerId: 'seller_1',
+    status: 'pending',
+    scheduledTime: '2026-05-15T12:00:00Z',
+    statusUpdatedAt: null,
+    updatedAt: '2026-05-15T10:00:00Z',
+    buyerReport: null,
+    sellerReport: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    // Set a consistent current time: 2 hours after scheduledTime (14:00:00Z)
+    vi.setSystemTime(new Date('2026-05-15T14:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  describe('reportOrderStatus', () => {
+    it('should throw 404 if order is not found', async () => {
+      vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(null as any);
+
+      await expect(
+        reportOrderStatus('invalid_id', 'buyer_1', { report: 'received' }),
+      ).rejects.toThrow(new HTTPException(404, { message: 'Order not found' }));
+
+      expect(orderRepository.updateBuyerReport).not.toHaveBeenCalled();
+    });
+
+    it('should throw 403 if user is neither buyer nor seller', async () => {
+      vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+      await expect(
+        reportOrderStatus('order_123', 'random_user', { report: 'received' }),
+      ).rejects.toThrow(new HTTPException(403, { message: 'Forbidden' }));
+    });
+
+    describe('Buyer reporting', () => {
+      it('should throw 400 if buyer tries to report before scheduled time', async () => {
+        // Current time set to 10:00 AM, scheduled at 12:00 PM (hoursSinceScheduled = -2)
+        vi.setSystemTime(new Date('2026-05-15T10:00:00Z'));
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+        await expect(
+          reportOrderStatus('order_123', 'buyer_1', { report: 'received' }),
+        ).rejects.toThrow(
+          new HTTPException(400, { message: 'Cannot report status before scheduled time' }),
+        );
+      });
+
+      it('should throw 400 if buyer reporting window of 24 hours has passed', async () => {
+        // Current time set to 26 hours after scheduled time
+        vi.setSystemTime(new Date('2026-05-16T14:00:00Z'));
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+        await expect(
+          reportOrderStatus('order_123', 'buyer_1', { report: 'received' }),
+        ).rejects.toThrow(
+          new HTTPException(400, { message: 'Buyer reporting window (24 hours) has passed' }),
+        );
+      });
+
+      it('should allow buyer to report received and update status to completed', async () => {
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+        vi.mocked(orderRepository.updateBuyerReport).mockResolvedValueOnce({
+          ...mockOrder,
+          buyerReport: 'received',
+          status: 'completed',
+        } as any);
+
+        const result = await reportOrderStatus('order_123', 'buyer_1', { report: 'received' });
+
+        expect(orderRepository.updateBuyerReport).toHaveBeenCalledWith(
+          'order_123',
+          'received',
+          'completed',
+        );
+        expect(result.status).toBe('completed');
+      });
+
+      it('should allow buyer to report not_received without changing status', async () => {
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+        vi.mocked(orderRepository.updateBuyerReport).mockResolvedValueOnce({
+          ...mockOrder,
+          buyerReport: 'not_received',
+        } as any);
+
+        const result = await reportOrderStatus('order_123', 'buyer_1', {
+          report: 'not_received',
+        });
+
+        expect(orderRepository.updateBuyerReport).toHaveBeenCalledWith('order_123', 'not_received');
+        expect(result.buyerReport).toBe('not_received');
+      });
+    });
+
+    describe('Seller reporting', () => {
+      it('should throw 400 if seller reports before buyer window (24h) has passed', async () => {
+        // Current time is 2 hours after scheduled time (<= 24h)
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+        await expect(
+          reportOrderStatus('order_123', 'seller_1', { report: 'fulfilled' } as any),
+        ).rejects.toThrow(
+          new HTTPException(400, {
+            message: 'Must wait for buyer reporting window (24h) to pass before seller reporting',
+          }),
+        );
+      });
+
+      it('should allow seller to report fulfilled after 24h if buyer did not report', async () => {
+        // Set current time to 25 hours after scheduled time
+        vi.setSystemTime(new Date('2026-05-16T13:00:00Z'));
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+        vi.mocked(orderRepository.updateSellerReport).mockResolvedValueOnce({
+          ...mockOrder,
+          sellerReport: 'fulfilled',
+          status: 'completed',
+        } as any);
+
+        const result = await reportOrderStatus('order_123', 'seller_1', {
+          report: 'fulfilled',
+        } as any);
+
+        expect(orderRepository.updateSellerReport).toHaveBeenCalledWith(
+          'order_123',
+          'fulfilled',
+          'completed',
+        );
+        expect(result.sellerReport).toBe('fulfilled');
+        expect(result.status).toBe('completed');
+      });
+    });
+  });
+
+  describe('disputeOrder', () => {
+    it('should throw 404 if order does not exist', async () => {
+      vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(null as any);
+
+      await expect(disputeOrder('invalid_id', 'buyer_1')).rejects.toThrow(
+        new HTTPException(404, { message: 'Order not found' }),
+      );
+    });
+
+    it('should throw 403 if user is neither buyer nor seller', async () => {
+      vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+      await expect(disputeOrder('order_123', 'random_user')).rejects.toThrow(
+        new HTTPException(403, { message: 'Forbidden' }),
+      );
+    });
+
+    it('should throw 400 if dispute window exceeds 48 hours', async () => {
+      // Set current time to 50 hours after statusUpdatedAt/updatedAt
+      vi.setSystemTime(new Date('2026-05-17T12:00:00Z'));
+      vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce({
+        ...mockOrder,
+        sellerReport: 'fulfilled',
+      } as any);
+
+      await expect(disputeOrder('order_123', 'buyer_1')).rejects.toThrow(
+        new HTTPException(400, { message: 'Dispute window has closed (48 hours exceeded)' }),
+      );
+    });
+
+    describe('Buyer disputing', () => {
+      it('should throw 400 if buyer disputes when seller has not reported and order is not completed', async () => {
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+        await expect(disputeOrder('order_123', 'buyer_1')).rejects.toThrow(
+          new HTTPException(400, {
+            message: 'Buyer can only dispute if seller reported or order was auto completed',
+          }),
+        );
+      });
+
+      it('should allow buyer to dispute if seller has reported', async () => {
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce({
+          ...mockOrder,
+          sellerReport: 'fulfilled',
+        } as any);
+        vi.mocked(orderRepository.disputeOrder).mockResolvedValueOnce({
+          ...mockOrder,
+          status: 'disputed',
+        } as any);
+
+        const result = await disputeOrder('order_123', 'buyer_1');
+
+        expect(orderRepository.disputeOrder).toHaveBeenCalledWith('order_123');
+        expect(result.status).toBe('disputed');
+      });
+    });
+
+    describe('Seller disputing', () => {
+      it('should throw 400 if seller disputes when buyer has not reported', async () => {
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce(mockOrder as any);
+
+        await expect(disputeOrder('order_123', 'seller_1')).rejects.toThrow(
+          new HTTPException(400, {
+            message: 'Seller can only dispute if buyer reported',
+          }),
+        );
+      });
+
+      it('should allow seller to dispute if buyer has reported', async () => {
+        vi.mocked(orderRepository.getOrderById).mockResolvedValueOnce({
+          ...mockOrder,
+          buyerReport: 'not_received',
+        } as any);
+        vi.mocked(orderRepository.disputeOrder).mockResolvedValueOnce({
+          ...mockOrder,
+          status: 'disputed',
+        } as any);
+
+        const result = await disputeOrder('order_123', 'seller_1');
+
+        expect(orderRepository.disputeOrder).toHaveBeenCalledWith('order_123');
+        expect(result.status).toBe('disputed');
+      });
+    });
   });
 });

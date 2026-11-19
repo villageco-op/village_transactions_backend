@@ -39,6 +39,8 @@ export const orderStatusEnum = pgEnum('order_status', [
   'disputed',
   'canceled',
 ]);
+export const buyerReportEnum = pgEnum('buyer_report', ['received', 'not_received']);
+export const sellerReportEnum = pgEnum('seller_report', ['fulfilled']);
 export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'active',
   'paused',
@@ -258,6 +260,11 @@ export const orders = pgTable('orders', {
   status: orderStatusEnum('status').notNull().default('pending'),
   cancelReason: text('cancel_reason'),
   totalAmount: numeric('total_amount', { precision: 10, scale: 2 }).notNull(),
+  buyerReport: buyerReportEnum('buyer_report'),
+  buyerReportedAt: timestamp('buyer_reported_at', { withTimezone: true }),
+  sellerReport: sellerReportEnum('seller_report'),
+  sellerReportedAt: timestamp('seller_reported_at', { withTimezone: true }),
+  statusUpdatedAt: timestamp('status_updated_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

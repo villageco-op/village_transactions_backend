@@ -291,6 +291,47 @@
         },
         "required": ["id"]
       },
+      "Review": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ResourceId"
+          },
+          "sellerId": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "buyerId": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "orderId": {
+            "$ref": "#/components/schemas/ResourceId"
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 5,
+            "description": "Star rating from 1 to 5"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "example": "The apples were incredibly crisp and sweet!",
+            "description": "Text review from the buyer"
+          },
+          "createdAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IsoDateTime"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": ["id", "rating", "comment", "createdAt"]
+      },
       "CreateProducePayload": {
         "type": "object",
         "properties": {
@@ -1167,6 +1208,31 @@
           "totalAmount": {
             "type": "string"
           },
+          "buyerReport": {
+            "type": "string",
+            "nullable": true,
+            "enum": ["received", "not_received", null]
+          },
+          "buyerReportedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "sellerReport": {
+            "type": "string",
+            "nullable": true,
+            "enum": ["fulfilled", null]
+          },
+          "sellerReportedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "statusUpdatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
           "createdAt": {
             "type": "string",
             "nullable": true,
@@ -1190,6 +1256,11 @@
           "status",
           "cancelReason",
           "totalAmount",
+          "buyerReport",
+          "buyerReportedAt",
+          "sellerReport",
+          "sellerReportedAt",
+          "statusUpdatedAt",
           "createdAt",
           "updatedAt"
         ]
@@ -1399,9 +1470,19 @@
                 "items": {
                   "$ref": "#/components/schemas/OrderItemDetails"
                 }
+              },
+              "review": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Review"
+                  },
+                  {
+                    "nullable": true
+                  }
+                ]
               }
             },
-            "required": ["buyer", "seller", "items"]
+            "required": ["buyer", "seller", "items", "review"]
           }
         ]
       },
@@ -1449,6 +1530,16 @@
           }
         },
         "required": ["newTime"]
+      },
+      "ReportOrderStatusPayload": {
+        "type": "object",
+        "properties": {
+          "report": {
+            "type": "string",
+            "enum": ["received", "not_received", "fulfilled"]
+          }
+        },
+        "required": ["report"]
       },
       "GetOrdersQuery": {
         "type": "object",
@@ -2357,35 +2448,27 @@
         "required": ["id", "name", "image"]
       },
       "SellerReviewItem": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/ResourceId"
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Review"
           },
-          "rating": {
-            "type": "number",
-            "example": 4
-          },
-          "comment": {
-            "type": "string",
-            "nullable": true,
-            "example": "Great produce, slightly late delivery."
-          },
-          "createdAt": {
-            "$ref": "#/components/schemas/IsoDateTime"
-          },
-          "buyer": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ReviewBuyer"
-              },
-              {
-                "nullable": true
+          {
+            "type": "object",
+            "properties": {
+              "buyer": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ReviewBuyer"
+                  },
+                  {
+                    "nullable": true
+                  }
+                ]
               }
-            ]
+            },
+            "required": ["buyer"]
           }
-        },
-        "required": ["id", "rating", "comment", "createdAt", "buyer"]
+        ]
       },
       "PaginatedReviewsResponse": {
         "type": "object",
@@ -6766,6 +6849,56 @@
         }
       }
     },
+    "/api/orders/{id}": {
+      "get": {
+        "operationId": "getOrderById",
+        "description": "Get detailed information for a specific order by ID. Accessible only by the buyer or seller associated with the order.",
+        "tags": ["Orders"],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            },
+            "required": true,
+            "description": "The standard UUID identifier for the resource",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order details successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - User not logged in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Order does not exist or user lacks permission to view it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/orders": {
       "get": {
         "operationId": "getOrders",
@@ -7000,10 +7133,89 @@
         }
       }
     },
-    "/api/orders/{id}": {
-      "get": {
-        "operationId": "getOrderById",
-        "description": "Get detailed information for a specific order by ID. Accessible only by the buyer or seller associated with the order.",
+    "/api/orders/{id}/report": {
+      "post": {
+        "operationId": "reportOrderStatus",
+        "description": "Report order completion or non-receipt status as buyer or seller.",
+        "tags": ["Orders"],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            },
+            "required": true,
+            "description": "The standard UUID identifier for the resource",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportOrderStatusPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order status successfully reported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}/dispute": {
+      "post": {
+        "operationId": "disputeOrder",
+        "description": "Dispute an order within the 48-hour window as buyer or seller.",
         "tags": ["Orders"],
         "parameters": [
           {
@@ -7018,17 +7230,37 @@
         ],
         "responses": {
           "200": {
-            "description": "Order details successfully retrieved",
+            "description": "Order successfully marked as disputed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OrderDetailResponse"
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - User not logged in",
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -7038,7 +7270,7 @@
             }
           },
           "404": {
-            "description": "Not Found - Order does not exist or user lacks permission to view it",
+            "description": "Not Found",
             "content": {
               "application/json": {
                 "schema": {
