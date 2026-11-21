@@ -63,6 +63,7 @@
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^1.2.2",
     "@neondatabase/serverless": "^1.0.2",
+    "@sentry/node": "^11.16.0",
     "@testcontainers/postgresql": "^11.13.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.2",
