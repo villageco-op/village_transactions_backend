@@ -6,6 +6,3 @@ All items below must be manually verified against the staging/candidate build be
 - [ ] **Complete Stripe Onboarding:** Start and complete the start selling onboarding flow.
 - [ ] **Create an Order:** Create an order for a listing.
 - [ ] **Create a subscription:** Create a subscription for a listing.
-
-**Jira Release / Tickets:** 
-**Notes / Edge cases tested:**
