@@ -10,10 +10,40 @@ on:
       - reopened
       - synchronize
 
+permissions:
+  pull-requests: write
+
 jobs:
   verify-checklist:
     runs-on: ubuntu-latest
     steps:
+      - name: Auto-insert release checklist if missing
+        if: github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo, pull_number } = context.issue;
+            const currentBody = (context.payload.pull_request.body || '').trim();
+
+            const checklist = [
+              '## Release to `main` — Manual Verification Gate',
+              '- [ ] **Auth & permissions:** Sign in, access a protected route, and sign out cleanly',
+              '- [ ] **Core critical path:** Complete the primary user flow end-to-end (not yet covered by E2E)',
+              '- [ ] **External integrations / webhooks:** Verify real or sandbox third-party callbacks/emails succeed',
+              '- [ ] **Data / migration sanity:** Confirm database state looks clean with no broken records'
+            ].join('\n');
+
+            if (!currentBody.includes('Release to `main` — Manual Verification Gate')) {
+              const updatedBody = currentBody ? `${currentBody}\n\n${checklist}` : checklist;
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number,
+                body: updatedBody
+              });
+              context.payload.pull_request.body = updatedBody;
+            }
+
       - name: Check for unchecked manual test items
         uses: actions/github-script@v7
         with:
