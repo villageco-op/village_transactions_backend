@@ -123,6 +123,7 @@ export async function deleteProduceListing(
  * @param params.lat - The latitude of the user's current location.
  * @param params.lng - The longitude of the user's current location.
  * @param params.sellerId - Filter for a specific sellers produce.
+ * @param params.excludeSellerId - A seller Id to exclude fromo results.
  * @param params.sortBy - The criteria used to order the results. Defaults to distance if not specified.
  * @param params.hasDelivery - A string-based boolean flag to filter items by delivery availability.
  * @param params.produceType - Filter by a specific type of produce (e.g., 'fruit', 'veg').
@@ -144,6 +145,7 @@ export async function getProduceList(params: {
   lat?: number;
   lng?: number;
   sellerId?: string;
+  excludeSellerId?: string;
   sortBy?: 'distance' | 'price';
   hasDelivery?: 'true' | 'false';
   produceType?: ProduceType;
@@ -200,6 +202,7 @@ export async function getProduceList(params: {
  * @param params.hasDelivery - If 'true', limits results to sellers whose delivery range covers the user.
  * @param params.minPrice - Minimum price per ounce.
  * @param params.maxPrice - The upper price limit per ounce.
+   @param params.excludeSellerId - A seller Id to exclude fromo results.
  * @returns A promise resolving to an array of grouped objects, where each object contains
  * a seller's ID, their geographic coordinates, and a list of their available produce.
  */
@@ -217,6 +220,7 @@ export async function getProduceMap(params: {
   hasDelivery?: 'true' | 'false';
   minPrice?: number;
   maxPrice?: number;
+  excludeSellerId?: string;
 }) {
   const items = await produceRepository.getMapItems(params);
 

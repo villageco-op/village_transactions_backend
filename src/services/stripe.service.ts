@@ -102,6 +102,12 @@ export async function createCheckoutSession(
   const isSub = group.isSubscription;
   const freq = group.frequencyDays;
 
+  if (seller.id === buyerId) {
+    throw new HTTPException(400, {
+      message: 'It is not possible to create an order for your own listing.',
+    });
+  }
+
   log.setBindings({ sellerId: seller?.id, isSubscription: group.isSubscription });
 
   const now = new Date();
@@ -200,7 +206,7 @@ export async function createCheckoutSession(
     line_items: lineItems,
     mode: isSub ? 'subscription' : 'payment',
     success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/buyer/browse`,
+    cancel_url: `${appUrl}/shop/browse`,
     metadata: {
       buyerId,
       sellerId: seller.id,

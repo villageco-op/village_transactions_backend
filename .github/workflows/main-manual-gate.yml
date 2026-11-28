@@ -1,0 +1,62 @@
+name: Manual Release Checklist Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+permissions:
+  pull-requests: write
+
+jobs:
+  verify-checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-insert release checklist and verify items
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            let body = (context.payload.pull_request.body || '').trim();
+
+            const checklist = [
+              '## Release to `main` — Manual Verification Gate',
+              '- [ ] **Magic Link Sign In:** Sign in with a new or existing account using magic link.',
+              '- [ ] **Create an Order:** Create an order for a listing.',
+              '- [ ] **Create a subscription:** Create a subscription for a listing.',
+            ].join('\n');
+
+            if (context.eventName === 'pull_request' && context.payload.action === 'opened') {
+              if (!body.includes('Release to `main` — Manual Verification Gate')) {
+                body = body ? `${body}\n\n${checklist}` : checklist;
+                await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number,
+                  body
+                });
+              }
+            }
+
+            const unchecked = body.match(/^\s*-\s*\[\s\]\s+.+\r?$/gm) || [];
+            const checked = body.match(/^\s*-\s*\[[xX]\]\s+.+\r?$/gm) || [];
+
+            if (checked.length === 0 && unchecked.length === 0) {
+              core.setFailed('Manual release checklist is missing from the PR description.');
+              return;
+            }
+
+            if (unchecked.length > 0) {
+              core.setFailed(
+                `${unchecked.length} manual test item(s) still unchecked:\n` +
+                unchecked.map(item => item.trim()).join('\n')
+              );
+            } else {
+              console.log(`All ${checked.length} manual release checks passed.`);
+            }

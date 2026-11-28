@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, sql, desc } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, sql, desc, ne } from 'drizzle-orm';
 
 import { db as defaultDb } from '../db/index.js';
 import { orderItems, orders, produce, users } from '../db/schema.js';
@@ -201,6 +201,7 @@ export const produceRepository = {
    * @param params.lat - Latitude for distance calculation.
    * @param params.lng - Longitude for distance calculation.
    * @param params.sellerId - Filter for a specific sellers produce.
+   * @param params.excludeSellerId - A seller Id to exclude fromo results.
    * @param params.sortBy - Field to sort by. 'distance' uses spatial calculation; 'price' uses numeric value.
    * @param params.hasDelivery - If 'true', filters for sellers where distance <= their delivery range.
    * @param params.produceType - Filter by specific produce category.
@@ -221,6 +222,7 @@ export const produceRepository = {
     lat?: number;
     lng?: number;
     sellerId?: string;
+    excludeSellerId?: string;
     sortBy?: 'distance' | 'price';
     hasDelivery?: 'true' | 'false';
     produceType?: ProduceType;
@@ -309,6 +311,10 @@ export const produceRepository = {
       conditions.push(sql`${distanceMiles} <= ${params.maxDistance}`);
     }
 
+    if (params.excludeSellerId) {
+      conditions.push(ne(produce.sellerId, params.excludeSellerId));
+    }
+
     const whereClause = and(...conditions);
 
     const [totalCountResult] = await this.db
@@ -370,6 +376,7 @@ export const produceRepository = {
    * @param params.hasDelivery - If 'true', limits results to sellers whose delivery range covers the user.
    * @param params.minPrice - Minimum price per ounce.
    * @param params.maxPrice - The maximum allowed price per ounce for the items.
+   * @param params.excludeSellerId - A seller Id to exclude fromo results.
    * @returns A promise resolving to an array of items containing basic produce info and seller coordinates.
    */
   async getMapItems(params: {
@@ -386,6 +393,7 @@ export const produceRepository = {
     hasDelivery?: 'true' | 'false';
     minPrice?: number;
     maxPrice?: number;
+    excludeSellerId?: string;
   }) {
     const { lat, lng, radiusMiles = 50, hasDelivery, produceType, maxPrice } = params;
 
@@ -450,6 +458,10 @@ export const produceRepository = {
 
     if (maxPrice !== undefined) {
       conditions.push(sql`${produce.pricePerOz} <= ${maxPrice}`);
+    }
+
+    if (params.excludeSellerId) {
+      conditions.push(ne(produce.sellerId, params.excludeSellerId));
     }
 
     return await this.db

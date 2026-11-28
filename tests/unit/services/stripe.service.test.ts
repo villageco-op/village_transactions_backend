@@ -526,6 +526,7 @@ describe('StripeService - createCheckoutSession', () => {
     vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
       {
         product: { title: 'Tomatoes', status: 'archived', availableBy: new Date(FAKE_NOW) },
+        seller: { id: 'seller_1' },
         reservation: { quantityOz: '10' },
         group: { isSubscription: false },
       } as any,
@@ -722,6 +723,58 @@ describe('StripeService - createCheckoutSession', () => {
         }),
       }),
     );
+  });
+
+  it('should throw 400 if the buyer is the seller of the checkout group', async () => {
+    vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
+      {
+        group: { id: mockGroupId, isSubscription: false, fulfillmentType: 'pickup' },
+        seller: { id: mockBuyerId },
+        buyer: { lat: 40, lng: -73 },
+        product: {
+          title: 'Own Apples',
+          status: 'active',
+          pricePerOz: '0.50',
+          availableBy: new Date(FAKE_NOW),
+        },
+        reservation: { id: 'res_1', quantityOz: '10' },
+      } as any,
+    ]);
+
+    await expect(createCheckoutSession(mockBuyerId, mockPayload)).rejects.toThrow(
+      new HTTPException(400, {
+        message: 'It is not possible to create an order for your own listing.',
+      }),
+    );
+
+    expect(userRepository.findById).not.toHaveBeenCalled();
+    expect(mockStripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('should allow checkout when the buyer differs from the seller', async () => {
+    vi.mocked(cartRepository.getCheckoutGroup).mockResolvedValueOnce([
+      {
+        group: { id: mockGroupId, isSubscription: false, fulfillmentType: 'pickup' },
+        seller: { id: 'other_seller_999' },
+        buyer: { lat: 40, lng: -73 },
+        product: {
+          title: 'Other Apples',
+          status: 'active',
+          pricePerOz: '0.50',
+          availableBy: new Date(FAKE_NOW),
+        },
+        reservation: { id: 'res_1', quantityOz: '10' },
+      } as any,
+    ]);
+
+    vi.mocked(userRepository.findById).mockResolvedValueOnce({
+      ...mockSellerUser,
+      id: 'other_seller_999',
+    } as any);
+
+    await createCheckoutSession(mockBuyerId, mockPayload);
+
+    expect(mockStripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
   });
 });
 

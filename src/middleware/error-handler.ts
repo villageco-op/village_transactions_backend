@@ -3,14 +3,34 @@ import { HTTPException } from 'hono/http-exception';
 
 import type { AppBindings } from '../app.js';
 import type { DatabaseError } from '../interfaces/error.interface.js';
+import { Sentry } from '../lib/bugsink.js';
 import { logger as rootLogger } from '../lib/logger.js';
 import { isDatabaseError } from '../utils.js';
 
-export const errorHandler: ErrorHandler<AppBindings> = (err, c) => {
+export const errorHandler: ErrorHandler<AppBindings> = async (err, c) => {
   const log = c.get('logger') || rootLogger;
+  const reqId = log.bindings()?.reqId;
 
   if (err instanceof HTTPException) {
     log.warn({ err, status: err.status }, 'HTTP Exception caught');
+
+    if (err.status >= 500) {
+      Sentry.withScope((scope) => {
+        scope.setTag('path', c.req.path);
+        scope.setTag('method', c.req.method);
+        scope.setTag('status', String(err.status));
+        if (reqId) {
+          scope.setTag('requestId', String(reqId));
+        }
+        scope.setContext('request', {
+          path: c.req.path,
+          method: c.req.method,
+        });
+        Sentry.captureException(err);
+      });
+      await Sentry.flush(2000);
+    }
+
     return c.json({ error: err.message }, err.status);
   }
 
@@ -33,5 +53,24 @@ export const errorHandler: ErrorHandler<AppBindings> = (err, c) => {
   }
 
   log.error({ err, path: c.req.path }, 'Internal Server Error');
+
+  Sentry.withScope((scope) => {
+    scope.setTag('path', c.req.path);
+    scope.setTag('method', c.req.method);
+    if (reqId) {
+      scope.setTag('requestId', String(reqId));
+    }
+    if (isDatabaseError(dbError) && dbError.code) {
+      scope.setTag('dbCode', String(dbError.code));
+    }
+    scope.setContext('request', {
+      path: c.req.path,
+      method: c.req.method,
+    });
+    Sentry.captureException(err);
+  });
+
+  await Sentry.flush(2000);
+
   return c.json({ error: 'Internal Server Error' }, 500);
 };
