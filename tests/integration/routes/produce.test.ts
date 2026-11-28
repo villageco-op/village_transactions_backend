@@ -331,8 +331,17 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     });
 
     it('GET /api/produce/list should return 200 with correctly mapped fields', async () => {
+      const OTHER_SELLER_ID = 'other_mapped_seller_id';
+      await testDb.insert(users).values({
+        id: OTHER_SELLER_ID,
+        name: 'Mapped Seller',
+        email: 'mapped.seller@example.com',
+        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        stripeOnboardingComplete: true,
+      });
+
       await testDb.insert(produce).values({
-        sellerId: TEST_USER_ID,
+        sellerId: OTHER_SELLER_ID,
         title: 'Plums',
         produceType: 'fruit',
         pricePerOz: '0.40',
@@ -363,8 +372,8 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
 
       expect(firstItem).toHaveProperty('id');
       expect(firstItem).toHaveProperty('name', 'Plums');
-      expect(firstItem).toHaveProperty('sellerName', 'Integration Seller');
-      expect(firstItem).toHaveProperty('sellerId', TEST_USER_ID);
+      expect(firstItem).toHaveProperty('sellerName', 'Mapped Seller');
+      expect(firstItem).toHaveProperty('sellerId', OTHER_SELLER_ID);
       expect(firstItem).toHaveProperty('price', '0.40');
       expect(firstItem).toHaveProperty('amount', '300.00');
       expect(firstItem).toHaveProperty('availableBy');
@@ -375,6 +384,17 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     });
 
     it('GET /api/produce/list should fall back to authUser profile location if lat/lng are missing', async () => {
+      await testDb.insert(users).values({
+        id: TEST_BUYER_ID,
+        name: 'Integration Buyer',
+        email: 'buyer.api@example.com',
+        passwordHash: 'secret_hash',
+        lat: 45.0,
+        lng: -90.0,
+        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        stripeOnboardingComplete: false,
+      });
+
       await testDb.insert(produce).values({
         sellerId: TEST_USER_ID,
         title: 'Plums',
@@ -388,13 +408,12 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
         status: 'active',
       });
 
-      // Omit lat & lng query parameters, but pass authenticated context
-      const res = await authedRequest('/api/produce/list?limit=10', {}, { id: TEST_USER_ID });
+      const res = await authedRequest('/api/produce/list?limit=10', {}, { id: TEST_BUYER_ID });
 
       expect(res.status).toBe(200);
       const { data } = await res.json();
       expect(data.length).toBe(1);
-      // Distance is dynamically calculated using user's profile location (-90.0, 45.0)
+      expect(data[0].sellerId).toBe(TEST_USER_ID);
       expect(data[0].distance).not.toBeNull();
       expect(typeof data[0].distance).toBe('number');
     });
@@ -423,12 +442,23 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
 
     it('GET /api/produce/list should filter by delivery capability when requested', async () => {
       const NO_DELIVERY_USER = 'no_delivery_user';
-      await testDb.insert(users).values({
-        id: NO_DELIVERY_USER,
-        name: 'No Delivery Seller',
-        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
-        deliveryRangeMiles: '0',
-      });
+      const BUYER_USER_ID = 'delivery_test_buyer';
+
+      await testDb.insert(users).values([
+        {
+          id: BUYER_USER_ID,
+          name: 'Delivery Buyer',
+          email: 'delivery.buyer@example.com',
+          location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        },
+        {
+          id: NO_DELIVERY_USER,
+          name: 'No Delivery Seller',
+          location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+          deliveryRangeMiles: '0',
+          stripeOnboardingComplete: true,
+        },
+      ]);
 
       await testDb.insert(produce).values([
         {
@@ -458,7 +488,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       const res = await authedRequest(
         '/api/produce/list?lat=45.0&lng=-90.0&hasDelivery=true',
         {},
-        { id: TEST_USER_ID },
+        { id: BUYER_USER_ID },
       );
 
       const { data } = await res.json();
@@ -469,14 +499,23 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
 
     it('GET /api/produce/list should filter by sellerId when requested', async () => {
       const OTHER_USER_ID = 'other_seller_user_id';
+      const BUYER_ID = 'filter_test_buyer_id';
 
-      await testDb.insert(users).values({
-        id: OTHER_USER_ID,
-        name: 'Other Seller',
-        email: 'other@example.com',
-        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
-        stripeOnboardingComplete: true,
-      });
+      await testDb.insert(users).values([
+        {
+          id: OTHER_USER_ID,
+          name: 'Other Seller',
+          email: 'other@example.com',
+          location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+          stripeOnboardingComplete: true,
+        },
+        {
+          id: BUYER_ID,
+          name: 'Filter Buyer',
+          email: 'filter.buyer@example.com',
+          location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        },
+      ]);
 
       await testDb.insert(produce).values([
         {
@@ -508,7 +547,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       const res = await authedRequest(
         `/api/produce/list?lat=45.0&lng=-90.0&sellerId=${TEST_USER_ID}`,
         {},
-        { id: TEST_USER_ID },
+        { id: BUYER_ID },
       );
 
       expect(res.status).toBe(200);
@@ -518,6 +557,84 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(data).toHaveLength(1);
       expect(data[0].sellerId).toBe(TEST_USER_ID);
       expect(data[0].name).toBe('User A Carrots');
+    });
+
+    it('GET /api/produce/list should exclude the authenticated user’s own listings', async () => {
+      const OTHER_USER_ID = 'other_seller_user_id';
+
+      await testDb.insert(users).values({
+        id: OTHER_USER_ID,
+        name: 'Other Seller',
+        email: 'other@example.com',
+        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        stripeOnboardingComplete: true,
+      });
+
+      await testDb.insert(produce).values([
+        {
+          sellerId: TEST_USER_ID,
+          title: 'Own Seller Produce',
+          produceType: 'fruit',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          availableBy: new Date(),
+          status: 'active',
+        },
+        {
+          sellerId: OTHER_USER_ID,
+          title: 'Other Seller Produce',
+          produceType: 'fruit',
+          pricePerOz: '0.60',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 7,
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          availableBy: new Date(),
+          status: 'active',
+        },
+      ]);
+
+      const res = await authedRequest(
+        '/api/produce/list?lat=45.0&lng=-90.0&limit=10',
+        {},
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const { data, meta } = await res.json();
+
+      expect(meta.total).toBe(1);
+      expect(data).toHaveLength(1);
+      expect(data[0].sellerId).toBe(OTHER_USER_ID);
+      expect(data[0].name).toBe('Other Seller Produce');
+    });
+
+    it('GET /api/produce/list should include listings for unauthenticated requests', async () => {
+      await testDb.insert(produce).values({
+        sellerId: TEST_USER_ID,
+        title: 'Public Listing Apples',
+        produceType: 'fruit',
+        pricePerOz: '0.50',
+        totalOzInventory: '100',
+        harvestFrequencyDays: 7,
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        availableBy: new Date(),
+        status: 'active',
+      });
+
+      const res = await request('/api/produce/list?lat=45.0&lng=-90.0&limit=10');
+
+      expect(res.status).toBe(200);
+      const { data, meta } = await res.json();
+
+      expect(meta.total).toBe(1);
+      expect(data).toHaveLength(1);
+      expect(data[0].sellerId).toBe(TEST_USER_ID);
+      expect(data[0].name).toBe('Public Listing Apples');
     });
   });
 
@@ -535,9 +652,23 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
     });
 
     it('should return 200 and correctly grouped sellers with extended schema fields', async () => {
+      const MAP_SELLER_ID = 'map_seller_user_id';
+
+      await testDb.insert(users).values({
+        id: MAP_SELLER_ID,
+        name: 'Map Seller',
+        email: 'map.seller@example.com',
+        passwordHash: 'secret_hash',
+        lat: 45.0,
+        lng: -90.0,
+        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        deliveryRangeMiles: '20',
+        stripeOnboardingComplete: true,
+      });
+
       await testDb.insert(produce).values([
         {
-          sellerId: TEST_USER_ID,
+          sellerId: MAP_SELLER_ID,
           title: 'Map Apples',
           produceType: 'fruit',
           pricePerOz: '0.50',
@@ -551,7 +682,7 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
           isSubscribable: true,
         },
         {
-          sellerId: TEST_USER_ID,
+          sellerId: MAP_SELLER_ID,
           title: 'Map Carrots',
           produceType: 'root_vegetables',
           pricePerOz: '0.25',
@@ -579,8 +710,8 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(body).toHaveLength(1);
 
       const sellerGroup = body[0];
-      expect(sellerGroup).toHaveProperty('sellerId', TEST_USER_ID);
-      expect(sellerGroup).toHaveProperty('name', 'Integration Seller');
+      expect(sellerGroup).toHaveProperty('sellerId', MAP_SELLER_ID);
+      expect(sellerGroup).toHaveProperty('name', 'Map Seller');
       expect(sellerGroup).toHaveProperty('lat', 45.0);
       expect(sellerGroup).toHaveProperty('lng', -90.0);
       expect(sellerGroup.produce).toHaveLength(2);
@@ -603,6 +734,85 @@ describe('Produce API Integration', { timeout: 60_000 }, () => {
       expect(carrotItem.price).toMatch(/0\.25?/);
       expect(carrotItem.isSubscribable).toBe(false);
       expect(carrotItem.type).toBe('root_vegetables');
+    });
+
+    it('should exclude the authenticated user’s own listings from map groups', async () => {
+      const OTHER_USER_ID = 'other_map_seller_id';
+
+      await testDb.insert(users).values({
+        id: OTHER_USER_ID,
+        name: 'Other Map Seller',
+        email: 'other.map@example.com',
+        location: sql`ST_SetSRID(ST_MakePoint(-90.0, 45.0), 4326)`,
+        stripeOnboardingComplete: true,
+      });
+
+      await testDb.insert(produce).values([
+        {
+          sellerId: TEST_USER_ID,
+          title: 'My Map Produce',
+          produceType: 'fruit',
+          pricePerOz: '0.50',
+          totalOzInventory: '100',
+          harvestFrequencyDays: 1,
+          availableBy: new Date('2024-05-01T00:00:00Z'),
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+        },
+        {
+          sellerId: OTHER_USER_ID,
+          title: 'Neighbor Map Produce',
+          produceType: 'fruit',
+          pricePerOz: '0.45',
+          totalOzInventory: '150',
+          harvestFrequencyDays: 1,
+          availableBy: new Date('2024-05-01T00:00:00Z'),
+          seasonStart: '2024-01-01',
+          seasonEnd: '2024-12-31',
+          status: 'active',
+        },
+      ]);
+
+      const res = await authedRequest(
+        '/api/produce/map?lat=45.0&lng=-90.0&radiusMiles=10',
+        {},
+        { id: TEST_USER_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(1);
+      expect(body[0].sellerId).toBe(OTHER_USER_ID);
+      expect(body[0].produce).toHaveLength(1);
+      expect(body[0].produce[0].name).toBe('Neighbor Map Produce');
+    });
+
+    it('should include listings on /map for unauthenticated requests', async () => {
+      await testDb.insert(produce).values({
+        sellerId: TEST_USER_ID,
+        title: 'Unauthed Map Produce',
+        produceType: 'fruit',
+        pricePerOz: '0.50',
+        totalOzInventory: '100',
+        harvestFrequencyDays: 1,
+        availableBy: new Date('2024-05-01T00:00:00Z'),
+        seasonStart: '2024-01-01',
+        seasonEnd: '2024-12-31',
+        status: 'active',
+      });
+
+      const res = await request('/api/produce/map?lat=45.0&lng=-90.0&radiusMiles=10');
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(1);
+      expect(body[0].sellerId).toBe(TEST_USER_ID);
+      expect(body[0].produce[0].name).toBe('Unauthed Map Produce');
     });
   });
 

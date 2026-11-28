@@ -457,6 +457,35 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
       expect(result[0].sellerId).toBe(TEST_SELLER_ID);
       expect(result[0].name).toContain('Joe Carrots');
     });
+
+    it('should exclude the current user’s own listings when excludeSellerId is provided', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        excludeSellerId: TEST_SELLER_ID,
+        limit: 10,
+        offset: 0,
+      });
+
+      // Bob is excluded (incomplete Stripe) and Joe is excluded (excludeSellerId)
+      expect(total).toBe(1);
+      expect(result).toHaveLength(1);
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+      expect(result[0].name).toContain('Jane Carrots');
+    });
+
+    it('should return all eligible listings when excludeSellerId is omitted', async () => {
+      const { items: result, total } = await produceRepository.getList({
+        lat: 43.0,
+        lng: -89.4,
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(total).toBe(2);
+      expect(result).toHaveLength(2);
+      expect(result.map((r: any) => r.sellerId)).toEqual([TEST_SELLER_ID, OTHER_SELLER_ID]);
+    });
   });
 
   it('should return undefined when retrieving a non-existent produce ID', async () => {
@@ -646,6 +675,30 @@ describe('ProduceRepository - Integration', { timeout: 120_000 }, () => {
       // Bob's location matches Madison, but Stripe is incomplete
       const bobItems = result.filter((r: any) => r.sellerId === INCOMPLETE_SELLER_ID);
       expect(bobItems).toHaveLength(0);
+    });
+
+    it('should exclude the current user’s own listings when excludeSellerId is provided', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 42.0,
+        lng: -88.0,
+        radiusMiles: 500,
+        excludeSellerId: TEST_SELLER_ID,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].sellerId).toBe(OTHER_SELLER_ID);
+      expect(result[0].name).toBe('Jane Apples');
+    });
+
+    it('should return empty results when the only matching listing belongs to excludeSellerId', async () => {
+      const result = await produceRepository.getMapItems({
+        lat: 43.0731,
+        lng: -89.4012,
+        radiusMiles: 10,
+        excludeSellerId: TEST_SELLER_ID,
+      });
+
+      expect(result).toHaveLength(0);
     });
   });
 

@@ -56,6 +56,8 @@ produceRoute.openapi(
   }),
   async (c) => {
     const query = c.req.valid('query');
+    const authUser = await getAuthUser(c);
+    const userId = authUser?.session?.user?.id;
 
     const log = c.get('logger').child({
       action: 'getProduceMap',
@@ -80,6 +82,7 @@ produceRoute.openapi(
       hasDelivery: query.hasDelivery,
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,
+      excludeSellerId: userId,
     });
 
     return c.json(items, 200);
@@ -113,23 +116,22 @@ produceRoute.openapi(
 
     log.debug({ search: query.search, page: query.page }, 'Fetching paginated produce list');
 
+    const authUser = await getAuthUser(c);
+    const userId = authUser?.session?.user?.id;
+
     var lat = query.lat;
     var lng = query.lng;
-    if (!lat || !lng) {
-      const authUser = await getAuthUser(c);
-      const userId = authUser?.session?.user?.id;
-
-      if (userId) {
-        const userProfile = await getCurrentUser(userId, log);
-        lat = userProfile.lat ?? undefined;
-        lng = userProfile.lng ?? undefined;
-      }
+    if ((!lat || !lng) && userId) {
+      const userProfile = await getCurrentUser(userId, log);
+      lat = userProfile.lat ?? undefined;
+      lng = userProfile.lng ?? undefined;
     }
 
     const paginatedItems = await getProduceList({
       lat: lat,
       lng: lng,
       sellerId: query.sellerId,
+      excludeSellerId: userId,
       sortBy: query.sortBy,
       hasDelivery: query.hasDelivery,
       produceType: query.produceType,
